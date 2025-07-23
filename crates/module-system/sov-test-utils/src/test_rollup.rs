@@ -477,7 +477,6 @@ where
                 max_allowed_node_distance_behind: self.config.max_allowed_node_distance_behind,
                 // Set ttl to zero to disable for testing. This prevents nondeterminism.
                 dropped_tx_ttl_secs: 0,
-                da_address: self.da_config.sender_address,
                 rollup_address: FromStr::from_str(&self.config.sequencer_address)
                     .expect("Sequencer address is not valid"),
                 admin_addresses: vec![],

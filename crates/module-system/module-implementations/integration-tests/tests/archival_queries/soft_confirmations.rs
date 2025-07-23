@@ -67,7 +67,7 @@ async fn archival_queries_soft_confirmations() {
     let deferred_slots_count: u64 = config_value!("DEFERRED_SLOTS_COUNT");
 
     let init_time = runner
-        .query_api_unwrap_data::<ApiGetStateData<Time>>(
+        .query_api_response::<ApiGetStateData<Time>>(
             &ApiPath::query_module("chain-state").with_default_state_path("time"),
             &client,
         )
@@ -101,7 +101,7 @@ async fn archival_queries_soft_confirmations() {
 
         // Using the API without the rollup height parameter should return the value at the current visible height
         let time = runner
-            .query_api_unwrap_data::<ApiGetStateData<Time>>(
+            .query_api_response::<ApiGetStateData<Time>>(
                 &ApiPath::query_module("chain-state").with_default_state_path("time"),
                 &client,
             )
@@ -114,7 +114,7 @@ async fn archival_queries_soft_confirmations() {
         // We query the visible height from the rollup state and we try to query the time at the same height and
         // see if we get the same time as without the visible height parameter
         let visible_slot_number = runner
-            .query_api_unwrap_data::<ApiGetStateData<u64>>(
+            .query_api_response::<ApiGetStateData<u64>>(
                 &ApiPath::query_module("chain-state")
                     .with_default_state_path("next-visible-rollup-height"),
                 &client,
@@ -126,7 +126,7 @@ async fn archival_queries_soft_confirmations() {
         assert_eq!(visible_slot_number, 0);
 
         let time_visible_slot_number = runner
-            .query_api_unwrap_data::<ApiGetStateData<Time>>(
+            .query_api_response::<ApiGetStateData<Time>>(
                 &ApiPath::query_module("chain-state")
                     .with_default_state_path("time")
                     .with_rollup_height(visible_slot_number),
@@ -140,7 +140,7 @@ async fn archival_queries_soft_confirmations() {
 
         // We can query any height using the API with the rollup height parameter
         let current_time = runner
-            .query_api_unwrap_data::<ApiGetStateData<Time>>(
+            .query_api_response::<ApiGetStateData<Time>>(
                 &ApiPath::query_module("chain-state")
                     .with_default_state_path("time")
                     .with_rollup_height(i),
@@ -167,7 +167,7 @@ async fn archival_queries_soft_confirmations() {
         .unwrap();
 
     let current_time_api = runner
-        .query_api_unwrap_data::<ApiGetStateData<Time>>(
+        .query_api_response::<ApiGetStateData<Time>>(
             &ApiPath::query_module("chain-state").with_default_state_path("time"),
             &client,
         )
@@ -176,7 +176,7 @@ async fn archival_queries_soft_confirmations() {
         .unwrap();
 
     let time_height_0 = runner
-        .query_api_unwrap_data::<ApiGetStateData<Time>>(
+        .query_api_response::<ApiGetStateData<Time>>(
             &ApiPath::query_module("chain-state")
                 .with_default_state_path("time")
                 .with_rollup_height(0),
@@ -241,7 +241,7 @@ async fn intermediary_state_queries_soft_confirmations() {
 
         // Using the API without the rollup height parameter should return the value at the current visible height
         let time = runner
-            .query_api_unwrap_data::<ApiGetStateData<Time>>(
+            .query_api_response::<ApiGetStateData<Time>>(
                 &ApiPath::query_module("chain-state")
                     .with_default_state_path("time")
                     .with_rollup_height(i),
@@ -283,7 +283,7 @@ async fn query_versioned_vector() {
 
     // We can query the slot number 1 because the visible height is 1.
     let api_slot_height_1 = runner
-        .query_api_unwrap_data::<ApiGetStateData<SlotInformation<S>>>(
+        .query_api_response::<ApiGetStateData<SlotInformation<S>>>(
             &ApiPath::query_module("chain-state")
                 .with_default_state_path("slots")
                 .get_item_number(1),
@@ -320,7 +320,7 @@ async fn query_versioned_vector() {
 
     // But we can query the slot number 2 at height `deferred_slots_count`.
     let api_slot_height_2 = runner
-        .query_api_unwrap_data::<ApiGetStateData<SlotInformation<S>>>(
+        .query_api_response::<ApiGetStateData<SlotInformation<S>>>(
             &ApiPath::query_module("chain-state")
                 .with_default_state_path("slots")
                 .get_item_number(2)

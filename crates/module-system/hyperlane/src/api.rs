@@ -1,6 +1,9 @@
+use axum::response::{IntoResponse, Response};
 use axum::routing::get;
+use axum::Json;
 use serde::Serialize;
 use sov_bank::{config_gas_token_id, Amount};
+use sov_modules_api::prelude::serde_json::json;
 use sov_modules_api::prelude::utoipa::openapi::OpenApi;
 use sov_modules_api::prelude::{axum, UnwrapInfallible};
 use sov_modules_api::rest::utils::{errors, ApiResult, Path, Query};
@@ -71,27 +74,28 @@ impl<S: Spec, R: Recipient<S>> Mailbox<S, R> {
     async fn get_nonce(
         state: ApiState<S, Self>,
         mut accessor: ApiStateAccessor<S>,
-    ) -> ApiResult<u32> {
+    ) -> impl IntoResponse {
         let nonce = state
             .dispatch_state
             .get(&mut accessor)
             .unwrap_infallible()
             .map(|dispatch_state| dispatch_state.nonce)
             .unwrap_or_default();
-        Ok(nonce.into())
+        Json(json!({"nonce": nonce}))
     }
 
     async fn get_recipient_ism(
         state: ApiState<S, Self>,
         Path(address): Path<HexHash>,
         mut accessor: ApiStateAccessor<S>,
-    ) -> ApiResult<u8> {
+    ) -> Result<Response, Response> {
         let ism = state
             .recipients
             .ism(&address, &mut accessor)
             .map_err(|_| errors::not_found_404("Mailbox", address))?
             .ok_or_else(|| errors::not_found_404("Mailbox", address))?;
-        Ok((ism.ism_kind() as u8).into())
+        let ism_kind = ism.ism_kind() as u8;
+        Ok(Json(json!({"ism_kind": ism_kind})).into_response())
     }
 
     async fn get_recipient_ism_validators_and_threshold(
@@ -155,7 +159,6 @@ impl<S: Spec, R: Recipient<S>> Mailbox<S, R> {
             token_id: config_gas_token_id().to_string(),
         };
 
-        let response = response.into();
-        Ok(response)
+        Ok(response.into())
     }
 }

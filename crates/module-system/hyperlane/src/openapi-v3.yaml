@@ -10,8 +10,8 @@ paths:
       operationId: "hyperlane_mailbox_nonce"
       tags: [Mailbox]
       responses:
-        '200':
-          $ref: '#/components/responses/NonceResponse'
+        "200":
+          $ref: "#/components/responses/NonceResponse"
   /recipient-ism/{hyperlane-address}:
     get:
       summary: Fetch the type of ISM used by the recipient with a given address
@@ -22,13 +22,13 @@ paths:
           in: path
           required: true
           schema:
-            $ref: '#/components/schemas/HyperlaneAddress'
+            $ref: "#/components/schemas/HyperlaneAddress"
       responses:
-        '200':
-          $ref: '#/components/responses/RecipientIsmResponse'
-        '404':
+        "200":
+          $ref: "#/components/responses/RecipientIsmResponse"
+        "404":
           # Referring type from `runtime-base.yaml`
-          $ref: '#/components/responses/StateNotFound'
+          $ref: "#/components/responses/StateNotFound"
   /recipient-ism/{hyperlane-address}/validators_and_threshold:
     get:
       summary: Fetch the multisig configuration of MessageIdMultisig ISM
@@ -39,15 +39,15 @@ paths:
           in: path
           required: true
           schema:
-            $ref: '#/components/schemas/HyperlaneAddress'
+            $ref: "#/components/schemas/HyperlaneAddress"
       responses:
-        '200':
-          $ref: '#/components/responses/ValidatorsAndThresholdResponse'
+        "200":
+          $ref: "#/components/responses/ValidatorsAndThresholdResponse"
         # Referring types from `runtime-base.yaml`
-        '400':
-          $ref: '#/components/responses/BadRequestResponse'
-        '404':
-          $ref: '#/components/responses/StateNotFound'
+        "400":
+          $ref: "#/components/responses/BadRequestResponse"
+        "404":
+          $ref: "#/components/responses/StateNotFound"
   /quote-dispatch:
     get:
       summary: Get the estimated gas price for relaying message
@@ -75,8 +75,8 @@ paths:
             type: integer
             format: uint128
       responses:
-        '200':
-          $ref: '#/components/responses/QuoteDispatchResponse'
+        "200":
+          $ref: "#/components/responses/QuoteDispatchResponse"
 
 components:
   schemas:
@@ -108,8 +108,6 @@ components:
         threshold:
           type: integer
           description: Multisig threshold
-    Meta:
-      type: object
     TokenId:
       type: string
       pattern: "^token_1[02-9ac-hj-np-z]+$"
@@ -130,27 +128,29 @@ components:
       content:
         application/json:
           schema:
-            type: integer
+            type: object
+            properties:
+              nonce:
+                type: integer
+                description: Nonce
     RecipientIsmResponse:
       description: Type of the ISM the recipient uses
       content:
         application/json:
           schema:
-            $ref: '#/components/schemas/IsmKind'
+            type: object
+            properties:
+              ism_kind:
+                $ref: "#/components/schemas/IsmKind"
     ValidatorsAndThresholdResponse:
       description: Validators and threshold configuration of MessageIdMultisig(5) ISM
       content:
         application/json:
           schema:
-            $ref: '#/components/schemas/ValidatorsAndThreshold'
+            $ref: "#/components/schemas/ValidatorsAndThreshold"
     QuoteDispatchResponse:
       description: OK
       content:
         application/json:
           schema:
-            type: object
-            properties:
-              meta:
-                $ref: '#/components/schemas/Meta'
-              data:
-                $ref: '#/components/schemas/Coins'
+            $ref: "#/components/schemas/Coins"

@@ -8,7 +8,7 @@ use serde::{Deserialize, Serialize};
 use serde_with::{serde_as, DisplayFromStr};
 use sov_universal_wallet::schema::safe_string::SafeString;
 use sov_universal_wallet::schema::{
-    ChainData, IndexLinking, Item, Link, Primitive, RollupRoots, Schema, SchemaGenerator,
+    ChainData, IndexLinking, Item, Link, Primitive, RollupRoots, Schema, UniversalWallet,
 };
 use sov_universal_wallet::UniversalWallet;
 
@@ -46,7 +46,7 @@ macro_rules! encode_decode_tests {
 }
 
 pub trait Spec {
-    type Address: SchemaGenerator;
+    type Address: UniversalWallet;
 }
 
 #[derive(Debug, PartialEq, Eq, Serialize, Deserialize, Clone)]
@@ -749,7 +749,7 @@ pub struct StringWrapper(pub SafeString);
 pub struct SchemalessStringWrapper(pub SafeString);
 
 #[cfg(test)]
-impl SchemaGenerator for SchemalessStringWrapper {
+impl UniversalWallet for SchemalessStringWrapper {
     fn scaffold() -> Item<IndexLinking> {
         Item::Atom(Primitive::String)
     }
@@ -790,7 +790,7 @@ pub enum TestCallRec<T> {
     // #[serde(skip)]
     #[allow(unused)]
     // We need this variant to test the schema generation of recursive types even though we don't construct it
-    Complex(#[sov_wallet(bound = "Box<T>: SchemaGenerator")] Box<ComplexRec<T>>),
+    Complex(#[sov_wallet(bound = "Box<T>: UniversalWallet")] Box<ComplexRec<T>>),
     // Complex(Box<ComplexRec<T>>),
 }
 
@@ -801,7 +801,7 @@ pub enum TestCallStructRec<T> {
     Withdraw(Box<T>),
     #[allow(unused)]
     Complex {
-        #[sov_wallet(bound = "Box<T>: SchemaGenerator")]
+        #[sov_wallet(bound = "Box<T>: UniversalWallet")]
         rec_field: Box<ComplexRec<T>>,
     },
 }

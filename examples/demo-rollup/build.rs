@@ -1,18 +1,14 @@
 use std::fs::File;
 use std::io::{self, Write};
-use std::os::unix::process::ExitStatusExt;
-use std::process::{Command, ExitStatus};
+use std::process::Command;
 
 use demo_stf::runtime::{Runtime, RuntimeCall};
 use sov_address::MultiAddressEvm;
 use sov_mock_da::MockDaSpec;
 use sov_mock_zkvm::MockZkvm;
 use sov_modules_api::execution_mode::Native;
-use sov_modules_api::macros::config_value;
 use sov_modules_api::schemars::schema_for;
-use sov_modules_api::transaction::{Transaction, UnsignedTransaction};
-use sov_modules_api::Address;
-use sov_universal_wallet::schema::{ChainData, Schema};
+use sov_zkvm_utils::should_skip_guest_build;
 
 type S = sov_modules_api::configurable_spec::ConfigurableSpec<
     MockDaSpec,
@@ -35,36 +31,15 @@ fn main() -> io::Result<()> {
     println!("cargo::rerun-if-env-changed=SKIP_GUEST_BUILD");
     println!("cargo::rerun-if-env-changed=SOV_PROVER_MODE");
     println!("cargo::rustc-check-cfg=cfg(skip_guest_build)");
-
     println!("cargo:rerun-if-changed=NULL");
 
-    let is_risczero_installed = Command::new("cargo")
-        .args(["risczero", "help"])
-        .status()
-        .unwrap_or(ExitStatus::from_raw(1)); // If we can't execute the command, assume risczero isn't installed since duplicate install attempts are no-ops.
-
-    if !is_risczero_installed.success() {
-        // If installation fails, just exit silently. The user can try again.
-        let _ = Command::new("cargo")
-            .args(["install", "cargo-risczero"])
-            .status();
-    }
-
-    let skip_guest_build = std::env::var("SKIP_GUEST_BUILD").unwrap_or_else(|_| "0".to_string());
-    if skip_guest_build == "1" {
+    // It will be true only if SKIP_GUEST_BUILD is 1 or true
+    if should_skip_guest_build("any-zkvm") {
         println!("cargo::rustc-cfg=skip_guest_build");
     }
 
-    let schema = Schema::of_rollup_types_with_chain_data::<
-        Transaction<Runtime<S>, S>,
-        UnsignedTransaction<Runtime<S>, S>,
-        RuntimeCall<S>,
-        Address,
-    >(ChainData {
-        chain_id: config_value!("CHAIN_ID"),
-        chain_name: config_value!("CHAIN_NAME").to_string(),
-    })
-    .unwrap();
+    let schema = sov_modules_api::runtime::get_runtime_schema::<S, Runtime<S>>()
+        .expect("Failed to get schema");
 
     let schema_json_string = serde_json::to_string_pretty(&schema)?;
     let mut json_file = File::create("demo-rollup-schema.json")?;

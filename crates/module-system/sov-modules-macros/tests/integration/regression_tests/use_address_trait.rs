@@ -4,7 +4,7 @@
 
 use sov_modules_api::{BasicAddress, ModuleId, ModuleInfo, Spec};
 
-#[derive(ModuleInfo)]
+#[derive(Clone, ModuleInfo)]
 struct TestModule<S: Spec> {
     #[id]
     id: ModuleId,

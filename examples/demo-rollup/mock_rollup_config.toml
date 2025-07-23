@@ -6,7 +6,7 @@
 connection_string = "sqlite://mock_da.sqlite?mode=rwc"
 # String representation of sequencer address.
 # For initial full node should match genesis of sequencer-registry.
-# It is going to be a DA address that blobs from this node will be associated.
+# It is going to be a DA address that blobs from this node will be associated with.
 sender_address = "0000000000000000000000000000000000000000000000000000000000000000"
 finalization = 40
 [da.block_producing.periodic]
@@ -64,7 +64,6 @@ blob_processing_timeout_secs = 3000
 max_batch_size_bytes = 1048576
 max_concurrent_blobs = 128
 max_allowed_node_distance_behind = 10
-da_address = "0000000000000000000000000000000000000000000000000000000000000000"
 rollup_address = "sov1lzkjgdaz08su3yevqu6ceywufl35se9f33kztu5cu2spja5hyyf"
 [sequencer.preferred]
 # TODO: Remove it when https://github.com/Sovereign-Labs/sovereign-sdk-wip/issues/2814 is resolved

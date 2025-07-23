@@ -434,6 +434,10 @@ impl DaService for CelestiaService {
         )
         .await
     }
+
+    async fn get_signer(&self) -> <Self::Spec as DaSpec>::Address {
+        self.signer_address.clone()
+    }
 }
 
 pub(crate) fn extract_relevant_blobs(

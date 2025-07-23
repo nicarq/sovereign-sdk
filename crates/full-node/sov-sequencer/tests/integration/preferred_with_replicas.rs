@@ -60,7 +60,11 @@ async fn create_test_rollups(
 
     let test_rollups = new_test_rollup::<TestRuntime<TestSpec>>(
         dir.clone(),
-        genesis_params.runtime.sequencer_registry.seq_da_address,
+        genesis_params
+            .runtime
+            .sequencer_registry
+            .sequencer_config
+            .seq_da_address,
         genesis_params,
         TEST_FINALIZATION_BLOCKS,
         0,
@@ -160,7 +164,7 @@ async fn identify_master_and_replicas(
     let mut master_count = 0;
 
     for (i, node) in all_nodes.iter().enumerate() {
-        let is_master = node.api_client.is_master().await?.into_inner().data;
+        let is_master = node.api_client.is_master().await?.into_inner();
         if is_master {
             master_idx = Some(i);
             master_count += 1;
@@ -189,7 +193,7 @@ async fn test_master_election() {
     let (mut master, mut _state) = setup_test_rollup_with_initial_state(master, &admin).await;
 
     for iteration in 1..=4 {
-        let old_master_node_id = master.api_client.node_id().await.unwrap().into_inner().data;
+        let old_master_node_id = master.api_client.node_id().await.unwrap().into_inner();
 
         // Shutdown current master and get builder for restart
         let master_builder = master.shutdown().await.unwrap();
@@ -204,13 +208,7 @@ async fn test_master_election() {
         let (new_master, new_replicas) = identify_master_and_replicas(old_master, replicas)
             .await
             .unwrap();
-        let new_master_node_id = new_master
-            .api_client
-            .node_id()
-            .await
-            .unwrap()
-            .into_inner()
-            .data;
+        let new_master_node_id = new_master.api_client.node_id().await.unwrap().into_inner();
 
         assert_ne!(
             old_master_node_id, new_master_node_id,

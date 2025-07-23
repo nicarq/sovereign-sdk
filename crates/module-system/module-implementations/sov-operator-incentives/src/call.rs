@@ -1,29 +1,17 @@
 use anyhow::Result;
 use schemars::JsonSchema;
-use sov_modules_api::macros::UniversalWallet;
+use sov_modules_api::macros::{serialize, UniversalWallet};
 use sov_modules_api::{Context, Spec, TxState};
 use strum::{EnumDiscriminants, EnumIs, EnumIter, VariantArray};
 
 use crate::OperatorIncentives;
 
 /// This enumeration represents the available call messages for interacting with the sov-operator-incentives module.
-#[derive(
-    borsh::BorshDeserialize,
-    borsh::BorshSerialize,
-    serde::Serialize,
-    serde::Deserialize,
-    Debug,
-    PartialEq,
-    Eq,
-    Clone,
-    JsonSchema,
-    EnumDiscriminants,
-    EnumIs,
-    UniversalWallet,
-)]
+#[derive(Debug, PartialEq, Eq, Clone, JsonSchema, EnumDiscriminants, EnumIs, UniversalWallet)]
+#[serialize(Borsh, Serde)]
 #[schemars(bound = "S::Address: ::schemars::JsonSchema", rename = "CallMessage")]
-#[serde(rename_all = "snake_case")]
 #[strum_discriminants(derive(VariantArray, EnumIs, EnumIter))]
+#[serde(rename_all = "snake_case")]
 pub enum CallMessage<S: Spec> {
     UpdateRewardAddress {
         /// The new address that will receive rewards for operating the rollup.

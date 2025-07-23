@@ -124,7 +124,9 @@ impl<InnerVm: Zkvm, OuterVm: Zkvm, Da: DaSpec> StateTransitionFunction<InnerVm, 
         let mut hasher = sha2::Sha256::new();
 
         let hash_key = HashStf::hash_key();
-        let existing_cache = pre_state.get::<User>(&hash_key, None, &witness).unwrap();
+        let existing_cache = pre_state
+            .get_historical::<User>(&hash_key, None, &witness)
+            .unwrap();
         tracing::debug!(
             pre_state_root = hex::encode(pre_state_root),
             existing_cache = hex::encode(existing_cache.value()),

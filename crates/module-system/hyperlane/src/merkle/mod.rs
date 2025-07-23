@@ -4,8 +4,8 @@ use sov_bank::Amount;
 #[cfg(feature = "native")]
 use sov_modules_api::prelude::tracing::{self, instrument};
 use sov_modules_api::{
-    BorrowedMut, Context, DaSpec, Error, EventEmitter, GenesisState, HexHash, HexString, Module,
-    ModuleId, ModuleInfo, ModuleRestApi, Spec, StateValue, TxState,
+    BorrowedMut, Context, DaSpec, EventEmitter, GenesisState, HexHash, HexString, Module, ModuleId,
+    ModuleInfo, ModuleRestApi, Spec, StateValue, TxState,
 };
 use tree::MerkleTree;
 
@@ -44,10 +44,8 @@ impl<S: Spec> Module for MerkleTreeHook<S> {
         _genesis_rollup_header: &<<S as Spec>::Da as DaSpec>::BlockHeader,
         _config: &Self::Config,
         state: &mut impl GenesisState<S>,
-    ) -> Result<(), Error> {
-        self.tree
-            .set(&MerkleTree::default(), state)
-            .map_err(|e| anyhow::anyhow!(e))?;
+    ) -> anyhow::Result<()> {
+        self.tree.set(&MerkleTree::default(), state)?;
         Ok(())
     }
 
@@ -56,7 +54,7 @@ impl<S: Spec> Module for MerkleTreeHook<S> {
         _msg: Self::CallMessage,
         _context: &Context<S>,
         _state: &mut impl TxState<S>,
-    ) -> Result<(), Error> {
+    ) -> anyhow::Result<()> {
         Ok(())
     }
 }

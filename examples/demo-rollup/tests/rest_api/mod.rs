@@ -3,7 +3,7 @@ use std::time::Duration;
 
 use anyhow::Context;
 use demo_stf::runtime::{Runtime, RuntimeCall};
-use demo_stf_json_client::types::{RuntimeAnyJsonValue, RuntimeErrorContainer};
+use demo_stf_json_client::types::{RuntimeAnyJsonValue, RuntimeError};
 use demo_stf_json_client::Error;
 use futures::StreamExt;
 use serde::Deserialize;
@@ -11,7 +11,6 @@ use sov_bank::config_gas_token_id;
 use sov_cli::wallet_state::PrivateKeyAndAddress;
 use sov_demo_rollup::{mock_da_risc0_host_args, MockDemoRollup};
 use sov_modules_api::execution_mode::Native;
-use sov_modules_api::rest::utils::ResponseObject;
 use sov_modules_api::OperatingMode;
 use sov_test_utils::test_rollup::{read_private_key, RollupBuilder};
 use sov_test_utils::{
@@ -42,21 +41,21 @@ async fn trailing_slashes_handled() -> anyhow::Result<()> {
 
     let response = test_rollup
         .client
-        .query_rest_endpoint::<ResponseObject<ValueResponse>>(
+        .query_rest_endpoint::<ValueResponse>(
             "/modules/attester-incentives/state/minimum-challenger-bond",
         )
         .await?;
 
-    let bond = response.data.unwrap().value;
+    let bond = response.value;
 
     let response = test_rollup
         .client
-        .query_rest_endpoint::<ResponseObject<ValueResponse>>(
+        .query_rest_endpoint::<ValueResponse>(
             "/modules/attester-incentives/state/minimum-challenger-bond/",
         )
         .await?;
 
-    assert_eq!(Some(bond), response.data.map(|d| d.value));
+    assert_eq!(bond, response.value);
 
     let swagger_ui_url_1 = test_rollup.client.http_get("/swagger-ui").await?;
     let swagger_ui_url_2 = test_rollup.client.http_get("/swagger-ui/").await?;
@@ -135,7 +134,7 @@ async fn flaky_test_runtime_spec_with_gen_client() -> anyhow::Result<()> {
 async fn check_base_runtime_info(client: &demo_stf_json_client::Client) -> anyhow::Result<()> {
     //Get the list of modules
     let modules = client.get_modules().await.context("Modules list")?;
-    let modules = modules.data.clone().unwrap().modules.unwrap().0;
+    let modules = modules.clone().modules.unwrap().0;
 
     // There are some modules, but to make test break less we have loose check that some data has been put in the response.
     assert!(modules.len() > 5);
@@ -147,7 +146,7 @@ async fn check_base_runtime_info(client: &demo_stf_json_client::Client) -> anyho
         .get_module("bank")
         .await
         .context("Bank module info")?;
-    let bank_module_info = bank_module_info.data.clone().unwrap();
+    let bank_module_info = bank_module_info.clone();
     let module_name = bank_module_info.name.unwrap();
     assert_eq!("Bank", module_name);
     assert!(bank_module_info.id.unwrap().starts_with("module_1"));
@@ -192,7 +191,7 @@ async fn check_state_value(client: &demo_stf_json_client::Client) -> anyhow::Res
     let finality_period = client
         .attester_incentives_rollup_finality_period_get_state_value(None, None)
         .await?;
-    let finality_period = if let RuntimeAnyJsonValue::Object(inner) = &finality_period.data {
+    let finality_period = if let RuntimeAnyJsonValue::Object(inner) = &**finality_period {
         let value = inner
             .get("value")
             .cloned()
@@ -201,7 +200,7 @@ async fn check_state_value(client: &demo_stf_json_client::Client) -> anyhow::Res
     } else {
         panic!(
             "Unexpected type of finality period response: {:?}",
-            &finality_period.data
+            &finality_period
         );
     };
     assert!(finality_period >= 1);
@@ -212,12 +211,11 @@ async fn check_state_map(client: &demo_stf_json_client::Client) -> anyhow::Resul
     // State Map meta info
     let meta_info = client
         .sequencer_registry_known_sequencers_get_state_map_info(None, None)
-        .await?;
+        .await?
+        .into_inner();
 
-    let meta_info = meta_info.data.clone();
-
-    assert!(!meta_info.description.unwrap().is_empty());
-    assert!(meta_info.prefix.unwrap().starts_with("0x"));
+    assert!(!meta_info.description.clone().unwrap().is_empty());
+    assert!(meta_info.prefix.clone().unwrap().starts_with("0x"));
     assert_eq!(Some("state_map"), meta_info.type_.as_deref());
     assert_eq!(
         Some(demo_stf_json_client::types::Namespace::Kernel),
@@ -231,7 +229,7 @@ async fn check_state_vec(client: &demo_stf_json_client::Client) -> anyhow::Resul
         .synthetic_load_very_large_vec_get_state_vec_info(None, None)
         .await
         .context("vector info")?;
-    let info = state_vec_info.data.clone().length.unwrap();
+    let info = state_vec_info.clone().length.unwrap();
     assert_eq!(1000, info);
 
     let state_vec_element_0 = client
@@ -247,9 +245,9 @@ async fn check_state_vec(client: &demo_stf_json_client::Client) -> anyhow::Resul
         .await
         .context("last element")?;
 
-    let value_0_json = state_vec_element_0.data.clone().value;
-    let value_1_json = state_vec_element_1.data.clone().value;
-    let value_last_json = state_vec_element_last.data.clone().value;
+    let value_0_json = state_vec_element_0.clone().value;
+    let value_1_json = state_vec_element_1.clone().value;
+    let value_last_json = state_vec_element_last.clone().value;
 
     match (value_0_json, value_1_json, value_last_json) {
         (
@@ -286,10 +284,10 @@ async fn check_state_vec(client: &demo_stf_json_client::Client) -> anyhow::Resul
 async fn check_custom_endpoints(client: &demo_stf_json_client::Client) -> anyhow::Result<()> {
     let gas_token_id =
         demo_stf_json_client::types::TokenId::from_str(&config_gas_token_id().to_string())?;
-    let total_gas_supply = client
+    let coins = client
         .bank_custom_token_get_total_supply(&gas_token_id)
-        .await?;
-    let coins = total_gas_supply.data.clone().unwrap();
+        .await?
+        .into_inner();
     let amount = coins.amount.unwrap().parse::<u128>()?;
     assert!(amount > 100);
 
@@ -319,7 +317,7 @@ async fn check_historical_data(client: &demo_stf_json_client::Client) -> anyhow:
     let state_vec_info = client
         .synthetic_load_very_large_vec_get_state_vec_info(Some(0), None)
         .await?;
-    let info = state_vec_info.data.clone().length.unwrap();
+    let info = state_vec_info.length.unwrap();
     assert_eq!(1000, info);
 
     // StateVec info non existing in the future.
@@ -342,36 +340,28 @@ async fn check_historical_data(client: &demo_stf_json_client::Client) -> anyhow:
     check_not_found_error(
         state_vec_element_response,
         "invalid rollup height",
-        "message",
+        "error",
         "Impossible to get the rollup state at the specified height. Please ensure you have queried the correct height.",
     );
     Ok(())
 }
 
 fn check_not_found_error(
-    credential_id_response: demo_stf_json_client::Error<RuntimeErrorContainer>,
+    credential_id_response: demo_stf_json_client::Error<RuntimeError>,
     expected_title: &str,
     expected_details_key: &str,
     expected_key: &str,
 ) {
     match credential_id_response {
-        demo_stf_json_client::Error::ErrorResponse(inner_err) => {
-            assert_eq!(1, inner_err.errors.len());
-            let error = inner_err.errors.first().unwrap();
-
-            assert_eq!(expected_title, error.title);
+        demo_stf_json_client::Error::ErrorResponse(error) => {
+            assert_eq!(expected_title, error.message);
             assert_eq!(404, error.status);
-            match &error.details {
-                RuntimeAnyJsonValue::Object(details) => {
-                    assert_eq!(1, details.len());
-                    assert!(details.contains_key(expected_details_key));
-                    assert_eq!(
-                        Some(serde_json::Value::String(expected_key.to_string())),
-                        details.get(expected_details_key).cloned()
-                    );
-                }
-                _ => panic!("unexpected details type: {:?}", error.details),
-            }
+            assert_eq!(1, error.details.len());
+            assert!(error.details.contains_key(expected_details_key));
+            assert_eq!(
+                Some(serde_json::Value::String(expected_key.to_string())),
+                error.details.get(expected_details_key).cloned()
+            );
         }
         _ => {
             panic!("Unexpected error response: {credential_id_response:?}")

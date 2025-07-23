@@ -737,7 +737,6 @@
       ],
       "required": [
         "blob_processing_timeout_secs",
-        "da_address",
         "max_allowed_node_distance_behind",
         "max_batch_size_bytes",
         "max_concurrent_blobs",
@@ -761,14 +760,6 @@
           "type": "integer",
           "format": "uint64",
           "minimum": 0.0
-        },
-        "da_address": {
-          "description": "DA address of the sequencer.",
-          "allOf": [
-            {
-              "$ref": "#/definitions/MockAddress"
-            }
-          ]
         },
         "dropped_tx_ttl_secs": {
           "description": "For how many seconds the sequencer keeps track of dropped transactions after being done with them.\n\nLarger values result in higher memory usage, but better tx status tracking for users.",

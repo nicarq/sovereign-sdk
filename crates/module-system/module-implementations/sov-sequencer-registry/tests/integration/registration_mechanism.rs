@@ -150,6 +150,58 @@ fn test_new_sequencer_registration() {
 }
 
 #[test]
+fn test_registration_bond_too_small() {
+    let (
+        TestRoles {
+            additional_sequencer,
+            ..
+        },
+        mut runner,
+    ) = setup();
+
+    let seq_address = additional_sequencer.address();
+    let amount_to_register = Amount::new(100);
+
+    runner.execute_transaction(TransactionTestCase {
+        input: additional_sequencer.create_plain_message::<RT, TestSequencerRegistry>(
+            sov_sequencer_registry::CallMessage::Register {
+                da_address: NON_DEFAULT_SEQUENCER_DA_ADDRESS.into(),
+                amount: amount_to_register,
+            },
+        ),
+        assert: Box::new(move |result, _state| match &result.tx_receipt {
+            TxEffect::Reverted(reason) => {
+                assert_eq!(
+                    reason.reason,
+                    ModuleError(
+                        TestSequencerRegistryError::InsufficientStakeAmount {
+                            address: seq_address,
+                            bond_amount: amount_to_register,
+                            minimum_bond_amount: Amount::new(1000)
+                        }
+                        .into(),
+                    ),
+                    "Transaction reverted, but with unexpected reason"
+                );
+            }
+            unexpected => panic!("Expected transaction to revert, but got: {unexpected:?}"),
+        }),
+    });
+
+    let amount_to_register = Amount::new(1000);
+
+    runner.execute_transaction(TransactionTestCase {
+        input: additional_sequencer.create_plain_message::<RT, TestSequencerRegistry>(
+            sov_sequencer_registry::CallMessage::Register {
+                da_address: NON_DEFAULT_SEQUENCER_DA_ADDRESS.into(),
+                amount: amount_to_register,
+            },
+        ),
+        assert: Box::new(move |result, _state| assert!(result.tx_receipt.is_successful())),
+    });
+}
+
+#[test]
 fn test_registration_not_enough_funds() {
     let (
         TestRoles {

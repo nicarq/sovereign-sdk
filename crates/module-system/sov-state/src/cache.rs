@@ -3,10 +3,10 @@
 use std::collections::hash_map::Entry;
 use std::mem;
 
-use sov_rollup_interface::common::SlotNumber;
-
 use crate::namespaces::ProvableCompileTimeNamespace;
 use crate::storage::{SlotKey, SlotValue, Storage};
+#[cfg(feature = "native")]
+use crate::NativeStorage;
 use crate::{NodeLeaf, NodeLeafAndMaybeValue, ReadType};
 
 /// An enum that represents the temperature of a value in the storage.
@@ -283,18 +283,38 @@ impl<N: ProvableCompileTimeNamespace> ProvableStorageCache<N> {
     }
 
     /// Get the size of the value.
-    pub fn get_size_or_fetch<S: Storage>(
+    #[cfg(feature = "native")]
+    pub fn get_size_or_fetch_historical<S: Storage + NativeStorage>(
         &mut self,
         key: &SlotKey,
         storage: &S,
         witness: &S::Witness,
-        version: Option<SlotNumber>,
+        version: Option<sov_rollup_interface::common::SlotNumber>,
     ) -> Option<u32> {
         match self.cache.get(key) {
             Some(Access::Read { original }) => original.as_ref().map(|node| node.leaf.size),
             Some(Access::Write { modified }) => modified.as_ref().map(SlotValue::size),
             None => {
-                let maybe_leaf = storage.get_leaf::<N>(key, version, witness);
+                let maybe_leaf = storage.get_leaf_historical::<N>(key, version, witness);
+                let size = maybe_leaf.as_ref().map(|leaf| leaf.leaf.size);
+                self.add_read(key.clone(), maybe_leaf);
+                size
+            }
+        }
+    }
+
+    /// Get the size of the value.
+    pub fn get_size_or_fetch<S: Storage>(
+        &mut self,
+        key: &SlotKey,
+        storage: &S,
+        witness: &S::Witness,
+    ) -> Option<u32> {
+        match self.cache.get(key) {
+            Some(Access::Read { original }) => original.as_ref().map(|node| node.leaf.size),
+            Some(Access::Write { modified }) => modified.as_ref().map(SlotValue::size),
+            None => {
+                let maybe_leaf = storage.get_leaf::<N>(key, witness);
                 let size = maybe_leaf.as_ref().map(|leaf| leaf.leaf.size);
                 self.add_read(key.clone(), maybe_leaf);
                 size
@@ -308,16 +328,34 @@ impl<N: ProvableCompileTimeNamespace> ProvableStorageCache<N> {
         key: &SlotKey,
         storage: &S,
         witness: &S::Witness,
-        version: Option<SlotNumber>,
     ) -> Option<SlotValue> {
+        self.get_or_fetch_with_fn(
+            key,
+            storage,
+            witness,
+            |key, witness, _args| storage.get::<N>(key, witness),
+            (),
+        )
+    }
+
+    fn get_or_fetch_with_fn<S: Storage, F, Args>(
+        &mut self,
+        key: &SlotKey,
+        storage: &S,
+        witness: &S::Witness,
+        fetch_fn: F,
+        args: Args,
+    ) -> Option<SlotValue>
+    where
+        F: Fn(&SlotKey, &S::Witness, Args) -> Option<SlotValue>,
+    {
         if let Some(access) = self.cache.get_mut(key) {
             match access {
                 Access::Read {
                     original: Some(node),
                 } => match node.value.clone() {
                     ReadType::GetSizeValueNotFetched => {
-                        let slot_value = storage
-                            .get::<N>(key, version, witness)
+                        let slot_value = fetch_fn(key, witness, args)
                             // This unwrap is justified because in the `ReadType::GetSizeValueFetched` branch,
                             // we inserted `Some(slot_value)`.
                             .unwrap_or_else(|| {
@@ -342,7 +380,7 @@ impl<N: ProvableCompileTimeNamespace> ProvableStorageCache<N> {
                 Access::Write { modified } => modified.clone(),
             }
         } else {
-            let storage_value = storage.get::<N>(key, version, witness);
+            let storage_value = fetch_fn(key, witness, args);
             let read = storage_value.clone().map(|v| NodeLeafAndMaybeValue {
                 leaf: NodeLeaf::make_leaf::<S::Hasher>(&v),
                 value: ReadType::Read(v),
@@ -350,6 +388,26 @@ impl<N: ProvableCompileTimeNamespace> ProvableStorageCache<N> {
             self.add_read(key.clone(), read);
             storage_value
         }
+    }
+
+    #[cfg(feature = "native")]
+    /// Gets a value from the cache or reads it from the provided `ValueReader`.
+    pub fn get_or_fetch_historical<S: Storage + NativeStorage>(
+        &mut self,
+        key: &SlotKey,
+        storage: &S,
+        witness: &S::Witness,
+        version: Option<sov_rollup_interface::common::SlotNumber>,
+    ) -> Option<SlotValue> {
+        self.get_or_fetch_with_fn(
+            key,
+            storage,
+            witness,
+            |key, witness, version: Option<sov_rollup_interface::common::SlotNumber>| {
+                storage.get_historical::<N>(key, version, witness)
+            },
+            version,
+        )
     }
 
     /// Replaces the keyed value on the storage.

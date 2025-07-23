@@ -8,7 +8,6 @@ use sov_rollup_interface::common::HexHash;
 use sov_rollup_interface::da::{BlobReaderTrait, BlockHeaderTrait};
 use sov_rollup_interface::node::da::{DaService, SlotData};
 
-use crate::verifier::address::CelestiaAddress;
 use crate::CelestiaService;
 
 // Using standard hasher, because it is enough for checking uniqueness of blobs data.
@@ -30,10 +29,10 @@ fn hash_bytes(bytes: &[u8]) -> u64 {
 /// 6. Confirms that all sent blobs were received intact with matching hashes. Skips blobs from other senders.
 async fn check_blobs_roundtrip(
     da_service: &CelestiaService,
-    sender: &CelestiaAddress,
     blobs: &[Vec<u8>],
 ) -> anyhow::Result<()> {
     let mut sent_blobs: HashMap<u64, HexHash> = HashMap::with_capacity(blobs.len());
+    let sender = da_service.get_signer().await;
 
     let head_before = da_service.get_head_block_header().await?;
     // Padding from the previous round
@@ -76,7 +75,7 @@ async fn check_blobs_roundtrip(
         );
 
         for mut batch in received_blobs.batch_blobs {
-            if batch.sender() != *sender {
+            if batch.sender() != sender {
                 continue;
             }
 
@@ -112,11 +111,7 @@ async fn check_blobs_roundtrip(
 }
 
 /// Check that CelestiaService can submit and receive blobs properly.
-pub async fn check_da_service(
-    da_service: &CelestiaService,
-    sender: &CelestiaAddress,
-    rounds: usize,
-) -> anyhow::Result<()> {
+pub async fn check_da_service(da_service: &CelestiaService, rounds: usize) -> anyhow::Result<()> {
     if rounds == 0 {
         anyhow::bail!("Cannot run test with 0 rounds");
     }
@@ -187,7 +182,7 @@ pub async fn check_da_service(
             blobs_cumulative_size
         );
 
-        check_blobs_roundtrip(da_service, sender, &blobs).await?;
+        check_blobs_roundtrip(da_service, &blobs).await?;
         tracing::info!("Round {} complete", i + 1);
     }
 

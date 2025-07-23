@@ -19,6 +19,7 @@
 - sov-api-spec
 - sov-revenue-share
 - sov-rollup-apis
+- sov-zkvm-utils
 
 # Modules
 - sov-accounts

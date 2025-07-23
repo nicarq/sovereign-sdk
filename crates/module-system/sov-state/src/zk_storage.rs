@@ -11,6 +11,8 @@ use crate::jmt::KeyHash;
 use crate::namespaces::CompileTimeNamespace;
 use crate::storage::{SlotKey, SlotValue, Storage, StorageProof};
 use crate::storage_internals::SparseMerkleProof;
+#[cfg(feature = "test-utils")]
+use crate::ProvableCompileTimeNamespace;
 use crate::{
     open_merkle_proof, MerkleProofSpec, NodeLeafAndMaybeValue, ProvableNamespace, ReadType,
     StateRoot, StorageRoot, Witness,
@@ -153,7 +155,6 @@ impl<S: MerkleProofSpec> Storage for ZkStorage<S> {
     fn get_leaf<N: CompileTimeNamespace>(
         &self,
         _key: &SlotKey,
-        _version: Option<SlotNumber>,
         witness: &Self::Witness,
     ) -> Option<NodeLeafAndMaybeValue> {
         let leaf = witness.get_hint::<Option<NodeLeafAndMaybeValue>>()?;
@@ -166,7 +167,6 @@ impl<S: MerkleProofSpec> Storage for ZkStorage<S> {
     fn get<N: CompileTimeNamespace>(
         &self,
         _key: &SlotKey,
-        _version: Option<SlotNumber>,
         witness: &Self::Witness,
     ) -> Option<SlotValue> {
         witness.get_hint()
@@ -227,6 +227,24 @@ impl<S: MerkleProofSpec> crate::storage::NativeStorage for ZkStorage<S> {
 
     fn get_root_hash(&self, version: SlotNumber) -> anyhow::Result<Self::Root> {
         self.get_root_hash_unbound(version)
+    }
+
+    fn get_historical<N: ProvableCompileTimeNamespace>(
+        &self,
+        _key: &SlotKey,
+        _version: Option<SlotNumber>,
+        _witness: &Self::Witness,
+    ) -> Option<SlotValue> {
+        unimplemented!("The ZkStorage does not support `get_historical`! The NativeStorage trait is only implemented to allow for the use of the ZkStorage in tests.");
+    }
+
+    fn get_leaf_historical<N: ProvableCompileTimeNamespace>(
+        &self,
+        _key: &SlotKey,
+        _version: Option<SlotNumber>,
+        _witness: &Self::Witness,
+    ) -> Option<NodeLeafAndMaybeValue> {
+        unimplemented!("The ZkStorage does not support `get_leaf_historical`! The NativeStorage trait is only implemented to allow for the use of the ZkStorage in tests.");
     }
 
     fn get_root_hash_unbound(&self, _version: SlotNumber) -> anyhow::Result<Self::Root> {

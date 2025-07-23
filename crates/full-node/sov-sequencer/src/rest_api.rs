@@ -225,7 +225,7 @@ impl<Seq: Sequencer> SequencerApis<Seq> {
         })?;
         if let Some(tx) = tx {
             let tx: ApiAcceptedTx<_> = tx.into();
-            Ok(sov_rest_utils::ResponseObject::from(tx))
+            Ok(tx.into())
         } else {
             Err(errors::not_found_404("Transaction", tx_hash.0))
         }

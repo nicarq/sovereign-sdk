@@ -2,8 +2,7 @@ use sov_chain_state::ChainState;
 use sov_modules_api::prelude::UnwrapInfallible;
 use sov_modules_api::{
     AccessoryStateReaderAndWriter, AccessoryStateVec, BlockHooks, Context, DaSpec, FinalizeHook,
-    GenesisState, Module, ModuleError, ModuleId, ModuleInfo, Spec, StateCheckpoint, StateVec,
-    TxState,
+    GenesisState, Module, ModuleId, ModuleInfo, Spec, StateCheckpoint, StateVec, TxState,
 };
 use sov_modules_stf_blueprint::Runtime;
 use sov_state::Storage;
@@ -47,7 +46,7 @@ impl<S: Spec> Module for TestVisibleHashModule<S> {
 
         _config: &Self::Config,
         _state: &mut impl GenesisState<S>,
-    ) -> Result<(), ModuleError> {
+    ) -> anyhow::Result<()> {
         Ok(())
     }
 
@@ -56,7 +55,7 @@ impl<S: Spec> Module for TestVisibleHashModule<S> {
         _msg: Self::CallMessage,
         _context: &Context<Self::Spec>,
         _state: &mut impl TxState<S>,
-    ) -> Result<(), ModuleError> {
+    ) -> anyhow::Result<()> {
         Ok(())
     }
 }

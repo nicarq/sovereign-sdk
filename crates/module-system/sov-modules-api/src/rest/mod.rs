@@ -133,7 +133,7 @@ impl<M: ModuleInfo> HasRestApi<M::Spec> for &M {
 /// #        _msg: Self::CallMessage,
 /// #        _context: &Context<Self::Spec>,
 /// #        _state: &mut impl sov_modules_api::state::TxState<S>,
-/// #    ) -> Result<(), sov_modules_api::Error> {
+/// #    ) -> anyhow::Result<()> {
 /// #        unimplemented!()
 /// #    }
 /// # }
@@ -363,9 +363,9 @@ where
             .build_api_state_accessor(height_param)
             .map_err(|e| ErrorObject {
                 status: StatusCode::NOT_FOUND,
-                title: "invalid rollup height".to_string(),
+                message: "invalid rollup height".to_string(),
                 details: json_obj!({
-                    "message": e.to_string(),
+                    "error": e.to_string(),
                 }),
             })
     }

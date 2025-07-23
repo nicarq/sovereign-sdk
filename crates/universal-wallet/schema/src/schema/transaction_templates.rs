@@ -42,7 +42,7 @@ pub struct TransactionTemplate {
 
 impl TransactionTemplate {
     /// Construct a new template from one pre-encoded field.
-    /// Used during template generation (normally in the SchemaGenerator derive macro), at the
+    /// Used during template generation (normally in the UniversalWallet derive macro), at the
     /// leaf levels of recursive template definition.
     pub fn from_bytes(preencoded_bytes: Vec<u8>) -> Self {
         Self {
@@ -54,7 +54,7 @@ impl TransactionTemplate {
     /// Construct a new template from one input field, with a placeholder link type.
     /// While the offset gets fixed in `concat()`, the field_index has to be correct at
     /// construction time.
-    /// Used during template generation (normally in the SchemaGenerator derive macro), at the
+    /// Used during template generation (normally in the UniversalWallet derive macro), at the
     /// leaf levels of recursive template definition.
     pub fn from_input(name: String, field_index: usize) -> Self {
         Self {

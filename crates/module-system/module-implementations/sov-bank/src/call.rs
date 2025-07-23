@@ -1,6 +1,6 @@
 use anyhow::{bail, Context as _, Result};
 use schemars::JsonSchema;
-use sov_modules_api::macros::UniversalWallet;
+use sov_modules_api::macros::{serialize, UniversalWallet};
 use sov_modules_api::{
     Context, EventEmitter, SafeString, SafeVec, Spec, StateAccessor, StateReader, TxState,
 };
@@ -16,20 +16,8 @@ use crate::{Amount, Bank, Coins, Token, TokenId};
 pub const MAX_ADMINS: usize = 20;
 
 /// This enumeration represents the available call messages for interacting with the sov-bank module.
-#[derive(
-    borsh::BorshDeserialize,
-    borsh::BorshSerialize,
-    serde::Serialize,
-    serde::Deserialize,
-    Debug,
-    PartialEq,
-    Eq,
-    Clone,
-    JsonSchema,
-    EnumDiscriminants,
-    EnumIs,
-    UniversalWallet,
-)]
+#[derive(Debug, PartialEq, Eq, Clone, JsonSchema, UniversalWallet, EnumDiscriminants, EnumIs)]
+#[serialize(Borsh, Serde)]
 #[schemars(bound = "S::Address: ::schemars::JsonSchema", rename = "CallMessage")]
 #[serde(rename_all = "snake_case")]
 #[strum_discriminants(derive(VariantArray, EnumIs, EnumIter))]
@@ -78,6 +66,14 @@ pub enum CallMessage<S: Spec> {
     /// Freezes a token so that the supply is frozen
     Freeze {
         /// Address of the token to be frozen
+        token_id: TokenId,
+    },
+    /// Updates the list of admins for a specified token.
+    UpdateAdmin {
+        /// The new admin address.
+        /// If `None`, the current admin entry for the transaction sender will be removed.
+        new_admin: Option<S::Address>,
+        /// The ID of the token whose admin list is being updated.
         token_id: TokenId,
     },
 }
@@ -415,6 +411,25 @@ impl<S: Spec> Bank<S> {
             },
         );
 
+        Ok(())
+    }
+
+    /// Updates the admin list with the specified `new_admin`.
+    /// If `new_admin` is `None`, the sender of the transaction is removed from the admin list.
+    pub fn update_admin_address(
+        &mut self,
+        new_address: Option<S::Address>,
+        token_id: TokenId,
+        context: &Context<S>,
+        state: &mut impl TxState<S>,
+    ) -> Result<()> {
+        let mut token = self
+            .tokens
+            .get_or_err(&token_id, state)?
+            .with_context(|| format!("Failed to get token_id={}", &token_id))?;
+
+        token.update_admin(new_address, context.sender())?;
+        self.tokens.set(&token_id, &token, state)?;
         Ok(())
     }
 }

@@ -150,7 +150,7 @@ impl TestState {
             "Start gathering statuses"
         );
         let head_slot = client.get_latest_slot(None).await?;
-        let head_slot = head_slot.data.as_ref().unwrap().number;
+        let head_slot = head_slot.number;
         let wait_to = head_slot + config_deferred_slots_count() + 5;
         tracing::info!(current_head_slot = head_slot, wait_max_till_slot= %wait_to, "Start gathering all statuses");
         let mut last_tx_statuses: Vec<(HexHash, TxStatus)> =
@@ -194,7 +194,7 @@ impl TestState {
         // Gather non processed statuses
         for tx_hash in &self.txs_to_wait {
             let last_status_response = client.get_tx_status(&((*tx_hash).into())).await?;
-            let received_tx_status = last_status_response.data.clone().unwrap().status;
+            let received_tx_status = last_status_response.status;
             last_tx_statuses.push((*tx_hash, received_tx_status));
         }
         tracing::info!("All statuses are gathered");
@@ -234,7 +234,10 @@ async fn test_stream_of_transactions(
     .set_da_config(|da_config| {
         // We don't need to test restarts, so let's save disk accesses and file descriptors.
         da_config.connection_string = MockDaConfig::sqlite_in_memory();
-        da_config.sender_address = genesis_config.sequencer_registry.seq_da_address;
+        da_config.sender_address = genesis_config
+            .sequencer_registry
+            .sequencer_config
+            .seq_da_address;
         da_config.randomization = randomization_config;
     });
 
@@ -299,7 +302,7 @@ async fn test_stream_of_transactions(
                 accept_tx_response
             );
 
-            let tx_hash = HexHash::from_str(&accept_tx_response.data.clone().id)?;
+            let tx_hash = HexHash::from_str(&accept_tx_response.id)?;
             harness.add_tx_to_wait(tx_hash);
         }
         tracing::info!("Set of transactions sent, waiting for finalized header");

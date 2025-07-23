@@ -24,7 +24,6 @@ use sov_modules_api::capabilities::{ChainState as _, Kernel, RollupHeight};
 use sov_modules_api::da::Time;
 use sov_modules_api::prelude::utoipa::openapi::OpenApi;
 use sov_modules_api::prelude::UnwrapInfallible;
-use sov_modules_api::rest::utils::ResponseObject;
 use sov_modules_api::rest::{ApiState, HasRestApi};
 use sov_modules_api::{
     Amount, ApiStateAccessor, ApplySlotOutput, BlobReaderTrait, CryptoSpec, DaSpec, EncodeCall,
@@ -39,7 +38,7 @@ pub use sov_prover_incentives::{ProverIncentives, ProverIncentivesConfig};
 use sov_rollup_interface::common::SlotNumber;
 use sov_rollup_interface::da::RelevantBlobs;
 use sov_rollup_interface::stf::{ExecutionContext, StateTransitionFunction};
-pub use sov_sequencer_registry::{self, SequencerConfig, SequencerRegistry};
+pub use sov_sequencer_registry::{self, SequencerRegistry, SequencerRegistryConfig};
 use sov_state::{DefaultStorageSpec, Storage, StorageProof};
 pub use sov_uniqueness::Uniqueness;
 pub use sov_value_setter::{
@@ -474,6 +473,7 @@ where
 
         let sequencer_da_address =
             <RT as MinimalGenesis<S>>::sequencer_registry_config(&genesis_config.runtime)
+                .sequencer_config
                 .seq_da_address;
 
         let stf_state = storage_manager.create_prover_storage();
@@ -976,21 +976,12 @@ where
         &self,
         path: &ApiPath,
         client: &Client,
-    ) -> ResponseObject<T> {
+    ) -> T {
         self.query_api(path, client)
             .await
             .json()
             .await
             .expect("Impossible to deserialize the response to the expected format")
-    }
-
-    /// Sends a GET request to the API at the given path and returns the deserialized response to the expected format.
-    pub async fn query_api_unwrap_data<T: serde::de::DeserializeOwned>(
-        &self,
-        path: &ApiPath,
-        client: &Client,
-    ) -> T {
-        self.query_api_response(path, client).await.data.unwrap()
     }
 }
 

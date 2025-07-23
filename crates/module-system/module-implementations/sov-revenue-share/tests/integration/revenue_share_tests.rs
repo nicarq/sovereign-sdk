@@ -1,8 +1,6 @@
-use borsh::{BorshDeserialize, BorshSerialize};
 use schemars::JsonSchema;
-use serde::{Deserialize, Serialize};
 use sov_bank::{Amount, Bank, IntoPayable, TokenId};
-use sov_modules_api::macros::UniversalWallet;
+use sov_modules_api::macros::{serialize, UniversalWallet};
 use sov_modules_api::{Module, ModuleInfo, Spec};
 use sov_revenue_share::{
     CallMessage as RevenueShareCallMessage, GenesisConfig as RevenueShareGenesisConfig,
@@ -32,18 +30,9 @@ pub(crate) struct TestHelper<S: Spec> {
     pub revenue_share: RevenueShare<S>,
 }
 
-#[derive(
-    Clone,
-    BorshSerialize,
-    BorshDeserialize,
-    Debug,
-    Serialize,
-    Deserialize,
-    PartialEq,
-    Eq,
-    JsonSchema,
-    UniversalWallet,
-)]
+#[derive(Clone, Debug, PartialEq, Eq, JsonSchema, UniversalWallet)]
+#[serialize(Borsh, Serde)]
+#[schemars(bound = "S: Spec", rename = "TestHelperMessages")]
 pub enum TestHelperCallMessage<S: Spec> {
     PayRevenueShare {
         token_id: TokenId,
@@ -68,28 +57,25 @@ impl<S: Spec> Module for TestHelper<S> {
         msg: Self::CallMessage,
         _context: &sov_modules_api::Context<S>,
         state: &mut impl sov_modules_api::TxState<S>,
-    ) -> Result<(), sov_modules_api::ModuleError> {
+    ) -> anyhow::Result<()> {
         match msg {
             TestHelperCallMessage::PayRevenueShare {
                 token_id,
                 amount,
                 from,
-            } => {
-                self.revenue_share
-                    .pay_revenue_share(&from, token_id, amount, state)
-                    .map_err(sov_modules_api::ModuleError::ModuleError)?;
-                Ok(())
-            }
+            } => self
+                .revenue_share
+                .pay_revenue_share(&from, token_id, amount, state),
             TestHelperCallMessage::ComputeAndPayRevenueShare {
                 token_id,
                 total_revenue,
                 from,
-            } => {
-                self.revenue_share
-                    .compute_and_pay_revenue_share(&from, token_id, total_revenue, state)
-                    .map_err(sov_modules_api::ModuleError::ModuleError)?;
-                Ok(())
-            }
+            } => self.revenue_share.compute_and_pay_revenue_share(
+                &from,
+                token_id,
+                total_revenue,
+                state,
+            ),
         }
     }
 }

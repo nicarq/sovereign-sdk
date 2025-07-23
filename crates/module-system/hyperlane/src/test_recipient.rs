@@ -5,8 +5,8 @@ use schemars::JsonSchema;
 use serde::{Deserialize, Serialize};
 use sov_modules_api::macros::UniversalWallet;
 use sov_modules_api::{
-    Context, Error, EventEmitter, HexHash, HexString, Module, ModuleId, ModuleInfo, ModuleRestApi,
-    Spec, StateMap, StateValue, TxState,
+    Context, EventEmitter, HexHash, HexString, Module, ModuleId, ModuleInfo, ModuleRestApi, Spec,
+    StateMap, StateValue, TxState,
 };
 
 use crate::ism::Ism;
@@ -47,6 +47,7 @@ pub struct TestRecipient<S: Spec> {
     Serialize,
     Deserialize,
 )]
+#[schemars(bound = "S: Spec", rename = "Event")]
 pub enum Event<S: Spec> {
     /// A generic "message received" event when the sending chain is unknown
     MessageReceivedGeneric {
@@ -126,7 +127,7 @@ impl<S: Spec> Module for TestRecipient<S> {
         msg: Self::CallMessage,
         _context: &Context<Self::Spec>,
         state: &mut impl TxState<S>,
-    ) -> Result<(), Error> {
+    ) -> anyhow::Result<()> {
         match msg {
             CallMessage::Register { address, ism } => {
                 self.register(address, ism, state)?;

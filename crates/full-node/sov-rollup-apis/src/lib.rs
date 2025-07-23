@@ -13,7 +13,7 @@ use sov_modules_api::transaction::{Credentials, TxDetails};
 use sov_modules_api::{CryptoSpec, DaSpec, Gas, PublicKey, Spec, SyncStatus};
 pub use sov_modules_stf_blueprint::ApplyTxResult;
 use sov_modules_stf_blueprint::Runtime;
-use sov_rest_utils::{errors, preconfigured_router_layers, ApiResult, ResponseObject};
+use sov_rest_utils::{errors, preconfigured_router_layers, ApiResult};
 
 mod client_interface;
 
@@ -156,9 +156,9 @@ where
             sync_status_receiver,
             ..
         }): State<Self>,
-    ) -> ApiResult<SyncStatus> {
+    ) -> axum::Json<SyncStatus> {
         let sync_status = *sync_status_receiver.borrow();
-        Ok(ResponseObject::from(sync_status))
+        Json(sync_status)
     }
 
     /// Get the latest base fee per gas in the storage.
@@ -168,9 +168,7 @@ where
         }): State<Self>,
     ) -> ApiResult<GasPriceContainer<T::Spec>> {
         match T::get_latest_base_fee_per_gas(&state_update_recv) {
-            Ok(base_fee_per_gas) => {
-                Ok(ResponseObject::from(GasPriceContainer { base_fee_per_gas }))
-            }
+            Ok(base_fee_per_gas) => Ok(GasPriceContainer { base_fee_per_gas }.into()),
             Err(err) => Err(errors::database_error_response_500(err)),
         }
     }
@@ -193,12 +191,10 @@ where
         match T::simulate_execution(&state_update_recv, default_sequencer, default_sequencer_rollup_address, transaction) {
             Ok(apply_tx_result) =>
             {
-                let simulate_execution_response: types::SimulateExecutionResponse = SimulateExecutionContainer { apply_tx_result }.try_into()
+                let simulate_execution_response: SimulateExecutionResponse = SimulateExecutionContainer { apply_tx_result }.try_into()
                     .map_err(|err| errors::internal_server_error_response_500(format!("Internal server error: Failed to serialize response. Error {err}")))?;
 
-                let response = ResponseObject::from(simulate_execution_response);
-
-                Ok(response)
+                Ok(simulate_execution_response.into())
             }
 
             Err(err) => Err(errors::bad_request_400(

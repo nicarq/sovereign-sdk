@@ -33,7 +33,7 @@ impl StructDef<'_> {
 
             quote::quote!(
                 #enum_ident::#variant_ident(message) => {
-                    ::sov_modules_api::Module::call(&mut self.#field_ident, message, context, state)
+                    ::std::result::Result::Ok(::sov_modules_api::Module::call(&mut self.#field_ident, message, context, state)?)
                 },
             )
         });

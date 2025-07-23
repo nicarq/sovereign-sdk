@@ -40,9 +40,9 @@ type PathMap = Path<HashMap<String, NumberOrHash>>;
 fn bad_path_error(key: &str) -> Response {
     ErrorObject {
         status: StatusCode::BAD_REQUEST,
-        title: "Bad request".to_string(),
+        message: "Bad request".to_string(),
         details: json_obj!({
-            "message": format!("{} is missing or invalid", key),
+            "error": format!("{} is missing or invalid", key),
         }),
     }
     .into_response()

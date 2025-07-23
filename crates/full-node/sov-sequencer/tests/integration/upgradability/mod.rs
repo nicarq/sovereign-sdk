@@ -207,7 +207,6 @@ async fn rollup_operates_only_on_finalized_blocks_if_stop_at_height_set(finaliza
         .produce_n_blocks_now(10)
         .await
         .unwrap();
-
     tokio::time::sleep(Duration::from_millis(500)).await;
 
     let mut current_height = get_height(&client).await.unwrap();
@@ -216,7 +215,7 @@ async fn rollup_operates_only_on_finalized_blocks_if_stop_at_height_set(finaliza
         test_rollup.da_service.produce_block_now().await.unwrap();
         slot_subscription.next().await;
         // We need to wait a bit so the new block is visible to the sequencer.
-        tokio::time::sleep(Duration::from_millis(300)).await;
+        tokio::time::sleep(Duration::from_millis(500)).await;
         assert_rollup_processes_only_finalized_blocks(&client).await;
         current_height = get_height(&client).await.unwrap();
     }
@@ -232,7 +231,7 @@ async fn rollup_operates_only_on_finalized_blocks_if_stop_at_height_set(finaliza
 
     test_rollup.da_service.produce_block_now().await.unwrap();
     slot_subscription.next().await;
-    tokio::time::sleep(Duration::from_millis(300)).await;
+    tokio::time::sleep(Duration::from_millis(500)).await;
 
     test_rollup
         .wait_for_rollup_to_shutdown(Duration::from_secs(1))
@@ -308,15 +307,13 @@ async fn send_tx(
     admin: &TestUser<TestSpec>,
     nonce: u64,
     api_client: &sov_api_spec::Client,
-) -> Result<ResponseValue<types::AcceptTxResponse>, String> {
+) -> Result<ResponseValue<types::TxInfoWithConfirmation>, String> {
     let tx = tx_set_value(&admin.private_key, nonce, 8);
     let res = api_client.send_raw_tx_to_sequencer(&tx).await;
 
     match res {
         Ok(ok) => Ok(ok),
-        Err(sov_api_spec::Error::InvalidResponsePayload(bytes, _)) => {
-            Err(String::from_utf8_lossy(&bytes).to_string())
-        }
+        Err(sov_api_spec::Error::ErrorResponse(err)) => Err(err.into_inner().message),
         Err(err) => {
             panic!("Unexpected error: {err:?}")
         }
@@ -326,25 +323,15 @@ async fn send_tx(
 use serde::Deserialize;
 
 #[derive(Deserialize, Debug)]
-struct CurrentHeights {
-    data: Data,
-    #[allow(dead_code)]
-    meta: Meta,
-}
-
-#[derive(Deserialize, Debug)]
 struct Data {
     value: (u64, u64),
 }
 
-#[derive(Deserialize, Debug)]
-struct Meta {}
-
 async fn get_height(client: &NodeClient) -> anyhow::Result<RollupHeight> {
     let url = "/modules/chain-state/state/current-heights";
     let response = client.http_get(url).await?;
-    let heights: CurrentHeights = serde_json::from_str(&response)?;
-    Ok(RollupHeight::new(heights.data.value.0))
+    let heights: Data = serde_json::from_str(&response)?;
+    Ok(RollupHeight::new(heights.value.0))
 }
 
 async fn get_last_finalized_block_height(client: &NodeClient) -> u64 {
@@ -362,8 +349,8 @@ async fn get_block_height(client: &NodeClient, finalized: bool) -> u64 {
         "/ledger/slots/latest"
     };
     let response = client.http_get(url).await.unwrap();
-    let height: types::GetLatestSlotResponse = serde_json::from_str(&response).unwrap();
-    height.data.unwrap().number
+    let slot: types::Slot = serde_json::from_str(&response).unwrap();
+    slot.number
 }
 
 #[allow(clippy::too_many_arguments)]
@@ -400,7 +387,11 @@ async fn create_test_rollup(
     (
         new_test_rollup::<TestRuntime<TestSpec>>(
             dir.clone(),
-            genesis_params.runtime.sequencer_registry.seq_da_address,
+            genesis_params
+                .runtime
+                .sequencer_registry
+                .sequencer_config
+                .seq_da_address,
             genesis_params,
             finalization_blocks,
             minimum_profit_per_tx,

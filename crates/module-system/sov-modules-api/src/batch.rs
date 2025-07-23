@@ -120,6 +120,8 @@ impl SequencerBondForTx {
     }
 }
 
+const ID_SIZE: usize = 32;
+
 /// Contains raw transactions obtained from the DA blob.
 /// A Batch with its ID.
 #[derive(Clone, Debug, PartialEq, BorshSerialize, BorshDeserialize, Serialize, Deserialize)]
@@ -127,7 +129,7 @@ pub struct BatchWithId<S: Spec> {
     /// Batch of transactions.
     pub batch: Arc<Vec<FullyBakedTx>>,
     /// The ID of the batch, carried over from the DA layer. This is the hash of the blob which contained the batch.
-    pub id: [u8; 32],
+    pub id: [u8; ID_SIZE],
     /// The address of the sequencer that submitted the batch.
     pub sequencer_address: S::Address,
 }
@@ -142,9 +144,10 @@ impl<S: Spec> BatchWithId<S> {
         }
     }
 
-    /// The size of all the transactions in the batch in bytes.
-    pub fn batch_size(&self) -> usize {
-        self.batch.iter().map(|tx| tx.data.len()).sum()
+    /// The total size, in bytes, of all transactions and associated batch metadata.
+    pub fn batch_with_id_size(&self) -> usize {
+        let batch_size: usize = self.batch.iter().map(|tx| tx.data.len()).sum();
+        batch_size + ID_SIZE + self.sequencer_address.as_ref().len()
     }
 }
 
@@ -209,7 +212,7 @@ impl<S: Spec> BlobDataWithId<S, BatchWithId<S>> {
     /// The size of the blob in bytes.
     pub fn blob_size(&self) -> usize {
         match self {
-            BlobDataWithId::Batch(b) => b.batch_size(),
+            BlobDataWithId::Batch(b) => b.batch_with_id_size(),
             BlobDataWithId::Proof {
                 proof,
                 sequencer_address,
@@ -575,25 +578,49 @@ pub struct BatchSequencerReceipt<S: Spec> {
     pub outcome: BatchSequencerOutcome,
 }
 
-#[test]
-fn test_iterable_batch_with_id_remaining() {
+#[cfg(test)]
+mod tests {
     use sov_mock_da::MockDaSpec;
     use sov_mock_zkvm::MockZkvm;
 
+    use super::*;
     use crate::default_spec::DefaultSpec;
     use crate::execution_mode::Native;
+    use crate::Address;
     type TestSpec = DefaultSpec<MockDaSpec, MockZkvm, MockZkvm, Native>;
 
-    let batch = Arc::new(vec![FullyBakedTx::new(vec![]), FullyBakedTx::new(vec![])]);
-    let batch_with_id = BatchWithId::<TestSpec>::new(batch, [0; 32], [0; 28].into());
-    let mut batch_with_id = IterableBatchWithId::new(batch_with_id, NoOpControlFlow);
-    assert_eq!(batch_with_id.remaining(), 2);
-    batch_with_id.next();
-    assert_eq!(batch_with_id.remaining(), 1);
-    assert!(batch_with_id.next().is_some());
-    assert_eq!(batch_with_id.remaining(), 0);
-    assert!(batch_with_id.next().is_none());
-    assert_eq!(batch_with_id.remaining(), 0);
-    assert!(batch_with_id.next().is_none());
-    assert_eq!(batch_with_id.remaining(), 0);
+    #[test]
+    fn test_batch_with_id_size() {
+        let batch = Arc::new(vec![
+            FullyBakedTx::new(vec![1, 2, 3]), // size = 3
+            FullyBakedTx::new(vec![1]),       // size = 1
+        ]);
+        let id = [11; 32]; // size = 32
+        let sequencer_address = Address::new([22; 28]); // size = 28
+
+        let manually_calulated_batch_size = 3 + 1 + 32 + 28;
+
+        let batch_with_id = BatchWithId::<TestSpec>::new(batch, id, sequencer_address);
+
+        assert_eq!(
+            manually_calulated_batch_size,
+            batch_with_id.batch_with_id_size()
+        );
+    }
+
+    #[test]
+    fn test_iterable_batch_with_id_remaining() {
+        let batch = Arc::new(vec![FullyBakedTx::new(vec![]), FullyBakedTx::new(vec![])]);
+        let batch_with_id = BatchWithId::<TestSpec>::new(batch, [0; 32], [0; 28].into());
+        let mut batch_with_id = IterableBatchWithId::new(batch_with_id, NoOpControlFlow);
+        assert_eq!(batch_with_id.remaining(), 2);
+        batch_with_id.next();
+        assert_eq!(batch_with_id.remaining(), 1);
+        assert!(batch_with_id.next().is_some());
+        assert_eq!(batch_with_id.remaining(), 0);
+        assert!(batch_with_id.next().is_none());
+        assert_eq!(batch_with_id.remaining(), 0);
+        assert!(batch_with_id.next().is_none());
+        assert_eq!(batch_with_id.remaining(), 0);
+    }
 }

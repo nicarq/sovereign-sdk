@@ -2,7 +2,7 @@ use std::fmt::Debug;
 
 use anyhow::{bail, Result};
 use schemars::JsonSchema;
-use sov_modules_api::macros::UniversalWallet;
+use sov_modules_api::macros::{serialize, UniversalWallet};
 use sov_modules_api::safe_vec::CapacityError;
 use sov_modules_api::{Context, DaSpec, EventEmitter, Spec, TxState};
 
@@ -29,18 +29,8 @@ pub type PayeePolicyList<S: Spec, const LEN: usize = DEFAULT_SAFE_VEC_LEN> =
 /// These call messages are highly unusual in that they have different effects
 /// based on the address of the sequencer who places them on chain. See the docs
 /// on individual variants for more information.
-#[derive(
-    borsh::BorshDeserialize,
-    borsh::BorshSerialize,
-    Debug,
-    PartialEq,
-    Eq,
-    Clone,
-    serde::Serialize,
-    serde::Deserialize,
-    JsonSchema,
-    UniversalWallet,
-)]
+#[derive(Debug, PartialEq, Eq, Clone, JsonSchema, UniversalWallet)]
+#[serialize(Borsh, Serde)]
 #[serde(bound = "S: Spec", rename_all = "snake_case")]
 #[schemars(bound = "S: Spec", rename = "CallMessage")]
 pub enum CallMessage<S: Spec> {
@@ -70,20 +60,9 @@ pub enum CallMessage<S: Spec> {
 }
 
 /// An update to the policy of a single gas payer
-#[derive(
-    borsh::BorshDeserialize,
-    borsh::BorshSerialize,
-    Debug,
-    PartialEq,
-    Eq,
-    Clone,
-    serde::Serialize,
-    serde::Deserialize,
-    derivative::Derivative,
-    JsonSchema,
-    UniversalWallet,
-)]
-#[serde(bound = "S: Spec")]
+#[derive(Debug, PartialEq, Eq, Clone, derivative::Derivative, JsonSchema, UniversalWallet)]
+#[serialize(Borsh, Serde)]
+#[serde(bound = "S: Spec", rename_all = "snake_case")]
 #[schemars(bound = "S: Spec", rename = "CallMessage")]
 #[derivative(Default(bound = ""))]
 pub struct PolicyUpdate<S: Spec> {
@@ -187,19 +166,8 @@ impl<S: Spec> PolicyUpdate<S> {
 }
 
 /// An update to the allowed sequencer set for a gas payer.
-#[derive(
-    borsh::BorshDeserialize,
-    borsh::BorshSerialize,
-    Debug,
-    PartialEq,
-    Eq,
-    Clone,
-    serde::Serialize,
-    serde::Deserialize,
-    derivative::Derivative,
-    JsonSchema,
-    UniversalWallet,
-)]
+#[derive(Debug, PartialEq, Eq, Clone, derivative::Derivative, JsonSchema, UniversalWallet)]
+#[serialize(Borsh, Serde)]
 #[serde(bound = "Da: DaSpec", rename_all = "snake_case")]
 #[schemars(bound = "Da: DaSpec", rename = "SequencerUpdate")]
 pub enum SequencerSetUpdate<Da: DaSpec> {
@@ -211,20 +179,9 @@ pub enum SequencerSetUpdate<Da: DaSpec> {
 }
 
 /// A list of updates to the `allowed_sequencers` list for a particular payer.
-#[derive(
-    borsh::BorshDeserialize,
-    borsh::BorshSerialize,
-    Debug,
-    PartialEq,
-    Eq,
-    Clone,
-    serde::Serialize,
-    serde::Deserialize,
-    derivative::Derivative,
-    JsonSchema,
-    UniversalWallet,
-)]
-#[serde(bound = "Da: DaSpec")]
+#[derive(Debug, PartialEq, Eq, Clone, derivative::Derivative, JsonSchema, UniversalWallet)]
+#[serialize(Borsh, Serde)]
+#[serde(bound = "Da: DaSpec", rename_all = "snake_case")]
 #[schemars(bound = "Da: DaSpec", rename = "SequencerUpdateList")]
 #[derivative(Default(bound = ""))]
 pub struct AllowedSequencerUpdate<Da: DaSpec> {

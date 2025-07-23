@@ -1,23 +1,14 @@
+use sov_modules_api::macros::serialize;
 use sov_modules_api::Spec;
 
 use crate::utils::TokenHolder;
 use crate::{Amount, Coins, TokenId};
 
 /// Bank Event
-#[derive(
-    borsh::BorshDeserialize,
-    borsh::BorshSerialize,
-    serde::Serialize,
-    serde::Deserialize,
-    Debug,
-    PartialEq,
-    Clone,
-    schemars::JsonSchema,
-)]
-#[serde(
-    bound = "S::Address: serde::Serialize + serde::de::DeserializeOwned",
-    rename_all = "snake_case"
-)]
+#[derive(Debug, PartialEq, Clone, schemars::JsonSchema)]
+#[serialize(Borsh, Serde)]
+#[serde(bound = "S: Spec", rename_all = "snake_case")]
+#[schemars(bound = "S: Spec", rename = "Event")]
 pub enum Event<S: Spec> {
     /// Event for Token Creation
     TokenCreated {

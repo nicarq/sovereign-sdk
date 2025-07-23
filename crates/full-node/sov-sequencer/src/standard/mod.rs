@@ -82,7 +82,8 @@ where
     node_id: Uuid,
     checkpoint_sender: watch::Sender<StateCheckpoint<S>>,
     api_state: ApiState<S>,
-    config: SequencerConfig<S::Da, S::Address, StdSequencerConfig>,
+    da_address: <S::Da as DaSpec>::Address,
+    config: SequencerConfig<S::Address, StdSequencerConfig>,
     api_ledger_db: LedgerDb,
 }
 
@@ -113,7 +114,7 @@ where
         state_update_receiver: StateUpdateReceiver<S::Storage>,
         _da_sync_state: Arc<DaSyncState>,
         storage_path: &Path,
-        config: &SequencerConfig<S::Da, S::Address, StdSequencerConfig>,
+        config: &SequencerConfig<S::Address, StdSequencerConfig>,
         ledger_db: LedgerDb,
         api_ledger_db: LedgerDb,
         shutdown_sender: watch::Sender<()>,
@@ -138,6 +139,7 @@ where
         let checkpoint =
             StateCheckpoint::new(latest_state_update.storage.clone(), &runtime.kernel());
 
+        let da_address = da.get_signer().await;
         let (blob_sender, blob_sender_handle) = BlobSender::new(
             da,
             ledger_db.clone(),
@@ -176,6 +178,7 @@ where
             checkpoint_sender,
             config: config.clone(),
             api_ledger_db,
+            da_address,
         });
 
         handles.push(tokio::spawn({
@@ -247,7 +250,7 @@ where
             &self.runtime,
             message,
             &authz_data.default_address,
-            &self.config.da_address,
+            &self.da_address,
             &self.config.admin_addresses,
         ) {
             ctx.state_checkpoint = tx_scratchpad.revert();
@@ -267,7 +270,7 @@ where
             &<S::Gas>::MAX,
             auth_output,
             mempool_tx.tx.clone(),
-            &self.config.da_address,
+            &self.da_address,
             self.config.rollup_address.clone(),
             ExecutionContext::Sequencer,
             &NoOpControlFlow,
@@ -600,7 +603,7 @@ where
         if baked_tx.data.len() > self.max_batch_size_bytes().get() {
             return Err(ErrorObject {
                 status: StatusCode::PAYLOAD_TOO_LARGE,
-                title: "Transaction is too big".to_string(),
+                message: "Transaction is too big".to_string(),
                 details: json_obj!({
                     "max_allowed_size": self.max_batch_size_bytes(),
                     "submitted_size": baked_tx.data.len(),
@@ -651,9 +654,9 @@ where
                     Err(ErrorObject {
                         // Not enough gas, so 403 seems appropriate.
                         status: StatusCode::FORBIDDEN,
-                        title: "Not enough gas for pre-execution checks".to_string(),
+                        message: "Not enough gas for pre-execution checks".to_string(),
                         details: json_obj!({
-                            "message": err.to_string()
+                            "error": err.to_string()
                         }),
                     }),
                 );

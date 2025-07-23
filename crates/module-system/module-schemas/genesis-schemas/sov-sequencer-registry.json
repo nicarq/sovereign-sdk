@@ -1,7 +1,7 @@
 {
   "$schema": "http://json-schema.org/draft-07/schema#",
   "title": "SequencerConfig",
-  "description": "Genesis configuration for the [`SequencerRegistry`] module.\n\nThis `struct` must be passed as an argument to [`Module::genesis`](sov_modules_api::Module::genesis).",
+  "description": "The initial sequencer config.",
   "type": "object",
   "required": [
     "is_preferred_sequencer",

@@ -437,9 +437,9 @@ pub fn pre_exec_err_to_accept_tx_err(err: PreExecError) -> ErrorObject {
         PreExecError::SequencerError(error) => {
             ErrorObject {
                 status: StatusCode::SERVICE_UNAVAILABLE,
-                title: "The sequencer is currently unavailable; contact the administrator if the problem persists".to_string(),
+                message: "The sequencer is currently unavailable; contact the administrator if the problem persists".to_string(),
                 details: json_obj!({
-                    "message": error.to_string()
+                    "error": error.to_string()
                 })
             }
 
@@ -451,9 +451,9 @@ pub fn pre_exec_err_to_accept_tx_err(err: PreExecError) -> ErrorObject {
             // most appropriate status code... so 400 will do.
             ErrorObject {
                 status: StatusCode::BAD_REQUEST,
-                title: "The transaction is invalid".to_string(),
+                message: "The transaction is invalid".to_string(),
                 details: json_obj!({
-                    "message": error.to_string()
+                    "error": error.to_string()
                 })
             }
         },
@@ -463,9 +463,9 @@ pub fn pre_exec_err_to_accept_tx_err(err: PreExecError) -> ErrorObject {
 pub fn generic_accept_tx_error(details: impl std::fmt::Debug) -> ErrorObject {
     ErrorObject {
         status: StatusCode::BAD_REQUEST,
-        title: "The transaction is invalid".to_string(),
+        message: "The transaction is invalid".to_string(),
         details: json_obj!({
-            "message": format!("{:?}", details)
+            "error": format!("{:?}", details)
         }),
     }
 }
@@ -483,14 +483,14 @@ pub fn error_not_fully_synced(details: SequencerNotReadyDetails) -> ErrorObject 
             // We have to manually construct the error because `PreferredSequencerRecovering` is not an object, so `to_json_object` panics
             return ErrorObject {
                 status: StatusCode::SERVICE_UNAVAILABLE,
-                title: "The preferred sequencer is recovering from downtime and cannot provide soft-confirmations at this time; No new transactions can be accepted, try again later".to_string(),
+                message: "The preferred sequencer is recovering from downtime and cannot provide soft-confirmations at this time; No new transactions can be accepted, try again later".to_string(),
                 details: Default::default(),
             };
         }
         SequencerNotReadyDetails::Startup => {
             return ErrorObject {
                 status: StatusCode::SERVICE_UNAVAILABLE,
-                title: "The sequencer is still initializing and is not yet ready to accept transactions.".to_string(),
+                message: "The sequencer is still initializing and is not yet ready to accept transactions.".to_string(),
                 details: Default::default(),
             };
         }
@@ -501,21 +501,21 @@ pub fn error_not_fully_synced(details: SequencerNotReadyDetails) -> ErrorObject 
         } => {
             return ErrorObject {
                 status: StatusCode::SERVICE_UNAVAILABLE,
-                title: format!("The preferred sequencer has reached the stop height {height_to_stop_at} and is no longer accepting transactions. Current height: {current_height}").to_string(),
+                message: format!("The preferred sequencer has reached the stop height {height_to_stop_at} and is no longer accepting transactions. Current height: {current_height}").to_string(),
                 details: Default::default(),
             };
         }
         SequencerNotReadyDetails::ReplicaMode => {
             return ErrorObject {
                 status: StatusCode::SERVICE_UNAVAILABLE,
-                title: "Sequencer is replica and cannot accept transactions".to_string(),
+                message: "Sequencer is replica and cannot accept transactions".to_string(),
                 details: Default::default(),
             };
         }
     };
     ErrorObject {
         status: StatusCode::SERVICE_UNAVAILABLE,
-        title: format!("{summary}; No new transactions can be accepted, try again later"),
+        message: format!("{summary}; No new transactions can be accepted, try again later"),
         details: to_json_object(details),
     }
 }

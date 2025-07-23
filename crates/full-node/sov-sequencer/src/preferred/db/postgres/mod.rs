@@ -15,7 +15,7 @@ use super::{
     DatabaseWriteOutcome, DbSnapshotData, PreferredSequencerDbBackend, PreferredSequencerReadBlob,
     StoredBlob,
 };
-use crate::preferred::db::InProgressBatch;
+use crate::preferred::db::{BatchToStore, InProgressBatch};
 
 pub struct PostgresBackend {
     pool: PgPool,
@@ -263,6 +263,48 @@ impl PreferredSequencerDbBackend for PostgresBackend {
         Ok(DatabaseWriteOutcome::Success(()))
     }
 
+    async fn batch_add_txs(
+        &mut self,
+        sequence_number: SequenceNumber,
+        tx_idx_within_batch: u64,
+        txs: &[(FullyBakedTx, TxHash)],
+    ) -> anyhow::Result<DatabaseWriteOutcome<()>> {
+        let start = i64::try_from(tx_idx_within_batch)?;
+        let end = start + txs.len() as i64;
+        let sequence_number = vec![i64::try_from(sequence_number)?; txs.len()];
+        let event_types = vec!["transaction"; txs.len()];
+        let tx_indexes = (start..end).collect::<Vec<_>>();
+        let hashes = txs.iter().map(|(_, hash)| hash.0).collect::<Vec<_>>();
+        let txs = txs.iter().map(|(tx, _)| &tx.data).collect::<Vec<_>>();
+        let result = run_with_retries!(
+            &self.backoff_policy,
+            sqlx::query::<Postgres>(
+                "WITH master_check AS (
+                    SELECT 1 FROM sequencer_leader 
+                    WHERE singleton = 1 AND node_id = $6
+                )
+                INSERT INTO events (sequence_number, event_type, index_in_batch, hash, data)
+                SELECT * FROM UNNEST($1::bigint[], $2::event_type[], $3::bigint[], $4::bytea[], $5::bytea[])
+                WHERE EXISTS (SELECT 1 FROM master_check)"
+            )
+            .bind(&sequence_number[..])
+            .bind(&event_types[..])
+            .bind(&tx_indexes[..])
+            .bind(&hashes[..])
+            .bind(&txs[..])
+            .bind(self.node_id)
+            .execute(&self.pool),
+            "postgres_db_backend_add_tx"
+        )?;
+
+        if result.rows_affected() == 0 {
+            // Master check failed, no effect
+            return Ok(DatabaseWriteOutcome::AbortedBecauseReplica);
+        }
+
+        Ok(DatabaseWriteOutcome::Success(()))
+    }
+
     async fn add_tx(
         &mut self,
         sequence_number: SequenceNumber,
@@ -297,13 +339,11 @@ impl PreferredSequencerDbBackend for PostgresBackend {
 
     async fn end_rollup_block(
         &mut self,
-        cached: &super::InProgressBatch,
+        cached: BatchToStore,
     ) -> anyhow::Result<DatabaseWriteOutcome<()>> {
-        let blob_data = borsh::to_vec(&StoredBlob::Batch {
-            blob_id: cached.blob_id,
-            visible_slots_to_advance: cached.visible_slots_to_advance,
-            visible_slot_number_after_increase: cached.visible_slot_number_after_increase,
-        })?;
+        let sequence_number = cached.sequence_number;
+        let stored_blob: StoredBlob = cached.into();
+        let blob_data = borsh::to_vec(&stored_blob)?;
 
         // Compound CTE statement to avoid multiple roundtrips
         let result = run_with_retries!(
@@ -328,7 +368,7 @@ impl PreferredSequencerDbBackend for PostgresBackend {
                 (SELECT is_master FROM master_check) as master_status,
                 (SELECT COUNT(*) FROM event_insert) as operations_completed",
             )
-            .bind(i64::try_from(cached.sequence_number)?)
+            .bind(i64::try_from(sequence_number)?)
             .bind::<&[u8]>(blob_data.as_ref())
             .bind(self.node_id)
             .fetch_one(&self.pool),

@@ -431,6 +431,10 @@ impl DaService for MockDaService {
             .map(|mut proof_blob| proof_blob.full_data().to_vec())
             .collect())
     }
+
+    async fn get_signer(&self) -> <Self::Spec as DaSpec>::Address {
+        self.sequencer_da_address
+    }
 }
 
 #[cfg(test)]

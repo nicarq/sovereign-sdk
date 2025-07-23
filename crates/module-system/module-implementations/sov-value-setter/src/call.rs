@@ -2,7 +2,7 @@ use std::fmt::Debug;
 
 use anyhow::Result;
 use schemars::JsonSchema;
-use sov_modules_api::macros::UniversalWallet;
+use sov_modules_api::macros::{serialize, UniversalWallet};
 use sov_modules_api::{Context, EventEmitter, Gas, Spec, TxState};
 use strum::{EnumDiscriminants, EnumIs, VariantArray};
 use thiserror::Error;
@@ -11,23 +11,11 @@ use super::ValueSetter;
 use crate::event::Event;
 
 /// This enumeration represents the available call messages for interacting with the `sov-value-setter` module.
-#[derive(
-    borsh::BorshDeserialize,
-    borsh::BorshSerialize,
-    serde::Serialize,
-    serde::Deserialize,
-    Debug,
-    PartialEq,
-    Eq,
-    Clone,
-    JsonSchema,
-    EnumDiscriminants,
-    EnumIs,
-    UniversalWallet,
-)]
-#[serde(rename_all = "snake_case")]
+#[derive(Debug, PartialEq, Eq, Clone, JsonSchema, EnumDiscriminants, EnumIs, UniversalWallet)]
+#[serialize(Borsh, Serde)]
 #[schemars(bound = "S::Gas: ::schemars::JsonSchema", rename = "CallMessage")]
 #[strum_discriminants(derive(VariantArray, EnumIs))]
+#[serde(rename_all = "snake_case")]
 pub enum CallMessage<S: Spec> {
     /// Single value to set.
     SetValue {

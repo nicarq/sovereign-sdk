@@ -287,7 +287,7 @@ Adding the following transaction to batch:
       }
     }
   },
-  "chain_hash": "0x672f49a623e325540b52fe25a255a584f4cdf8e2b0c5c1fca13eab8a92c610ed",
+  "chain_hash": "0xe88ef8c77a95689ba18bc256ed8e9b09f67ca644f751de9146e047b2c9f23e33",
   "details": {
     "max_priority_fee_bips": 0,
     "max_fee": "100000000",
@@ -316,7 +316,7 @@ This command will use your default private key.
 
 ```bash,test-ci,bashtestmd:compare-output
 $ curl -Ss http://127.0.0.1:12346/modules/bank/tokens/token_17732u2vyp35dl6lkgjrdqs4mtuzt7rmy02hq9nqct8wq3g74rqyqz0rt2x/total-supply | jq -c -M
-{"data":{"amount":"1000000","token_id":"token_17732u2vyp35dl6lkgjrdqs4mtuzt7rmy02hq9nqct8wq3g74rqyqz0rt2x"},"meta":{}}
+{"amount":"1000000","token_id":"token_17732u2vyp35dl6lkgjrdqs4mtuzt7rmy02hq9nqct8wq3g74rqyqz0rt2x"}
 ```
 
 

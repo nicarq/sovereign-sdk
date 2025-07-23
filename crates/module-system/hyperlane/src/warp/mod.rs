@@ -10,8 +10,8 @@ use sov_bank::{config_gas_token_id, Bank, Coins, IntoPayable, TokenId};
 use sov_modules_api::digest::Digest;
 use sov_modules_api::macros::UniversalWallet;
 use sov_modules_api::{
-    Amount, Context, CryptoSpec, Error, EventEmitter, GasMeter, HexHash, HexString, Module,
-    ModuleId, ModuleInfo, ModuleRestApi, SafeVec, Spec, StateMap, TxState,
+    Amount, Context, CryptoSpec, EventEmitter, GasMeter, HexHash, HexString, Module, ModuleId,
+    ModuleInfo, ModuleRestApi, SafeVec, Spec, StateMap, TxState,
 };
 
 use crate::crypto::charge_gas_for_hashing;
@@ -61,6 +61,8 @@ pub struct Warp<S: Spec> {
     JsonSchema,
     UniversalWallet,
 )]
+#[serde(rename_all = "snake_case")]
+#[schemars(bound = "S: Spec", rename = "CallMessage")]
 pub enum CallMessage<S: Spec> {
     /// Register a route with the given token source and ISM.
     Register {
@@ -127,10 +129,8 @@ pub enum CallMessage<S: Spec> {
     Clone,
     JsonSchema,
 )]
-#[serde(
-    bound = "S::Address: serde::Serialize + serde::de::DeserializeOwned",
-    rename_all = "snake_case"
-)]
+#[serde(bound = "S: Spec", rename_all = "snake_case")]
+#[schemars(bound = "S: Spec", rename = "Event")]
 pub enum Event<S: Spec> {
     /// A route was registered.
     RouteRegistered {
@@ -206,7 +206,7 @@ where
         msg: Self::CallMessage,
         context: &Context<Self::Spec>,
         state: &mut impl TxState<S>,
-    ) -> Result<(), Error> {
+    ) -> anyhow::Result<()> {
         match msg {
             CallMessage::Register {
                 admin,
@@ -705,16 +705,27 @@ where
     }
 
     fn unpack_transfer_body(
-        &self,
         body: &[u8],
         token_source: &StoredTokenKind,
-    ) -> anyhow::Result<(HexHash, Amount)> {
-        anyhow::ensure!(body.len() == 64, "Invalid transfer body");
+    ) -> anyhow::Result<TransferMessage> {
+        anyhow::ensure!(body.len() >= 64, "Invalid transfer body");
         let recipient = HexString(body[..32].try_into().unwrap());
         let amount = body[32..64].try_into().unwrap();
         let amount = token_source.inbound_amount(amount)?;
-        Ok((recipient, amount))
+        // We do not process metadata, so it is disregarded.
+        Ok(TransferMessage { recipient, amount })
     }
+}
+
+// This type is taken from: https://docs.hyperlane.xyz/docs/alt-vm-implementations/implementation-guide#transfer-message
+#[derive(Debug)]
+struct TransferMessage {
+    // The recipient of the remote transfer
+    recipient: HexHash,
+    // An amount of tokens
+    amount: Amount,
+    // Not supported: Optional metadata e.g. NFT URI information
+    //metadata: Vec<u8>,
 }
 
 impl<S: Spec> Recipient<S> for Warp<S>
@@ -763,8 +774,11 @@ where
             anyhow::bail!("Enrolled router does not match sender");
         }
 
-        let (token_recipient_hex, amount) =
-            self.unpack_transfer_body(body.as_ref(), &route.token_source)?;
+        let TransferMessage {
+            recipient: token_recipient_hex,
+            amount,
+        } = Self::unpack_transfer_body(body.as_ref(), &route.token_source)?;
+
         let token_recipient = S::Address::from_sender(token_recipient_hex)?;
         let route_token_holder: DerivedHolder = route_id.0.into();
         match &route.token_source {
@@ -829,7 +843,25 @@ where
 mod tests {
     use std::str::FromStr;
 
+    use sov_test_utils::TestSpec;
+
     use super::*;
+
+    #[test]
+    fn test_unpack_transfer_body() {
+        let body: &[u8] = &[0; 60];
+        let res = Warp::<TestSpec>::unpack_transfer_body(body, &StoredTokenKind::Native);
+        assert!(res.is_err());
+
+        let body: &[u8] = &[0; 64];
+        let res = Warp::<TestSpec>::unpack_transfer_body(body, &StoredTokenKind::Native);
+        assert!(res.is_ok());
+
+        let body: &[u8] = &[0; 65];
+        let res = Warp::<TestSpec>::unpack_transfer_body(body, &StoredTokenKind::Native);
+        assert!(res.is_ok());
+    }
+
     #[test]
     fn test_router_key() {
         const KEY_STR: &str =

@@ -1,6 +1,7 @@
 //! Defines REST queries exposed by the bank module, along with the relevant types.
 
 use axum::routing::get;
+use axum::Json;
 use sov_modules_api::capabilities::RollupHeight;
 use sov_modules_api::prelude::utoipa::openapi::OpenApi;
 use sov_modules_api::prelude::{axum, serde_yaml, UnwrapInfallible};
@@ -64,11 +65,10 @@ impl<S: Spec> Bank<S> {
 
 /// Axum routes.
 impl<S: Spec> Bank<S> {
-    async fn route_gas_token() -> ApiResult<types::TokenIdResponse> {
-        Ok(types::TokenIdResponse {
+    async fn route_gas_token() -> axum::Json<types::TokenIdResponse> {
+        Json(types::TokenIdResponse {
             token_id: config_gas_token_id(),
-        }
-        .into())
+        })
     }
 
     async fn route_gas_token_balance(

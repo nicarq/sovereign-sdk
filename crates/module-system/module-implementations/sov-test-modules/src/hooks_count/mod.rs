@@ -8,7 +8,7 @@ pub use call::*;
 pub use event::Event;
 mod hooks;
 use sov_modules_api::{
-    AccessoryStateValue, Context, DaSpec, Error, Gas, GenesisState, Module, ModuleId, ModuleInfo,
+    AccessoryStateValue, Context, DaSpec, Gas, GenesisState, Module, ModuleId, ModuleInfo,
     ModuleRestApi, Spec, StateValue, TxState,
 };
 use sov_state::Storage;
@@ -62,9 +62,9 @@ impl<S: Spec> Module for HooksCount<S> {
         _genesis_rollup_header: &<<S as Spec>::Da as DaSpec>::BlockHeader,
         _config: &Self::Config,
         state: &mut impl GenesisState<S>,
-    ) -> Result<(), Error> {
+    ) -> anyhow::Result<()> {
         // The initialization logic
-        Ok(self.init_module(state)?)
+        self.init_module(state)
     }
 
     fn call(
@@ -72,16 +72,14 @@ impl<S: Spec> Module for HooksCount<S> {
         msg: Self::CallMessage,
         context: &Context<Self::Spec>,
         state: &mut impl TxState<S>,
-    ) -> Result<(), Error> {
+    ) -> anyhow::Result<()> {
         match msg {
             CallMessage::AssertVisibleSlotNumber {
                 expected_visible_slot_number,
-            } => {
-                Ok(self.assert_visible_slot_number(expected_visible_slot_number, context, state)?)
-            }
+            } => self.assert_visible_slot_number(expected_visible_slot_number, context, state),
             CallMessage::AssertStateRoot {
                 expected_state_root,
-            } => Ok(self.assert_state_root(expected_state_root, context, state)?),
+            } => self.assert_state_root(expected_state_root, context, state),
             CallMessage::DelayedCallMsg => Ok(()),
         }
     }

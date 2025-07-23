@@ -11,7 +11,7 @@ mod test_module {
 
     use super::*;
 
-    #[derive(ModuleInfo)]
+    #[derive(Clone, ModuleInfo)]
     #[module_info(sequencer_safety = "not_sequencer_safe")]
     pub(crate) struct TestStruct<S: Spec> {
         #[id]
@@ -48,7 +48,7 @@ mod test_module {
             _message: Self::CallMessage,
             _context: &Context<Self::Spec>,
             _state: &mut impl TxState<S>,
-        ) -> Result<(), sov_modules_api::Error> {
+        ) -> anyhow::Result<()> {
             todo!()
         }
     }
@@ -108,7 +108,7 @@ fn module_id() {
 mod second_test_module {
     use super::*;
 
-    #[derive(ModuleInfo)]
+    #[derive(Clone, ModuleInfo)]
     pub(crate) struct SecondTestStruct<S: Spec> {
         #[id]
         pub id: ModuleId,
@@ -131,7 +131,7 @@ mod second_test_module {
             _message: Self::CallMessage,
             _context: &Context<Self::Spec>,
             _state: &mut impl TxState<S>,
-        ) -> Result<(), sov_modules_api::Error> {
+        ) -> anyhow::Result<()> {
             todo!()
         }
     }

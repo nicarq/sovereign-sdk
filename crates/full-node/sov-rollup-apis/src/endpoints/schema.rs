@@ -5,7 +5,7 @@ use axum::Router;
 use serde::Serialize;
 use sov_modules_api::prelude::anyhow;
 use sov_modules_api::sov_universal_wallet::schema::Schema;
-use sov_rest_utils::{errors, preconfigured_router_layers, ResponseObject};
+use sov_rest_utils::{errors, preconfigured_router_layers};
 
 /// Trait for the `/rollup/schema` endpoint.
 ///
@@ -27,7 +27,7 @@ pub trait SchemaEndpoint: Clone + Send + Sync + 'static {
 
     /// Returns a configured axum router for the schema endpoint.
     ///
-    /// Calls the implemented [`SchemaEndpoint::handler`] and returns the result as a [`ResponseObject`].
+    /// Calls the implemented [`SchemaEndpoint::handler`] and returns the result.
     /// If [`SchemaEndpoint::handler`] returns a error then it will be included in the
     /// [`sov_rest_utils::ErrorObject`]s details field.
     ///
@@ -42,7 +42,7 @@ pub trait SchemaEndpoint: Clone + Send + Sync + 'static {
                 "/rollup/schema",
                 get(|State(state): State<Self>| async move {
                     match state.handler() {
-                        Ok(data) => ResponseObject::from(data).into_response(),
+                        Ok(data) => axum::Json(data).into_response(),
                         Err(err) => errors::bad_request_400("Failed to get rollup schema", err),
                     }
                 })

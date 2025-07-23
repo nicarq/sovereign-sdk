@@ -8,8 +8,8 @@ use sov_modules_api::capabilities::mocks::MockKernel;
 use sov_modules_api::hooks::TxHooks;
 use sov_modules_api::rest::{ApiState, HasRestApi};
 use sov_modules_api::{
-    Context, Module, ModuleError, ModuleId, ModuleInfo, ModuleRestApi, Spec, StateCheckpoint,
-    StateValue, TxState,
+    Context, Module, ModuleId, ModuleInfo, ModuleRestApi, Spec, StateCheckpoint, StateValue,
+    TxState,
 };
 use sov_test_utils::TestSpec;
 use utoipa::openapi::path::ParameterIn;
@@ -108,7 +108,7 @@ where
         _message: Self::CallMessage,
         _context: &Context<Self::Spec>,
         _state: &mut impl TxState<Self::Spec>,
-    ) -> Result<(), ModuleError> {
+    ) -> anyhow::Result<()> {
         Ok(())
     }
 }

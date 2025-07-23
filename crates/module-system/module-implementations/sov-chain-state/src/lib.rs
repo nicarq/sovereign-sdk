@@ -16,7 +16,7 @@ mod gas;
 mod tests;
 use sov_modules_api::{
     BootstrapWorkingSet, CodeCommitmentFor, GenesisState, KernelStateAccessor, KernelStateMap,
-    ModuleError, ModuleId, ModuleInfo, Spec, StateAccessor, StateReader,
+    ModuleId, ModuleInfo, Spec, StateAccessor, StateReader,
 };
 
 mod genesis;
@@ -34,9 +34,7 @@ mod query;
 use borsh::{BorshDeserialize, BorshSerialize};
 use serde::{Deserialize, Serialize};
 use sov_modules_api::da::Time;
-use sov_modules_api::{
-    DaSpec, Error, Gas, KernelStateValue, Module, StateValue, VersionedStateValue,
-};
+use sov_modules_api::{DaSpec, Gas, KernelStateValue, Module, StateValue, VersionedStateValue};
 use sov_rollup_interface::common::{SlotNumber, VisibleSlotNumber};
 use sov_state::codec::BcsCodec;
 use sov_state::namespaces::Kernel;
@@ -524,9 +522,9 @@ impl<S: Spec> Module for ChainState<S> {
         genesis_rollup_header: &<<S as Spec>::Da as DaSpec>::BlockHeader,
         config: &Self::Config,
         state: &mut impl GenesisState<Self::Spec>,
-    ) -> Result<(), ModuleError> {
+    ) -> anyhow::Result<()> {
         // The initialization logic
-        Ok(self.init_module(genesis_rollup_header, config, state)?)
+        self.init_module(genesis_rollup_header, config, state)
     }
 
     fn call(
@@ -534,7 +532,7 @@ impl<S: Spec> Module for ChainState<S> {
         _message: Self::CallMessage,
         _context: &sov_modules_api::Context<Self::Spec>,
         _state: &mut impl sov_modules_api::TxState<Self::Spec>,
-    ) -> Result<(), Error> {
+    ) -> anyhow::Result<()> {
         Ok(())
     }
 }

@@ -4,6 +4,32 @@
   - While this should be a non-breaking change, there may be some changes in timing on sequencer startup when using PostgreSQL which may affect end-to-end testing that makes timing assumptions.
   - The config option introduces in #3126 has been removed. Leader elections happens automatically. To promote a specific node to leader, start it as the only node before starting other replicas. It is also possible, though dangerous, to edit the database manually and modify the `sequencer_leader` table by inserting a specific node's ID.
   - None of this affects sequencers running with the RocksDB backend (which is the default if no PostgreSQL connection string is provided in the configuration).
+# 2025-07-21
+- #3263 **BREAKING CHANGE** Update error object used for errors returned by REST API endpoints.
+    Previously `{errors: [{$ERR_OBJ}], meta: {}}`, now we just return a single `{$ERR_OBJ}` directly.
+- #3279 **BREAKING CHANGE** `sequencer.da_address` is removed from rollup_config.toml. 
+- #3271 adds `sov-zkvm-utils` crate for making ZKVM build.rs smaller
+
+# 2025-07-19
+- #3252 **BREAKING CHANGE** Removed "wrapper" object returned by all REST API endpoints, data is now returned directly.
+    Previously `{data: $DATA, meta: {}}`, so data was accessed as `responseJson.data.field`, now this is just `{$DATA}`, access the data directly: `responseJson.field`.
+    The structure for errors has also changed, it is now just a single top-level error object: `{status: $STATUS, title: $TITLE, details: []}`.
+    The error object itself is unchanged.
+- #3258 **BREAKING CHANGE** Added `UniversalWallet` and `schemars::JsonSchema` traits to `Module::CallMessage`, `schemars::JsonSchema` trait to `Module::Event`, and `Clone` trait to `Module`. Quick note: If you parameterize your `CallMessage` or `Event` over `S` (for example, to include an address of type `S::Address`), you must add the `#[schemars(bound = “S: Spec”, rename = "MyEnum")]` attribute on top your enum definition. This is a necessary hint for `schemars`, a library that generates a JSON schema for your module’s API. Also note that the rename is also often required.
+
+# 2025-07-18
+- #3246 **BREAKING CHANGE** A minimum bond is now required for sequencer registration.
+- #3257 Adds a helper function for the Runtime schema build script.
+
+# 2025-07-17 
+- #3251 **BREAKING CHANGE** Update the `Module` trait so that `Module::call and Module::genesis` return `anyhow::Result<()>` instead of `Result<(), ModuleError>`.
+- #3249 This PR renames the SchemaGenerator trait to UniversalWallet, so that the trait and the macro have the same name for better DevX.
+
+
+# 2025-07-11
+- #3208 Upgrades SP1 to `5.0.8` to have matching rust toolchain
+- #3237 Moves rust version check from guest build to adapter build for SP1
+- #3234 Replaces `secp256k1` with `k256` for EVM related authentication.
 
 # 2025-07-14
 - #3225 Bank: A transfer to self succeeds only if the transfer amount does not exceed the current balance.
@@ -19,6 +45,7 @@
 
 # 2025-07-09
 - #3193 **BREAKING CHANGE** this PR moves the sequencer tx status endpoint from `/sequencer/txs/{hash}` to `/sequencer/txs/{hash}/status`. A new endpoint is added at `/sequencer/txs/{hash}/` which returns the transaction's soft confirmation info. This PR also fixes an off-by-one error which caused the sequencer's unstable events endpoint to return one more event than was requested. It also makes the non-breaking change of allowing sequencer tx subscriptions from any past tx number `/sequencer/txs/ws?start_from=123`.
+
 
 # 2025-07-04
 - #3169 Exposes exponential backoff configuration in celestia adapter's configuration.

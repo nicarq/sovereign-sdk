@@ -482,7 +482,7 @@ fn assert_values<S: NativeStorage>(
     let get_value = |version: Option<SlotNumber>| -> Option<SlotValue> {
         match namespace {
             ValueNamespace::StateKernel => {
-                let just_value = storage.get::<Kernel>(key, version, &witness_stub);
+                let just_value = storage.get_historical::<Kernel>(key, version, &witness_stub);
                 let with_proof = storage
                     .get_with_proof::<Kernel>(key.clone(), version)
                     .ok()
@@ -492,7 +492,7 @@ fn assert_values<S: NativeStorage>(
                 just_value
             }
             ValueNamespace::StateUser => {
-                let just_value = storage.get::<User>(key, version, &witness_stub);
+                let just_value = storage.get_historical::<User>(key, version, &witness_stub);
                 let with_proof = storage
                     .get_with_proof::<User>(key.clone(), version)
                     .ok()

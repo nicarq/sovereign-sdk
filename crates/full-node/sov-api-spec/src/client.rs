@@ -16,7 +16,7 @@ use sov_rollup_interface::zk::aggregated_proof;
 use sov_rollup_interface::TxHash;
 use tokio_tungstenite::connect_async;
 use tokio_tungstenite::tungstenite::{Error as WsError, Message};
-use types::AcceptTxResponse;
+use types::TxInfoWithConfirmation;
 
 pub extern crate tokio_tungstenite;
 
@@ -68,7 +68,7 @@ impl Client {
     pub async fn send_tx_to_sequencer<Tx: BorshSerialize>(
         &self,
         tx: &Tx,
-    ) -> Result<ResponseValue<AcceptTxResponse>, Error<types::AcceptTxResponse>> {
+    ) -> Result<ResponseValue<TxInfoWithConfirmation>, Error<types::ApiError>> {
         let tx_bytes = borsh::to_vec(tx).map_err(|err| Error::InvalidRequest(err.to_string()))?;
         let tx_b64 = BASE64_STANDARD.encode(&tx_bytes);
         self.accept_tx(&types::AcceptTxBody { body: tx_b64 }).await
@@ -77,7 +77,7 @@ impl Client {
     pub async fn send_raw_tx_to_sequencer(
         &self,
         tx: &RawTx,
-    ) -> Result<ResponseValue<AcceptTxResponse>, Error<types::AcceptTxResponse>> {
+    ) -> Result<ResponseValue<TxInfoWithConfirmation>, Error<types::ApiError>> {
         let tx_b64 = BASE64_STANDARD.encode(tx);
         self.accept_tx(&types::AcceptTxBody { body: tx_b64 }).await
     }
@@ -85,7 +85,7 @@ impl Client {
     pub async fn send_tx_to_sequencer_with_retry<Tx: BorshSerialize>(
         &self,
         tx: &Tx,
-    ) -> Result<ResponseValue<AcceptTxResponse>, Error<types::AcceptTxResponse>> {
+    ) -> Result<ResponseValue<TxInfoWithConfirmation>, Error<types::ApiError>> {
         let raw_tx =
             RawTx::new(borsh::to_vec(tx).map_err(|err| Error::InvalidRequest(err.to_string()))?);
         self.send_raw_tx_to_sequencer_with_retry(&raw_tx).await
@@ -94,7 +94,7 @@ impl Client {
     pub async fn send_raw_tx_to_sequencer_with_retry(
         &self,
         raw_tx: &RawTx,
-    ) -> Result<ResponseValue<AcceptTxResponse>, Error<types::AcceptTxResponse>> {
+    ) -> Result<ResponseValue<TxInfoWithConfirmation>, Error<types::ApiError>> {
         let tx_b64 = BASE64_STANDARD.encode(raw_tx);
         let backoff = ExponentialBuilder::default()
             .with_factor(1.5)
@@ -128,7 +128,7 @@ impl Client {
     pub async fn send_txs_to_sequencer<Tx: BorshSerialize>(
         &self,
         txs: &[Tx],
-    ) -> Result<Vec<ResponseValue<AcceptTxResponse>>, Error<types::AcceptTxResponse>> {
+    ) -> Result<Vec<ResponseValue<TxInfoWithConfirmation>>, Error<types::ApiError>> {
         let mut receipts = Vec::with_capacity(txs.len());
 
         for tx in txs {

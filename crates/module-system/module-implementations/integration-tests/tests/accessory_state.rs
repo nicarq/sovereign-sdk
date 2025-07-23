@@ -1,8 +1,8 @@
 use sov_modules_api::macros::UniversalWallet;
 use sov_modules_api::prelude::UnwrapInfallible;
 use sov_modules_api::{
-    AccessoryStateValue, Context, DaSpec, GenesisState, Module, ModuleError, ModuleId, ModuleInfo,
-    Spec, StateAccessor, TxState,
+    AccessoryStateValue, Context, DaSpec, GenesisState, Module, ModuleId, ModuleInfo, Spec,
+    StateAccessor, TxState,
 };
 use sov_test_utils::runtime::genesis::optimistic::HighLevelOptimisticGenesisConfig;
 use sov_test_utils::runtime::TestRunner;
@@ -51,7 +51,7 @@ impl<S: Spec> Module for TestAccessoryModule<S> {
         _genesis_rollup_header: &<S::Da as DaSpec>::BlockHeader,
         _config: &Self::Config,
         _state: &mut impl GenesisState<S>,
-    ) -> Result<(), ModuleError> {
+    ) -> anyhow::Result<()> {
         Ok(())
     }
 
@@ -60,7 +60,7 @@ impl<S: Spec> Module for TestAccessoryModule<S> {
         msg: Self::CallMessage,
         _context: &Context<Self::Spec>,
         state: &mut impl TxState<S>,
-    ) -> Result<(), ModuleError> {
+    ) -> anyhow::Result<()> {
         match msg {
             CallMessage::SetAccessoryValue(value) => {
                 let unmetered_state = &mut state.to_unmetered();

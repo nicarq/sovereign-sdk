@@ -16,7 +16,7 @@ Modules typically live in their own crates (you can find a template [here](./mod
 re-usable. A typical struct definition for a module looks something like this:
 
 ```rust
-#[derive(ModuleInfo)]
+#[derive(Clone, ModuleInfo)]
 pub struct Bank<S: sov_modules_api::Spec> {
     /// The ID of the bank module.
     #[id]

@@ -113,6 +113,7 @@ impl<'a, S: Spec> Payable<S> for TokenHolderRef<'a, S> {
     schemars::JsonSchema,
 )]
 #[serde(rename_all = "snake_case")]
+#[schemars(bound = "S: Spec", rename = "TokenHolder")]
 #[schemars(untagged)]
 /// The identifier of a a payable entity on the rollup. This can be either a user or a module.
 pub enum TokenHolder<S: Spec> {

@@ -32,9 +32,9 @@ impl<T: DeserializeOwned> Query<T> {
             .map(|q| Self(q.0))
             .map_err(|err| ErrorObject {
                 status: StatusCode::BAD_REQUEST,
-                title: "Invalid query string".to_string(),
+                message: "Invalid query string".to_string(),
                 details: json_obj!({
-                    "message": err.to_string(),
+                    "error": err.to_string(),
                 }),
             })
     }
@@ -69,9 +69,9 @@ where
             Ok(query) => Ok(Path(query.0)),
             Err(err) => Err(ErrorObject {
                 status: StatusCode::BAD_REQUEST,
-                title: "Failed to deserialize path string parameter(s)".to_string(),
+                message: "Failed to deserialize path string parameter(s)".to_string(),
                 details: json_obj!({
-                    "message": err.to_string(),
+                    "error": err.to_string(),
                 }),
             }),
         }
@@ -104,9 +104,9 @@ mod tests {
                 err,
                 ErrorObject {
                     status: StatusCode::BAD_REQUEST,
-                    title: "Invalid query string".to_string(),
+                    message: "Invalid query string".to_string(),
                     details: json_obj!({
-                        "message": "Failed to deserialize query string"
+                        "error": "Failed to deserialize query string"
                     }),
                 }
             );

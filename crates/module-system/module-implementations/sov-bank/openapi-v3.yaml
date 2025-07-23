@@ -10,11 +10,11 @@ paths:
       operationId: "bank_gas_token_id"
       tags: [Bank]
       responses:
-        '200':
-          $ref: '#/components/responses/TokenIdResponse'
-        '404':
+        "200":
+          $ref: "#/components/responses/TokenIdResponse"
+        "404":
           # Referring type from `runtime-base.yaml`
-          $ref: '#/components/responses/StateNotFound'
+          $ref: "#/components/responses/StateNotFound"
   /tokens/gas_token/balances/{address}:
     get:
       summary: Fetch the current balance of the native gas token for a given user
@@ -25,13 +25,13 @@ paths:
           in: path
           required: true
           schema:
-            $ref: '#/components/schemas/Address'
+            $ref: "#/components/schemas/Address"
       responses:
-        '200':
-          $ref: '#/components/responses/CoinsResponse'
-        '404':
+        "200":
+          $ref: "#/components/responses/CoinsResponse"
+        "404":
           # Referring type from `runtime-base.yaml`
-          $ref: '#/components/responses/StateNotFound'
+          $ref: "#/components/responses/StateNotFound"
   /tokens/{token_id}/total-supply:
     get:
       summary: Get the total supply of a specific token
@@ -42,13 +42,13 @@ paths:
           in: path
           required: true
           schema:
-            $ref: '#/components/schemas/TokenId'
+            $ref: "#/components/schemas/TokenId"
       responses:
-        '200':
-          $ref: '#/components/responses/CoinsResponse'
-        '404':
+        "200":
+          $ref: "#/components/responses/CoinsResponse"
+        "404":
           # Referring type from `runtime-base.yaml`
-          $ref: '#/components/responses/StateNotFound'
+          $ref: "#/components/responses/StateNotFound"
   /tokens/{token_id}/balances/{address}:
     get:
       summary: Fetch the current balance of the token for a given user
@@ -59,18 +59,18 @@ paths:
           in: path
           required: true
           schema:
-            $ref: '#/components/schemas/TokenId'
+            $ref: "#/components/schemas/TokenId"
         - name: address
           in: path
           required: true
           schema:
-            $ref: '#/components/schemas/Address'
+            $ref: "#/components/schemas/Address"
       responses:
-        '200':
-          $ref: '#/components/responses/CoinsResponse'
-        '404':
+        "200":
+          $ref: "#/components/responses/CoinsResponse"
+        "404":
           # Referring type from `runtime-base.yaml`
-          $ref: '#/components/responses/StateNotFound'
+          $ref: "#/components/responses/StateNotFound"
   /tokens:
     get:
       summary: Compute a token ID from the given parameters
@@ -87,19 +87,17 @@ paths:
           in: query
           required: true
           schema:
-            $ref: '#/components/schemas/Address'
+            $ref: "#/components/schemas/Address"
           description: The address of the deployer of the token
       responses:
-        '200':
-          $ref: '#/components/responses/TokenIdResponse'
-        '404':
+        "200":
+          $ref: "#/components/responses/TokenIdResponse"
+        "404":
           # Referring type from `runtime-base.yaml`
-          $ref: '#/components/responses/StateNotFound'
+          $ref: "#/components/responses/StateNotFound"
 
 components:
   schemas:
-    Meta:
-      type: object
     TokenId:
       type: string
       pattern: "^token_1[02-9ac-hj-np-z]+$"
@@ -115,7 +113,7 @@ components:
           $ref: "#/components/schemas/TokenId"
         amount:
           type: string
-          pattern: '^[0-9]+$'
+          pattern: "^[0-9]+$"
           description: Amount
   responses:
     CoinsResponse:
@@ -123,12 +121,7 @@ components:
       content:
         application/json:
           schema:
-            type: object
-            properties:
-              meta:
-                $ref: '#/components/schemas/Meta'
-              data:
-                $ref: '#/components/schemas/Coins'
+            $ref: "#/components/schemas/Coins"
     TokenIdResponse:
       description: OK
       content:
@@ -136,10 +129,5 @@ components:
           schema:
             type: object
             properties:
-              meta:
-                $ref: '#/components/schemas/Meta'
-              data:
-                type: object
-                properties:
-                  token_id:
-                    $ref: '#/components/schemas/TokenId'
+              token_id:
+                $ref: "#/components/schemas/TokenId"

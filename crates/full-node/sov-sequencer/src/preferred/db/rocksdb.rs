@@ -12,7 +12,7 @@ use super::{
     DatabaseWriteOutcome, DbSnapshotData, PreferredSequencerDbBackend, PreferredSequencerReadBlob,
     StoredBlob,
 };
-use crate::preferred::db::InProgressBatch;
+use crate::preferred::db::{BatchToStore, InProgressBatch};
 
 #[derive(Debug)]
 pub struct RocksDbBackend {
@@ -85,22 +85,35 @@ impl PreferredSequencerDbBackend for RocksDbBackend {
         Ok(DatabaseWriteOutcome::Success(()))
     }
 
+    async fn batch_add_txs(
+        &mut self,
+        sequence_number_of_in_progress_batch: SequenceNumber,
+        mut tx_idx_within_batch: u64,
+        txs: &[(FullyBakedTx, TxHash)],
+    ) -> anyhow::Result<DatabaseWriteOutcome<()>> {
+        for (tx, hash) in txs {
+            self.add_tx(
+                sequence_number_of_in_progress_batch,
+                tx_idx_within_batch,
+                tx.clone(),
+                *hash,
+            )
+            .await?;
+            tx_idx_within_batch += 1;
+        }
+        Ok(DatabaseWriteOutcome::Success(()))
+    }
+
     #[tracing::instrument(skip_all, level = "trace")]
     async fn end_rollup_block(
         &mut self,
-        in_progress_batch: &InProgressBatch,
+        stored_batch: BatchToStore,
     ) -> anyhow::Result<DatabaseWriteOutcome<()>> {
+        let sequence_number = stored_batch.sequence_number;
+        let stored_blob: StoredBlob = stored_batch.into();
         let mut s = SchemaBatch::new();
         s.delete::<tables::InProgressBatch>(&())?;
-        s.put::<tables::CompletedBlobs>(
-            &in_progress_batch.sequence_number,
-            &StoredBlob::Batch {
-                blob_id: in_progress_batch.blob_id,
-                visible_slots_to_advance: in_progress_batch.visible_slots_to_advance,
-                visible_slot_number_after_increase: in_progress_batch
-                    .visible_slot_number_after_increase,
-            },
-        )?;
+        s.put::<tables::CompletedBlobs>(&sequence_number, &stored_blob)?;
         self.db.write_schemas_async(&s).await?;
 
         Ok(DatabaseWriteOutcome::Success(()))
@@ -311,7 +324,6 @@ mod tests {
     use tempfile::TempDir;
 
     use super::*;
-    use crate::preferred::db::PreferredSequencerReadBatch;
 
     #[tokio::test(flavor = "multi_thread")]
     async fn test_overlapping_range_deletion_pathology() {
@@ -355,16 +367,13 @@ mod tests {
                 txs.push(tx);
                 tx_hashes.push(tx_hash);
             }
-
-            let completed_batch = PreferredSequencerReadBatch {
+            let batch_to_store = BatchToStore {
                 sequence_number: SequenceNumber::from(batch),
                 visible_slot_number_after_increase: VisibleSlotNumber::new_dangerous(batch),
                 visible_slots_to_advance: NonZero::new(1).unwrap(),
-                txs,
-                tx_hashes,
                 blob_id: BlobInternalId::from(batch),
             };
-            db.end_rollup_block(&completed_batch).await.unwrap();
+            db.end_rollup_block(batch_to_store).await.unwrap();
 
             if batch > 1 {
                 db.prune(SequenceNumber::from(batch)).await.unwrap();

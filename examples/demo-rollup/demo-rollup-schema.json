@@ -95,7 +95,7 @@
             "display_name": "details",
             "silent": false,
             "value": {
-              "ByIndex": 111
+              "ByIndex": 113
             },
             "doc": ""
           }
@@ -163,7 +163,7 @@
             "discriminant": 1,
             "template": null,
             "value": {
-              "ByIndex": 25
+              "ByIndex": 27
             }
           },
           {
@@ -171,7 +171,7 @@
             "discriminant": 2,
             "template": null,
             "value": {
-              "ByIndex": 32
+              "ByIndex": 34
             }
           },
           {
@@ -179,7 +179,7 @@
             "discriminant": 3,
             "template": null,
             "value": {
-              "ByIndex": 35
+              "ByIndex": 37
             }
           },
           {
@@ -187,7 +187,7 @@
             "discriminant": 4,
             "template": null,
             "value": {
-              "ByIndex": 40
+              "ByIndex": 42
             }
           },
           {
@@ -195,7 +195,7 @@
             "discriminant": 5,
             "template": null,
             "value": {
-              "ByIndex": 44
+              "ByIndex": 46
             }
           },
           {
@@ -203,7 +203,7 @@
             "discriminant": 6,
             "template": null,
             "value": {
-              "ByIndex": 49
+              "ByIndex": 51
             }
           },
           {
@@ -211,7 +211,7 @@
             "discriminant": 7,
             "template": null,
             "value": {
-              "ByIndex": 51
+              "ByIndex": 53
             }
           },
           {
@@ -219,7 +219,7 @@
             "discriminant": 8,
             "template": null,
             "value": {
-              "ByIndex": 52
+              "ByIndex": 54
             }
           },
           {
@@ -227,7 +227,7 @@
             "discriminant": 9,
             "template": null,
             "value": {
-              "ByIndex": 53
+              "ByIndex": 55
             }
           },
           {
@@ -235,7 +235,7 @@
             "discriminant": 10,
             "template": null,
             "value": {
-              "ByIndex": 82
+              "ByIndex": 84
             }
           },
           {
@@ -243,7 +243,7 @@
             "discriminant": 11,
             "template": null,
             "value": {
-              "ByIndex": 85
+              "ByIndex": 87
             }
           },
           {
@@ -251,7 +251,7 @@
             "discriminant": 12,
             "template": null,
             "value": {
-              "ByIndex": 106
+              "ByIndex": 108
             }
           }
         ],
@@ -315,6 +315,14 @@
             "template": null,
             "value": {
               "ByIndex": 24
+            }
+          },
+          {
+            "name": "UpdateAdmin",
+            "discriminant": 5,
+            "template": null,
+            "value": {
+              "ByIndex": 25
             }
           }
         ],
@@ -668,13 +676,45 @@
       }
     },
     {
+      "Struct": {
+        "type_name": "__SovVirtualWallet_CallMessage_UpdateAdmin",
+        "template": null,
+        "peekable": false,
+        "fields": [
+          {
+            "display_name": "new_admin",
+            "silent": false,
+            "value": {
+              "ByIndex": 26
+            },
+            "doc": ""
+          },
+          {
+            "display_name": "token_id",
+            "silent": false,
+            "value": {
+              "ByIndex": 21
+            },
+            "doc": ""
+          }
+        ]
+      }
+    },
+    {
+      "Option": {
+        "value": {
+          "ByIndex": 12
+        }
+      }
+    },
+    {
       "Tuple": {
         "template": null,
         "peekable": false,
         "fields": [
           {
             "value": {
-              "ByIndex": 26
+              "ByIndex": 28
             },
             "silent": false,
             "doc": ""
@@ -691,7 +731,7 @@
             "discriminant": 0,
             "template": null,
             "value": {
-              "ByIndex": 27
+              "ByIndex": 29
             }
           },
           {
@@ -699,7 +739,7 @@
             "discriminant": 1,
             "template": null,
             "value": {
-              "ByIndex": 29
+              "ByIndex": 31
             }
           },
           {
@@ -707,7 +747,7 @@
             "discriminant": 2,
             "template": null,
             "value": {
-              "ByIndex": 30
+              "ByIndex": 32
             }
           },
           {
@@ -715,7 +755,7 @@
             "discriminant": 3,
             "template": null,
             "value": {
-              "ByIndex": 31
+              "ByIndex": 33
             }
           }
         ],
@@ -732,7 +772,7 @@
             "display_name": "da_address",
             "silent": false,
             "value": {
-              "ByIndex": 28
+              "ByIndex": 30
             },
             "doc": ""
           },
@@ -777,7 +817,7 @@
             "display_name": "da_address",
             "silent": false,
             "value": {
-              "ByIndex": 28
+              "ByIndex": 30
             },
             "doc": ""
           },
@@ -802,7 +842,7 @@
             "display_name": "da_address",
             "silent": false,
             "value": {
-              "ByIndex": 28
+              "ByIndex": 30
             },
             "doc": ""
           }
@@ -819,7 +859,7 @@
             "display_name": "da_address",
             "silent": false,
             "value": {
-              "ByIndex": 28
+              "ByIndex": 30
             },
             "doc": ""
           }
@@ -833,7 +873,7 @@
         "fields": [
           {
             "value": {
-              "ByIndex": 33
+              "ByIndex": 35
             },
             "silent": false,
             "doc": ""
@@ -850,7 +890,7 @@
             "discriminant": 0,
             "template": null,
             "value": {
-              "ByIndex": 34
+              "ByIndex": 36
             }
           }
         ],
@@ -881,7 +921,7 @@
         "fields": [
           {
             "value": {
-              "ByIndex": 36
+              "ByIndex": 38
             },
             "silent": false,
             "doc": ""
@@ -898,7 +938,7 @@
             "discriminant": 0,
             "template": null,
             "value": {
-              "ByIndex": 37
+              "ByIndex": 39
             }
           },
           {
@@ -918,7 +958,7 @@
             "discriminant": 3,
             "template": null,
             "value": {
-              "ByIndex": 38
+              "ByIndex": 40
             }
           },
           {
@@ -932,7 +972,7 @@
             "discriminant": 5,
             "template": null,
             "value": {
-              "ByIndex": 39
+              "ByIndex": 41
             }
           }
         ],
@@ -991,7 +1031,7 @@
         "fields": [
           {
             "value": {
-              "ByIndex": 41
+              "ByIndex": 43
             },
             "silent": false,
             "doc": ""
@@ -1008,7 +1048,7 @@
             "discriminant": 0,
             "template": null,
             "value": {
-              "ByIndex": 42
+              "ByIndex": 44
             }
           },
           {
@@ -1016,7 +1056,7 @@
             "discriminant": 1,
             "template": null,
             "value": {
-              "ByIndex": 43
+              "ByIndex": 45
             }
           },
           {
@@ -1066,7 +1106,7 @@
         "fields": [
           {
             "value": {
-              "ByIndex": 45
+              "ByIndex": 47
             },
             "silent": false,
             "doc": ""
@@ -1083,7 +1123,7 @@
             "discriminant": 0,
             "template": null,
             "value": {
-              "ByIndex": 46
+              "ByIndex": 48
             }
           }
         ],
@@ -1097,7 +1137,7 @@
         "fields": [
           {
             "value": {
-              "ByIndex": 47
+              "ByIndex": 49
             },
             "silent": false,
             "doc": ""
@@ -1112,7 +1152,7 @@
         "fields": [
           {
             "value": {
-              "ByIndex": 48
+              "ByIndex": 50
             },
             "silent": false,
             "doc": ""
@@ -1147,7 +1187,7 @@
         "fields": [
           {
             "value": {
-              "ByIndex": 50
+              "ByIndex": 52
             },
             "silent": false,
             "doc": ""
@@ -1169,7 +1209,7 @@
         "fields": [
           {
             "value": {
-              "ByIndex": 50
+              "ByIndex": 52
             },
             "silent": false,
             "doc": ""
@@ -1184,7 +1224,7 @@
         "fields": [
           {
             "value": {
-              "ByIndex": 50
+              "ByIndex": 52
             },
             "silent": false,
             "doc": ""
@@ -1199,7 +1239,7 @@
         "fields": [
           {
             "value": {
-              "ByIndex": 54
+              "ByIndex": 56
             },
             "silent": false,
             "doc": ""
@@ -1216,7 +1256,7 @@
             "discriminant": 0,
             "template": null,
             "value": {
-              "ByIndex": 55
+              "ByIndex": 57
             }
           },
           {
@@ -1224,7 +1264,7 @@
             "discriminant": 1,
             "template": null,
             "value": {
-              "ByIndex": 71
+              "ByIndex": 73
             }
           },
           {
@@ -1232,7 +1272,7 @@
             "discriminant": 2,
             "template": null,
             "value": {
-              "ByIndex": 72
+              "ByIndex": 74
             }
           }
         ],
@@ -1249,7 +1289,7 @@
             "display_name": "policy",
             "silent": false,
             "value": {
-              "ByIndex": 56
+              "ByIndex": 58
             },
             "doc": ""
           }
@@ -1266,7 +1306,7 @@
             "display_name": "default_payee_policy",
             "silent": false,
             "value": {
-              "ByIndex": 57
+              "ByIndex": 59
             },
             "doc": ""
           },
@@ -1274,7 +1314,7 @@
             "display_name": "payees",
             "silent": false,
             "value": {
-              "ByIndex": 66
+              "ByIndex": 68
             },
             "doc": ""
           },
@@ -1290,7 +1330,7 @@
             "display_name": "authorized_sequencers",
             "silent": false,
             "value": {
-              "ByIndex": 68
+              "ByIndex": 70
             },
             "doc": ""
           }
@@ -1306,7 +1346,7 @@
             "discriminant": 0,
             "template": null,
             "value": {
-              "ByIndex": 58
+              "ByIndex": 60
             }
           },
           {
@@ -1337,7 +1377,7 @@
             "display_name": "gas_limit",
             "silent": false,
             "value": {
-              "ByIndex": 59
+              "ByIndex": 61
             },
             "doc": ""
           },
@@ -1345,7 +1385,7 @@
             "display_name": "max_gas_price",
             "silent": false,
             "value": {
-              "ByIndex": 62
+              "ByIndex": 64
             },
             "doc": ""
           },
@@ -1353,7 +1393,7 @@
             "display_name": "transaction_limit",
             "silent": false,
             "value": {
-              "ByIndex": 65
+              "ByIndex": 67
             },
             "doc": ""
           }
@@ -1363,7 +1403,7 @@
     {
       "Option": {
         "value": {
-          "ByIndex": 60
+          "ByIndex": 62
         }
       }
     },
@@ -1374,7 +1414,7 @@
         "fields": [
           {
             "value": {
-              "ByIndex": 61
+              "ByIndex": 63
             },
             "silent": false,
             "doc": ""
@@ -1398,7 +1438,7 @@
     {
       "Option": {
         "value": {
-          "ByIndex": 63
+          "ByIndex": 65
         }
       }
     },
@@ -1412,7 +1452,7 @@
             "display_name": "value",
             "silent": false,
             "value": {
-              "ByIndex": 64
+              "ByIndex": 66
             },
             "doc": ""
           }
@@ -1442,7 +1482,7 @@
     {
       "Vec": {
         "value": {
-          "ByIndex": 67
+          "ByIndex": 69
         }
       }
     },
@@ -1460,7 +1500,7 @@
           },
           {
             "value": {
-              "ByIndex": 57
+              "ByIndex": 59
             },
             "silent": false,
             "doc": ""
@@ -1483,7 +1523,7 @@
             "discriminant": 1,
             "template": null,
             "value": {
-              "ByIndex": 69
+              "ByIndex": 71
             }
           }
         ],
@@ -1497,7 +1537,7 @@
         "fields": [
           {
             "value": {
-              "ByIndex": 70
+              "ByIndex": 72
             },
             "silent": false,
             "doc": ""
@@ -1508,7 +1548,7 @@
     {
       "Vec": {
         "value": {
-          "ByIndex": 28
+          "ByIndex": 30
         }
       }
     },
@@ -1547,7 +1587,7 @@
             "display_name": "update",
             "silent": false,
             "value": {
-              "ByIndex": 73
+              "ByIndex": 75
             },
             "doc": ""
           }
@@ -1564,7 +1604,7 @@
             "display_name": "sequencer_update",
             "silent": false,
             "value": {
-              "ByIndex": 74
+              "ByIndex": 76
             },
             "doc": ""
           },
@@ -1572,7 +1612,7 @@
             "display_name": "updaters_to_add",
             "silent": false,
             "value": {
-              "ByIndex": 79
+              "ByIndex": 81
             },
             "doc": ""
           },
@@ -1580,7 +1620,7 @@
             "display_name": "updaters_to_remove",
             "silent": false,
             "value": {
-              "ByIndex": 79
+              "ByIndex": 81
             },
             "doc": ""
           },
@@ -1588,7 +1628,7 @@
             "display_name": "payee_policies_to_set",
             "silent": false,
             "value": {
-              "ByIndex": 80
+              "ByIndex": 82
             },
             "doc": ""
           },
@@ -1596,7 +1636,7 @@
             "display_name": "payee_policies_to_delete",
             "silent": false,
             "value": {
-              "ByIndex": 79
+              "ByIndex": 81
             },
             "doc": ""
           },
@@ -1604,7 +1644,7 @@
             "display_name": "default_policy",
             "silent": false,
             "value": {
-              "ByIndex": 81
+              "ByIndex": 83
             },
             "doc": ""
           }
@@ -1614,7 +1654,7 @@
     {
       "Option": {
         "value": {
-          "ByIndex": 75
+          "ByIndex": 77
         }
       }
     },
@@ -1633,7 +1673,7 @@
             "discriminant": 1,
             "template": null,
             "value": {
-              "ByIndex": 76
+              "ByIndex": 78
             }
           }
         ],
@@ -1647,7 +1687,7 @@
         "fields": [
           {
             "value": {
-              "ByIndex": 77
+              "ByIndex": 79
             },
             "silent": false,
             "doc": ""
@@ -1665,7 +1705,7 @@
             "display_name": "to_add",
             "silent": false,
             "value": {
-              "ByIndex": 78
+              "ByIndex": 80
             },
             "doc": ""
           },
@@ -1673,7 +1713,7 @@
             "display_name": "to_remove",
             "silent": false,
             "value": {
-              "ByIndex": 78
+              "ByIndex": 80
             },
             "doc": ""
           }
@@ -1683,7 +1723,7 @@
     {
       "Option": {
         "value": {
-          "ByIndex": 70
+          "ByIndex": 72
         }
       }
     },
@@ -1697,14 +1737,14 @@
     {
       "Option": {
         "value": {
-          "ByIndex": 66
+          "ByIndex": 68
         }
       }
     },
     {
       "Option": {
         "value": {
-          "ByIndex": 57
+          "ByIndex": 59
         }
       }
     },
@@ -1715,7 +1755,7 @@
         "fields": [
           {
             "value": {
-              "ByIndex": 83
+              "ByIndex": 85
             },
             "silent": false,
             "doc": ""
@@ -1733,7 +1773,7 @@
             "display_name": "rlp",
             "silent": false,
             "value": {
-              "ByIndex": 84
+              "ByIndex": 86
             },
             "doc": ""
           }
@@ -1768,7 +1808,7 @@
         "fields": [
           {
             "value": {
-              "ByIndex": 86
+              "ByIndex": 88
             },
             "silent": false,
             "doc": ""
@@ -1785,7 +1825,7 @@
             "discriminant": 0,
             "template": null,
             "value": {
-              "ByIndex": 87
+              "ByIndex": 89
             }
           },
           {
@@ -1793,7 +1833,7 @@
             "discriminant": 1,
             "template": null,
             "value": {
-              "ByIndex": 88
+              "ByIndex": 90
             }
           },
           {
@@ -1801,7 +1841,7 @@
             "discriminant": 2,
             "template": null,
             "value": {
-              "ByIndex": 90
+              "ByIndex": 92
             }
           },
           {
@@ -1809,7 +1849,7 @@
             "discriminant": 3,
             "template": null,
             "value": {
-              "ByIndex": 91
+              "ByIndex": 93
             }
           },
           {
@@ -1817,7 +1857,7 @@
             "discriminant": 4,
             "template": null,
             "value": {
-              "ByIndex": 92
+              "ByIndex": 94
             }
           },
           {
@@ -1825,7 +1865,7 @@
             "discriminant": 5,
             "template": null,
             "value": {
-              "ByIndex": 93
+              "ByIndex": 95
             }
           },
           {
@@ -1839,7 +1879,7 @@
             "discriminant": 7,
             "template": null,
             "value": {
-              "ByIndex": 94
+              "ByIndex": 96
             }
           },
           {
@@ -1847,7 +1887,7 @@
             "discriminant": 8,
             "template": null,
             "value": {
-              "ByIndex": 95
+              "ByIndex": 97
             }
           },
           {
@@ -1861,7 +1901,7 @@
             "discriminant": 10,
             "template": null,
             "value": {
-              "ByIndex": 96
+              "ByIndex": 98
             }
           },
           {
@@ -1869,7 +1909,7 @@
             "discriminant": 11,
             "template": null,
             "value": {
-              "ByIndex": 97
+              "ByIndex": 99
             }
           },
           {
@@ -1877,7 +1917,7 @@
             "discriminant": 12,
             "template": null,
             "value": {
-              "ByIndex": 98
+              "ByIndex": 100
             }
           },
           {
@@ -1885,7 +1925,7 @@
             "discriminant": 13,
             "template": null,
             "value": {
-              "ByIndex": 105
+              "ByIndex": 107
             }
           }
         ],
@@ -1963,7 +2003,7 @@
             "display_name": "content",
             "silent": false,
             "value": {
-              "ByIndex": 89
+              "ByIndex": 91
             },
             "doc": ""
           }
@@ -2221,7 +2261,7 @@
             "display_name": "pre",
             "silent": false,
             "value": {
-              "ByIndex": 99
+              "ByIndex": 101
             },
             "doc": ""
           },
@@ -2229,7 +2269,7 @@
             "display_name": "post",
             "silent": false,
             "value": {
-              "ByIndex": 99
+              "ByIndex": 101
             },
             "doc": ""
           }
@@ -2239,14 +2279,14 @@
     {
       "Option": {
         "value": {
-          "ByIndex": 100
+          "ByIndex": 102
         }
       }
     },
     {
       "Vec": {
         "value": {
-          "ByIndex": 101
+          "ByIndex": 103
         }
       }
     },
@@ -2259,7 +2299,7 @@
             "discriminant": 0,
             "template": null,
             "value": {
-              "ByIndex": 102
+              "ByIndex": 104
             }
           },
           {
@@ -2267,7 +2307,7 @@
             "discriminant": 1,
             "template": null,
             "value": {
-              "ByIndex": 103
+              "ByIndex": 105
             }
           },
           {
@@ -2275,7 +2315,7 @@
             "discriminant": 2,
             "template": null,
             "value": {
-              "ByIndex": 104
+              "ByIndex": 106
             }
           }
         ],
@@ -2424,7 +2464,7 @@
         "fields": [
           {
             "value": {
-              "ByIndex": 107
+              "ByIndex": 109
             },
             "silent": false,
             "doc": ""
@@ -2441,7 +2481,7 @@
             "discriminant": 0,
             "template": null,
             "value": {
-              "ByIndex": 108
+              "ByIndex": 110
             }
           },
           {
@@ -2449,7 +2489,7 @@
             "discriminant": 1,
             "template": null,
             "value": {
-              "ByIndex": 109
+              "ByIndex": 111
             }
           },
           {
@@ -2457,7 +2497,7 @@
             "discriminant": 2,
             "template": null,
             "value": {
-              "ByIndex": 110
+              "ByIndex": 112
             }
           }
         ],
@@ -2579,7 +2619,7 @@
             "display_name": "max_priority_fee_bips",
             "silent": false,
             "value": {
-              "ByIndex": 112
+              "ByIndex": 114
             },
             "doc": ""
           },
@@ -2595,7 +2635,7 @@
             "display_name": "gas_limit",
             "silent": false,
             "value": {
-              "ByIndex": 59
+              "ByIndex": 61
             },
             "doc": ""
           },
@@ -2666,7 +2706,7 @@
             "display_name": "details",
             "silent": false,
             "value": {
-              "ByIndex": 111
+              "ByIndex": 113
             },
             "doc": ""
           }
@@ -2676,9 +2716,9 @@
   ],
   "root_type_indices": [
     0,
-    113,
+    115,
     6,
-    14
+    12
   ],
   "chain_data": {
     "chain_id": 4321,
@@ -2860,6 +2900,9 @@
         },
         {
           "name": "freeze"
+        },
+        {
+          "name": "update_admin"
         }
       ]
     },
@@ -2981,6 +3024,21 @@
           "name": "token_id"
         }
       ]
+    },
+    {
+      "name": "__SovVirtualWallet_CallMessage_UpdateAdmin",
+      "fields_or_variants": [
+        {
+          "name": "new_admin"
+        },
+        {
+          "name": "token_id"
+        }
+      ]
+    },
+    {
+      "name": "",
+      "fields_or_variants": []
     },
     {
       "name": "",

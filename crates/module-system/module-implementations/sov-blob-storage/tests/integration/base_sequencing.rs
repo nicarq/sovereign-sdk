@@ -41,10 +41,10 @@ fn store_and_retrieve_standard_basic_kernel() {
 }
 
 #[test]
-fn check_blob_selection() {
+fn check_blob_selection2() {
     env::set_var(
         "SOV_TEST_CONST_OVERRIDE_MAX_ALLOWED_DATA_SIZE_RETURNED_BY_BLOB_STORAGE",
-        "1000",
+        "50000",
     );
     let (
         TestData {
@@ -62,7 +62,7 @@ fn check_blob_selection() {
                 (preferred_sequencer.clone(), 20),
                 (preferred_sequencer.clone(), 45),
                 (preferred_sequencer.clone(), 10),
-                (preferred_sequencer.clone(), 25),
+                (preferred_sequencer.clone(), 50001),
             ],
             &mut nonces,
         );
@@ -75,7 +75,7 @@ fn check_blob_selection() {
         // First slot bigger than MAX_ALLOWED_DATA_SIZE_RETURNED_BY_BLOB_STORAGE
         let slot_to_send = build_basic_blobs(
             &vec![
-                (preferred_sequencer.clone(), 101),
+                (preferred_sequencer.clone(), 50001),
                 (preferred_sequencer.clone(), 50),
             ],
             &mut nonces,
@@ -89,7 +89,7 @@ fn check_blob_selection() {
     {
         let slot_to_send = build_basic_blobs(
             &vec![
-                (preferred_sequencer.clone(), 100),
+                (preferred_sequencer.clone(), 5000),
                 (preferred_sequencer.clone(), 50),
             ],
             &mut nonces,

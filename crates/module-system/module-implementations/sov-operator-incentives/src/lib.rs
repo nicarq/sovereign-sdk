@@ -1,8 +1,8 @@
 mod genesis;
 pub use genesis::OperatorIncentivesConfig;
 use sov_modules_api::{
-    Context, DaSpec, Error, GenesisState, InfallibleStateAccessor, ModuleId, ModuleInfo,
-    ModuleRestApi, Spec, StateValue, TxState,
+    Context, DaSpec, GenesisState, InfallibleStateAccessor, ModuleId, ModuleInfo, ModuleRestApi,
+    Spec, StateValue, TxState,
 };
 mod call;
 pub use call::CallMessage;
@@ -34,8 +34,8 @@ impl<S: Spec> sov_modules_api::Module for OperatorIncentives<S> {
         _genesis_rollup_header: &<<S as Spec>::Da as DaSpec>::BlockHeader,
         config: &Self::Config,
         state: &mut impl GenesisState<S>,
-    ) -> Result<(), Error> {
-        Ok(self.init_module(config, state)?)
+    ) -> anyhow::Result<()> {
+        self.init_module(config, state)
     }
 
     fn call(
@@ -43,7 +43,7 @@ impl<S: Spec> sov_modules_api::Module for OperatorIncentives<S> {
         msg: Self::CallMessage,
         context: &Context<Self::Spec>,
         state: &mut impl TxState<S>,
-    ) -> Result<(), Error> {
+    ) -> anyhow::Result<()> {
         match msg {
             CallMessage::UpdateRewardAddress { new_reward_address } => {
                 Ok(self.update_address(new_reward_address, context, state)?)

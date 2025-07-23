@@ -104,7 +104,7 @@ where
 
             ethereum.sequencer.accept_tx(tx).await.map_err(|e| {
                 to_jsonrpsee_error_object(
-                    format!("{} - '{}' ({:?})", e.status, e.title, e.details),
+                    format!("{} - '{}' ({:?})", e.status, e.message, e.details),
                     ETH_RPC_ERROR,
                 )
             })?;

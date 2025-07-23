@@ -26,7 +26,7 @@ echo "Waiting for slot number to be greater than 1..."
 iterations=100
 for i in $(seq 1 $iterations); do
     response=$(curl -s -S http://localhost:12346/ledger/slots/latest 2>&1)
-    slot_number=$(echo "$response" | jq -r '.data.number')
+    slot_number=$(echo "$response" | jq -r '.number')
     if [ ! -z "$slot_number" ] && [ "$slot_number" -gt 1 ]; then
         echo "Rollup is ready! Slot number: $slot_number"
         break

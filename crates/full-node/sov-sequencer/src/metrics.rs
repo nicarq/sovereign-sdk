@@ -51,6 +51,76 @@ impl Metric for PreferredSequencerUpdateStateMetrics {
 }
 
 #[derive(Debug)]
+pub struct PreferredSequencerLockMetrics {
+    pub duration: std::time::Duration,
+    pub lock_reason: &'static str,
+}
+
+impl Metric for PreferredSequencerLockMetrics {
+    fn measurement_name(&self) -> &'static str {
+        "sov_rollup_preferred_sequencer_lock"
+    }
+
+    fn serialize_for_telegraf(&self, buffer: &mut Vec<u8>) -> std::io::Result<()> {
+        write!(
+            buffer,
+            "{},lock_reason={} duration_us={}",
+            self.measurement_name(),
+            self.lock_reason,
+            self.duration.as_micros(),
+        )
+    }
+}
+
+#[derive(Debug)]
+pub struct PreferredSequencerLockMetricsBatch {
+    pub metrics: Vec<PreferredSequencerLockMetrics>,
+}
+
+impl Metric for PreferredSequencerLockMetricsBatch {
+    fn measurement_name(&self) -> &'static str {
+        "sov_rollup_preferred_sequencer_lock"
+    }
+
+    fn serialize_for_telegraf(&self, buffer: &mut Vec<u8>) -> std::io::Result<()> {
+        if self.metrics.is_empty() {
+            return Ok(());
+        }
+        for (i, metric) in self.metrics.iter().enumerate() {
+            metric.serialize_for_telegraf(buffer)?;
+            if i != (self.metrics.len() - 1) {
+                buffer.push(b'\n');
+            }
+        }
+        Ok(())
+    }
+}
+
+#[derive(Debug)]
+pub struct PreferredSequencerExecutorEventMetrics {
+    pub event_type: &'static str,
+    pub duration: std::time::Duration,
+    pub batch_size: usize,
+}
+
+impl Metric for PreferredSequencerExecutorEventMetrics {
+    fn measurement_name(&self) -> &'static str {
+        "sov_rollup_preferred_sequencer_executor_event"
+    }
+
+    fn serialize_for_telegraf(&self, buffer: &mut Vec<u8>) -> std::io::Result<()> {
+        write!(
+            buffer,
+            "{},event_type={} duration_us={},batch_size={}",
+            self.measurement_name(),
+            self.event_type,
+            self.duration.as_micros(),
+            self.batch_size,
+        )
+    }
+}
+
+#[derive(Debug)]
 pub struct PreferredSequencerFetchBatchesToReplayMetrics {
     pub duration: std::time::Duration,
     pub num_batches: u64,

@@ -204,7 +204,7 @@ mod tests {
                 if expected_indexes.contains(&(i as u8)) {
                     expected_addresses.push(addr);
                 }
-                blobs_with_total_size_limit.push_or_ignore(SequencerType::NonPreferred, b);
+                blobs_with_total_size_limit.push_or_ignore(SequencerType::Preferred, b);
             }
 
             let inner = blobs_with_total_size_limit
@@ -216,13 +216,13 @@ mod tests {
             assert_eq!(inner, expected_addresses);
         }
 
-        test_helper_correct_blob_selection_outputs(vec![1, 2, 3], vec![0, 1, 2], 60);
-        test_helper_correct_blob_selection_outputs(vec![1, 14, 11], vec![0], 10);
-        test_helper_correct_blob_selection_outputs(vec![11, 2, 3], vec![1, 2], 60);
+        test_helper_correct_blob_selection_outputs(vec![1, 2, 3], vec![0, 1, 2], 300);
+        test_helper_correct_blob_selection_outputs(vec![1, 14, 11], vec![0], 80);
+        test_helper_correct_blob_selection_outputs(vec![111, 2, 3], vec![1, 2], 140);
         test_helper_correct_blob_selection_outputs(vec![10, 2, 3], vec![0], 100);
-        test_helper_correct_blob_selection_outputs(vec![3, 22, 1, 88, 7], vec![0, 2], 50);
+        test_helper_correct_blob_selection_outputs(vec![3, 220, 1, 880, 70], vec![0, 2], 140);
         test_helper_correct_blob_selection_outputs(vec![10], vec![0], 100000);
-        test_helper_correct_blob_selection_outputs(vec![0], vec![0], 1);
+        test_helper_correct_blob_selection_outputs(vec![0], vec![0], 80);
     }
 
     #[test]
@@ -253,7 +253,7 @@ mod tests {
 
     #[test]
     fn test_preferred_and_standard_blob() {
-        let max_size = 100;
+        let max_size = 800;
 
         let mut blobs_with_total_size_limit =
             BlobsAccumulatorWithSizeLimit::<S>::new_with_size(max_size);

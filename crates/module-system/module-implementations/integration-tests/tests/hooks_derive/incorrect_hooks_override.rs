@@ -1,7 +1,7 @@
 use sov_modules_api::prelude::UnwrapInfallible;
 use sov_modules_api::{
-    BlockHooks, Context, DaSpec, GenesisState, Module, ModuleError, ModuleId, ModuleInfo, Spec,
-    StateCheckpoint, StateVec, TxState,
+    BlockHooks, Context, DaSpec, GenesisState, Module, ModuleId, ModuleInfo, Spec, StateCheckpoint,
+    StateVec, TxState,
 };
 use sov_state::Storage;
 use sov_test_utils::generate_zk_runtime;
@@ -32,7 +32,7 @@ impl<S: Spec> Module for IncorrectHooksOverride<S> {
 
         _config: &Self::Config,
         _state: &mut impl GenesisState<S>,
-    ) -> Result<(), ModuleError> {
+    ) -> anyhow::Result<()> {
         Ok(())
     }
 
@@ -41,7 +41,7 @@ impl<S: Spec> Module for IncorrectHooksOverride<S> {
         _msg: Self::CallMessage,
         _context: &Context<Self::Spec>,
         _state: &mut impl TxState<S>,
-    ) -> Result<(), ModuleError> {
+    ) -> anyhow::Result<()> {
         Ok(())
     }
 }

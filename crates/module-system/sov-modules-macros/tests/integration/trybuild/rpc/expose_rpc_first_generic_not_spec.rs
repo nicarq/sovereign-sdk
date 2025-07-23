@@ -22,6 +22,7 @@ pub trait Data:
     + borsh::BorshSerialize
     + borsh::BorshDeserialize
     + schemars::JsonSchema
+    + sov_modules_api::sov_universal_wallet::schema::UniversalWallet
     + Send
     + Sync
     + 'static
@@ -60,7 +61,7 @@ pub mod my_module {
 
             config: &Self::Config,
             state: &mut impl sov_modules_api::GenesisState<S>,
-        ) -> Result<(), Error> {
+        ) -> anyhow::Result<()> {
             self.data.set(config, state).unwrap();
             Ok(())
         }
@@ -70,7 +71,7 @@ pub mod my_module {
             msg: Self::CallMessage,
             _context: &Context<Self::Spec>,
             state: &mut impl TxState<S>,
-        ) -> Result<(), Error> {
+        ) -> anyhow::Result<()> {
             self.data
                 .set(&msg, state)
                 .map_err(|e| Error::ModuleError(e.into()))?;

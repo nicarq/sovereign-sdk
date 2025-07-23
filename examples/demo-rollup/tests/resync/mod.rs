@@ -82,9 +82,10 @@ async fn check_value(client: &demo_stf_json_client::Client, expected: u64) {
     let response = client
         .synthetic_load_heavy_state_get_state_value(None, None)
         .await
-        .unwrap();
+        .unwrap()
+        .into_inner();
 
-    match &response.data {
+    match &*response {
         RuntimeAnyJsonValue::Object(inner) => {
             let state_value = inner.get("value").unwrap();
             let heavy_vec = state_value.as_array().unwrap();
@@ -206,7 +207,7 @@ async fn test_generate_mockda_dataset_for_resync() -> anyhow::Result<()> {
 
 /// The actual resync test, using a pre-generated mock_da database.
 ///
-/// Imporant Note: This test may fail if you've made any changes that could modify the chain hash,
+/// Important Note: This test may fail if you've made any changes that could modify the chain hash,
 /// including adding/removing call message variants to any module in demo-rollup. Remove
 /// `test/resync/data` and run `test_generate_mockda_dataset_for_resync` to update the data.
 #[tokio::test(flavor = "multi_thread")]
@@ -354,7 +355,7 @@ async fn sync_rollup_with_path(
 
     tokio::time::timeout(ROLLUP_SYNC_TIMEOUT, async {
         while let SyncStatus::Syncing { .. } =
-            test_rollup.api_client.get_sync_status().await.unwrap().data
+            *test_rollup.api_client.get_sync_status().await.unwrap()
         {
             tokio::time::sleep(Duration::from_secs(2)).await;
         }
@@ -377,7 +378,7 @@ async fn sync_rollup_with_path(
         })
         .await
         .unwrap();
-    let tx_hash = accept_tx.data.id.clone();
+    let tx_hash = accept_tx.id.clone();
     let hex_tx_hash = TxHash::from_str(tx_hash.as_str()).unwrap(); // I wonder if there's a better way
     let mut tx_subscription = test_rollup
         .api_client

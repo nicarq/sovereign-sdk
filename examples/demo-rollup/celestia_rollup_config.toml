@@ -60,9 +60,6 @@ blob_processing_timeout_secs = 600
 max_batch_size_bytes = 1048576
 max_concurrent_blobs = 128
 max_allowed_node_distance_behind = 10
-# DA address of this sequencer. Should match address of connected bridge/full node.
-# Taken from ../../docker/credentials/bridge-0.addr
-da_address = "celestia1a68m2l85zn5xh0l07clk4rfvnezhywc53g8x7s"
 rollup_address = "sov1lzkjgdaz08su3yevqu6ceywufl35se9f33kztu5cu2spja5hyyf"
 [sequencer.preferred]
 # TODO: Remove it when https://github.com/Sovereign-Labs/sovereign-sdk-wip/issues/2814 is resolved

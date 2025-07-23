@@ -124,6 +124,8 @@ pub const TEST_FINALIZATION_BLOCKS: u32 = 3;
 /// The default amount of tokens that should be staked by a user (prover, sequencer, etc.). This value is roughly equal to the
 /// max fee for a transaction because sequencers need to pre-emptively pay for all transactions' pre-execution checks using their stake.
 pub const TEST_DEFAULT_USER_STAKE: [u64; 2] = [100_000_000_000, 100_000_000_000];
+/// Minimum sequencer bond.
+pub const TEST_MIN_SEQ_BOND: Amount = Amount::new(1000);
 /// The default amount of tokens that should be in the user's bank account. This amount should always be higher than [`TEST_DEFAULT_MAX_FEE`] and
 /// [`TEST_DEFAULT_USER_STAKE`]. This value is set so that the user can send a dozen transactions without having to refill its bank account.
 pub const TEST_DEFAULT_USER_BALANCE: Amount = Amount::new(1_000_000_000_000_000);

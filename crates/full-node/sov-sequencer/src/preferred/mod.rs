@@ -5,6 +5,7 @@ mod batch_size_tracker;
 mod block_executor;
 mod db;
 mod executor_events;
+mod inner;
 mod preferred_blob_sender;
 mod replica_sync_task;
 mod side_effects;
@@ -16,11 +17,10 @@ use std::marker::PhantomData;
 use std::num::NonZero;
 use std::path::Path;
 use std::pin::Pin;
-use std::sync::atomic::{AtomicBool, AtomicU64, AtomicUsize, Ordering};
+use std::sync::atomic::{AtomicBool, AtomicU64, Ordering};
 use std::sync::Arc;
 use std::time::Duration;
 
-use anyhow::anyhow;
 use async_trait::async_trait;
 use axum::http::StatusCode;
 use batch_size_tracker::BatchSizeTracker;
@@ -31,12 +31,13 @@ use db::{
     PreferredSequencerReadBlob,
 };
 use futures::Stream;
+use inner::*;
 use preferred_blob_sender::PreferredBlobSender;
 use replica_sync_task::spawn_replica_sync_task;
 use schemars::JsonSchema;
 use serde_with::serde_as;
 use side_effects::SideEffectsTask;
-use sov_blob_sender::{new_blob_id, BlobExecutionStatus, BlobInternalId, BlobSender};
+use sov_blob_sender::{new_blob_id, BlobExecutionStatus, BlobSender};
 use sov_blob_storage::{PreferredBatchData, SequenceNumber};
 use sov_db::ledger_db::LedgerDb;
 use sov_modules_api::capabilities::{BlobSelector, RollupHeight, TransactionAuthenticator};
@@ -52,10 +53,9 @@ use sov_rollup_interface::common::SlotNumber;
 use sov_rollup_interface::node::da::DaService;
 use sov_rollup_interface::node::DaSyncState;
 use sov_rollup_interface::TxHash;
-use sov_state::{NativeStorage, Storage};
 use state_root_compute::StateRootBackgroundTaskState;
 use tokio::sync::mpsc::{self, Sender};
-use tokio::sync::{broadcast, oneshot, watch, Mutex, MutexGuard};
+use tokio::sync::{broadcast, watch, Mutex};
 use tokio::task::JoinHandle;
 use tokio::time::sleep;
 use tracing::{debug, error, info, trace, warn};
@@ -67,15 +67,12 @@ use crate::common::{
     AcceptedTx, Sequencer, SequencerEventStream, StateUpdateError, StateUpdateNotification,
     TxStatusBlobSenderHooks, WithCachedTxHashes,
 };
-use crate::metrics::{
-    track_in_progress_batch_size, track_sequence_number,
-    PreferredSequencerFetchBatchesToReplayMetrics,
-};
+use crate::metrics::{track_in_progress_batch_size, PreferredSequencerFetchBatchesToReplayMetrics};
 use crate::preferred::block_executor::{
-    AcceptedTxWithBudgetInfo, RollupBlockExecutor, RollupBlockExecutorError,
+    RollupBlockExecutor, RollupBlockExecutorConfig, RollupBlockExecutorError,
 };
-use crate::preferred::db::{latest_finalized_sequence_number, DbEvent};
-use crate::preferred::executor_events::{ExecutorEvent, ExecutorEventsSender};
+use crate::preferred::db::DbEvent;
+use crate::preferred::executor_events::ExecutorEventsSender;
 use crate::preferred::preferred_blob_sender::create_blobs_to_send;
 use crate::rest_api::ApiAcceptedTx;
 use crate::{
@@ -83,18 +80,6 @@ use crate::{
 };
 
 type VisibleSlotNumberIncrease = NonZero<u8>;
-
-/// These two constants are used to calculate the comfortable gas limit.
-/// Currently, this is 95% of the initial gas limit. After the comfortable limit is reached,
-/// the sequencer will close and publish the current batch.
-const COMFORTABLE_GAS_LIMIT_MULTIPLIER: u64 = 19;
-const COMFORTABLE_GAS_LIMIT_DIVISOR: u64 = 20;
-
-/// These two constants are used to calculate the comfortable batch size limit.
-/// Currently, this is 99% of the hard limit. After the comfortable limit is reached,
-/// the sequencer will close and publish the current batch.
-const COMFORTABLE_SIZE_LIMIT_MULTIPLIER: u64 = 99;
-const COMFORTABLE_SIZE_LIMIT_DIVISOR: u64 = 100;
 
 // Big infodump for the user that wouldmake the code hard to read if it were inline.
 const RECOVERY_ERROR_MESSAGE_ON_NONE_STRATEGY: &str = "The preferred sequencer is too far behind, and the visible slot number has lagged more than the allowed deferred slots count. This means some non-preferred batches may have been included by the node, if there were any. If this happened, already provided soft confirmations may now no longer be valid. Because the recovery_strategy config was set to None, we are not attempting recovery at this point. You should either: a) delete everything from the preferred_sequencer database (thus annulling all currently pending soft confirmations), which will allow you to restart the sequencer fresh; or b) set the recovery_strategy config value to TryToSave, in which case all pending batches will be flushed to be executed on a best-effort basis. The latter may save some soft-confirmations if they have not been invalidated yet. However, IF a non-preferred batch has been included, AND some soft-confirmations have been invalidated by it, this will cause the sequencer to be penalised for every invalid batch; ensure your sequencer bond is sufficient to cover any penalties to be able to continue operating uninterrupted.";
@@ -116,373 +101,6 @@ pub enum RecoveryStrategy {
     TryToSave,
 }
 
-/// A inner sequencer struct containing state that requires synchronized access.
-/// This struct accepts/rejects transactions, then hands them to the side effects task
-/// to be persisted.
-struct Inner<S, Rt>
-where
-    S: Spec,
-    Rt: Runtime<S>,
-{
-    latest_info: StateUpdateInfo<S::Storage>,
-
-    config: SequencerConfig<S::Da, S::Address, PreferredSequencerConfig>,
-    shutdown_receiver: watch::Receiver<()>,
-    executor: RollupBlockExecutor<S, Rt>,
-    batch_size_tracker: BatchSizeTracker,
-    is_ready: Result<(), SequencerNotReadyDetails>,
-    in_flight_blobs: Arc<AtomicUsize>,
-    executor_events_sender: ExecutorEventsSender<S, Rt>,
-    sequence_number_of_next_blob: SequenceNumber,
-    /// A boolean that indicates whether the sequencer has finished its startup phase.
-    /// We need this rather than relying on `SequencerNotReadyDetails::Startup` because that state
-    /// can be overwritten when the node is resyncing.
-    has_finished_startup: bool,
-}
-
-impl<S, Rt> Inner<S, Rt>
-where
-    S: Spec,
-    Rt: Runtime<S>,
-{
-    fn nb_of_concurrent_blob_submissions(&self) -> usize {
-        self.in_flight_blobs.load(Ordering::Acquire)
-    }
-
-    pub async fn publish_proof_blob(&mut self, blob_id: BlobInternalId, data: Arc<[u8]>) {
-        let sequence_number = self.get_and_inc_next_sequence_number();
-        self.executor_events_sender
-            .send(ExecutorEvent::PublishProofBlob(
-                blob_id,
-                data,
-                sequence_number,
-            ))
-            .await;
-    }
-
-    async fn overwrite_next_sequence_number_for_recovery(
-        &mut self,
-        sequence_number: SequenceNumber,
-    ) {
-        info!(%sequence_number, "Overwriting next sequence number");
-        self.sequence_number_of_next_blob = sequence_number;
-        track_sequence_number(self.sequence_number_of_next_blob);
-    }
-
-    fn blob_sender_busy(&self) -> Option<usize> {
-        let num_current_in_flight = self.nb_of_concurrent_blob_submissions();
-
-        if num_current_in_flight > self.config.max_concurrent_blobs {
-            Some(num_current_in_flight)
-        } else {
-            None
-        }
-    }
-
-    fn node_root_hash(&self) -> anyhow::Result<<S::Storage as Storage>::Root> {
-        self.latest_info
-            .storage
-            .get_root_hash(self.latest_info.slot_number)
-    }
-
-    fn current_height(&self) -> RollupHeight {
-        self.executor.checkpoint.rollup_height_to_access()
-    }
-
-    /// Create a new batch, if possible. Errors here are expected, because it's not always possible to create a new batch due to transient DA issues.
-    /// We can only create a new batch if we have a finalized slot available to use as our `visible_slot_number_after_increase`.
-    #[tracing::instrument(skip_all, level = "trace")]
-    async fn try_to_create_and_start_batch_if_none_in_progress(
-        &mut self,
-        stop_at_rollup_height: Option<RollupHeight>,
-        leave_space_for_next_batch: bool,
-    ) -> Result<(), BatchCreationError> {
-        if self.executor.has_in_progress_batch() {
-            return Ok(());
-        }
-
-        if let Some(height_to_stop_at) = stop_at_rollup_height {
-            let current_height = self.current_height();
-            let condition = if leave_space_for_next_batch {
-                current_height >= height_to_stop_at
-            } else {
-                current_height > height_to_stop_at
-            };
-            if condition {
-                debug!("The sequencer is at stop height and tried to create a batch (aborted due to stop height).");
-                return Err(BatchCreationError::PreferredSequencerAtStopHeight {
-                    current_height,
-                    height_to_stop_at,
-                });
-            }
-        }
-
-        if self.blob_sender_busy().is_some() {
-            warn!("The blob sender is busy, no batch could be started at this time.");
-            return Err(BatchCreationError::BlobSenderBusy);
-        }
-
-        let visible_increase = match next_visible_slot_number_increase(
-            &self.executor.checkpoint,
-            &self.latest_info,
-            leave_space_for_next_batch,
-            self.config
-                .sequencer_kind_config
-                .ideal_lag_behind_finalized_slot,
-        ) {
-            Ok(visible_increase) => visible_increase,
-            Err(e) => {
-                warn!(
-                    "A batch was requested but the sequencer is not ready to produce one: {:?}",
-                    e
-                );
-                return Err(BatchCreationError::NoFinalizedSlotAvailable);
-            }
-        };
-
-        debug!(visible_increase, "No in-progress batch, starting a new one");
-        let node_state_root = self
-            .node_root_hash()
-            .map_err(BatchCreationError::DatabaseError)?;
-        let visible_slot_number_after_increase = self
-            .executor
-            .checkpoint
-            .current_visible_slot_number()
-            .advance(visible_increase.get().into());
-
-        // DB operations handled by replica-aware db implementation
-        let sequence_number = self.get_and_inc_next_sequence_number();
-
-        let min_profit_per_tx = self.config.sequencer_kind_config.minimum_profit_per_tx;
-        self.executor
-            .start_rollup_block(
-                visible_slot_number_after_increase,
-                visible_increase,
-                &node_state_root,
-                min_profit_per_tx,
-            )
-            .await;
-        self.executor_events_sender
-            .send(ExecutorEvent::StartBatch {
-                visible_slot_number_after_increase,
-                visible_slots_to_advance: visible_increase,
-                sequence_number,
-                new_checkpoint: self
-                    .executor
-                    .checkpoint
-                    .clone_with_empty_witness_dropping_temp_cache(),
-            })
-            .await;
-
-        Ok(())
-    }
-
-    /// Creates and starts a batch for replicas using the exact visible slot parameters from the master
-    #[tracing::instrument(skip_all, level = "trace")]
-    pub(crate) async fn try_start_batch_with_parameters_from_master(
-        &mut self,
-        visible_slot_number_after_increase: VisibleSlotNumber,
-        visible_slots_to_advance: NonZero<u8>,
-    ) -> anyhow::Result<()> {
-        if self.executor.has_in_progress_batch() {
-            return Ok(());
-        }
-
-        // Calculate the correct visible_slots_to_advance for this replica based on its current state
-        let current_visible_slot_number = self.executor.checkpoint.current_visible_slot_number();
-        let replica_visible_slots_to_advance = visible_slot_number_after_increase.as_true()
-            .checked_sub(current_visible_slot_number.as_true().get())
-            .and_then(|diff| NonZero::new(diff.get().try_into().unwrap()))
-            .ok_or_else(|| {
-                error!(
-                    current_visible_slot_number = %current_visible_slot_number,
-                    target_visible_slot_number = %visible_slot_number_after_increase,
-                    "Cannot calculate visible slots to advance for replica: target is not greater than current"
-                );
-                anyhow!("Invalid visible slot number progression for replica".to_string())
-            })?;
-
-        assert_eq!(
-            visible_slots_to_advance,
-            replica_visible_slots_to_advance,
-            "Sanity check failed: replica visible_slots_to_advance calculation different from master."
-        );
-
-        let node_state_root = self.node_root_hash()?;
-        let sequence_number = self.get_and_inc_next_sequence_number();
-
-        let min_profit_per_tx = self.config.sequencer_kind_config.minimum_profit_per_tx;
-        self.executor
-            .start_rollup_block(
-                visible_slot_number_after_increase,
-                replica_visible_slots_to_advance,
-                &node_state_root,
-                min_profit_per_tx,
-            )
-            .await;
-
-        self.executor_events_sender
-            .send(ExecutorEvent::StartBatch {
-                visible_slot_number_after_increase,
-                visible_slots_to_advance,
-                sequence_number,
-                new_checkpoint: self
-                    .executor
-                    .checkpoint
-                    .clone_with_empty_witness_dropping_temp_cache(),
-            })
-            .await;
-
-        Ok(())
-    }
-
-    #[tracing::instrument(skip_all, level = "trace")]
-    async fn trigger_batch_production_if_convenient(
-        &mut self,
-        stop_at_rollup_height: Option<RollupHeight>,
-    ) {
-        if !self.config.automatic_batch_production {
-            warn!("Skipping batch production due to settings");
-            return;
-        }
-
-        // If we're lagging less than the ideal amount, it's not convenient to create a new batch so return early
-        if is_lagging_less_than_ideal_amount(
-            self.executor.checkpoint.current_visible_slot_number(),
-            self.latest_info.latest_finalized_slot_number,
-            self.config
-                .sequencer_kind_config
-                .ideal_lag_behind_finalized_slot,
-        ) {
-            return;
-        }
-
-        if let Err(e) = self
-            .try_to_create_and_start_batch_if_none_in_progress(stop_at_rollup_height, true)
-            .await
-        {
-            tracing::debug!(
-                error = %e,
-                "Unable to start new batch after successful state update."
-            );
-        }
-
-        // We were unable to open a new batch (likely due to a lack of finalized
-        // slots), so we're done.
-        if !self.executor.has_in_progress_batch() {
-            return;
-        }
-
-        // If the node is shutting down, we may not be able to terminate the batch. In that case, just return early.
-        if self.shutdown_receiver.has_changed().unwrap_or(true) {
-            info!(
-                "The sequencer is shutting down. Exiting trigger_batch_production_if_convenient."
-            );
-            return;
-        }
-
-        self.close_current_batch().await;
-    }
-
-    /// Closes the current batch
-    #[cfg(feature = "test-utils")]
-    pub async fn force_close_current_batch(&mut self) -> anyhow::Result<()> {
-        self.close_current_batch().await;
-        Ok(())
-    }
-
-    fn next_sequence_number(&self) -> SequenceNumber {
-        self.sequence_number_of_next_blob
-    }
-
-    fn get_and_inc_next_sequence_number(&mut self) -> SequenceNumber {
-        let sequence_number = self.sequence_number_of_next_blob;
-        self.sequence_number_of_next_blob = self
-            .sequence_number_of_next_blob
-            .checked_add(1)
-            .expect("Sequence number overflow; this should be unreachable for a few billion years");
-        track_sequence_number(self.sequence_number_of_next_blob);
-        sequence_number
-    }
-
-    /// Closes the current batch.
-    ///
-    /// This should be called only when...
-    /// 1. There's no more capacity to accept txs in the current batch.
-    /// 2. We're absolutely sure we want to close the batch early even though we don't need to.
-    ///
-    /// Case 2 only happens when we've just finished updating the state *and* we have more than our ideal number of finalized slots available.
-    #[tracing::instrument(skip_all, level = "trace")]
-    async fn close_current_batch(&mut self) {
-        // Terminate the batch.
-        self.executor.end_rollup_block().await;
-        self.batch_size_tracker = BatchSizeTracker::new(self.config.max_batch_size_bytes);
-        let checkpoint = self
-            .executor
-            .checkpoint
-            .clone_with_empty_witness_dropping_temp_cache();
-        self.executor_events_sender
-            .send(ExecutorEvent::CloseBatch(checkpoint))
-            .await;
-    }
-
-    async fn prune_sequencer_db(&mut self) {
-        let latest_state_info = &self.latest_info;
-        let mut runtime = Rt::default();
-        let next_sequence_number_according_to_node =
-            get_next_sequence_number_according_to_node(latest_state_info, &mut runtime);
-
-        sov_metrics::track_metrics(|tracker| {
-            tracker.submit_inline(
-                "sov_rollup_sequence_number_delta",
-                format!(
-                    "delta={}i",
-                    (self.next_sequence_number() as i64)
-                        - (next_sequence_number_according_to_node as i64)
-                ),
-            );
-        });
-
-        match latest_finalized_sequence_number(latest_state_info, &mut runtime) {
-            Some(num) => {
-                // TODO(@neysofu): somehow, if we prune too close to the latest
-                // finalized sequence number, we get panics due to missing blobs
-                // and inconsistent state. There is clearly something wrong with
-                // the pruning height calculation height.
-                if let Some(num) = num.checked_sub(100) {
-                    self.executor_events_sender
-                        .send(ExecutorEvent::PruneDb(num))
-                        .await;
-                }
-            }
-            None => {
-                // Nothing to prune because there's no sequence number history.
-            }
-        }
-    }
-
-    async fn force_overwrite_state(
-        &mut self,
-        info: StateUpdateInfo<S::Storage>,
-        new_executor: RollupBlockExecutor<S, Rt>,
-    ) {
-        tracing::trace!(?info, "Overwriting preferred sequencer internal state");
-
-        // Replace known info
-        self.latest_info = info.clone();
-
-        // Replace executor state
-        self.executor.replace_state(new_executor).await;
-
-        // Replace API state
-        let mut rt = Rt::default();
-        let checkpoint = StateCheckpoint::new(info.storage.clone(), &rt.kernel());
-        self.executor_events_sender
-            .send(ExecutorEvent::ForceUpdateApiState(checkpoint))
-            .await;
-    }
-}
-
 /// A [`Sequencer`] with instant transaction confirmation.
 pub struct PreferredSequencer<S, Rt, Da>
 where
@@ -496,7 +114,8 @@ where
     api_state: ApiState<S>,
     da_sync_state: Arc<DaSyncState>,
     _runtime: PhantomData<(Rt, Da)>,
-    config: SequencerConfig<S::Da, S::Address, PreferredSequencerConfig>,
+    config: SequencerConfig<S::Address, PreferredSequencerConfig>,
+    da_address: <S::Da as DaSpec>::Address,
     block_executors_shutdown_notifier: Sender<()>,
     /// Unique node identifier used for leader election in replica failover scenarios. Generated on
     /// startup (and reset on restart).
@@ -511,7 +130,7 @@ where
     api_ledger_db: LedgerDb,
     shutdown_sender: watch::Sender<()>,
     // Used to track which txs need to be ignored after the sequencer had downtime (in the sense of giving out 503s)
-    tx_queue_id: AtomicU64,
+    tx_queue_id: Arc<AtomicU64>,
     stop_at_rollup_height: Option<RollupHeight>,
     /// The sender for state update notifications. Currently used only for testing.
     test_only_state_update_notification_sender: broadcast::Sender<StateUpdateNotification>,
@@ -536,7 +155,7 @@ where
         state_update_receiver: StateUpdateReceiver<S::Storage>,
         da_sync_state: Arc<DaSyncState>,
         storage_path: &Path,
-        config: &SequencerConfig<S::Da, S::Address, PreferredSequencerConfig>,
+        config: &SequencerConfig<S::Address, PreferredSequencerConfig>,
         ledger_db: LedgerDb,
         api_ledger_db: LedgerDb,
         shutdown_sender: watch::Sender<()>,
@@ -544,8 +163,10 @@ where
     ) -> anyhow::Result<(Arc<Self>, Vec<JoinHandle<()>>)> {
         let shutdown_receiver = shutdown_sender.subscribe();
         let latest_state_update = state_update_receiver.borrow().clone();
+        let da_address = da.get_signer().await;
         debug!(
             ?latest_state_update,
+            %da_address,
             "Instantiating the preferred sequencer"
         );
 
@@ -591,16 +212,17 @@ where
             } else {
                 Box::new(RocksDbBackend::new(storage_path).await?)
             };
-        let (db, latest_db_event_id, next_sequence_number) = PreferredSequencerDb::<S, Rt>::new(
-            db_backend,
-            shutdown_sender.clone(),
-            start_as_master,
-        )
-        .await?;
+        let (db, latest_db_event_id, next_sequence_number, db_cache) =
+            PreferredSequencerDb::<S, Rt>::new(
+                db_backend,
+                shutdown_sender.clone(),
+                start_as_master,
+            )
+            .await?;
 
         let mut handles = vec![];
 
-        let completed_blobs = db.all_completed_blobs();
+        let completed_blobs = db_cache.all_completed_blobs();
 
         let blob_sender = {
             let blobs_to_send = if start_as_master {
@@ -615,7 +237,7 @@ where
                 Vec::new()
             };
 
-            let (inner, blob_sender_handle) = BlobSender::new(
+            let (inner_blob_sender, blob_sender_handle) = BlobSender::new(
                 da,
                 ledger_db.clone(),
                 storage_path,
@@ -628,7 +250,7 @@ where
             .await?;
 
             handles.push(blob_sender_handle);
-            PreferredBlobSender::from((inner, start_as_master))
+            PreferredBlobSender::from((inner_blob_sender, start_as_master))
         };
 
         let (state_root_compute_handle, state_root_compute_task) =
@@ -648,28 +270,42 @@ where
         );
 
         let (executor_events_sender, executor_events_receiver) =
-            ExecutorEventsSender::new(shutdown_sender.clone());
+            ExecutorEventsSender::new(shutdown_sender.clone(), db_cache);
         let in_flight_blobs = blob_sender.nb_of_in_flight_blobs_handle();
 
+        // Here we need to mutliply by 1000 to convert from millis to micros.
+        let batch_execution_time_limit_micros = config
+            .sequencer_kind_config
+            .batch_execution_time_limit_millis
+            * 1000;
+
+        let rollup_exec_config = RollupBlockExecutorConfig {
+            config: config.clone(),
+            da_address: da_address.clone(),
+            shutdown_notifier: block_executors_shutdown_notifier.clone(),
+            state_root_request_sender: state_root_compute_task.request_sender.clone(),
+            shutdown_receiver: shutdown_receiver.clone(),
+            shutdown_sender: shutdown_sender.clone(),
+            startup_transaction_cache_writer: None, // The main executor must *not* write to the tx cache. That's handled by the side effects task
+        };
+
+        let tx_queue_id = Arc::new(AtomicU64::new(0));
         let inner = Inner {
             latest_info: latest_state_update.clone(),
+            tx_queue_id: tx_queue_id.clone(),
+            batch_execution_time_limit_micros,
             config: config.clone(),
             shutdown_receiver: shutdown_receiver.clone(),
-            executor: RollupBlockExecutor::new(
-                &latest_state_update,
-                config.clone(),
-                block_executors_shutdown_notifier.clone(),
-                state_root_compute_task.request_sender.clone(),
-                shutdown_receiver.clone(),
-                shutdown_sender.clone(),
-                None, // The main executor must *not* write to the tx cache. That's handled by the side effects task
-            ),
+            shutdown_sender: shutdown_sender.clone(),
+            executor: RollupBlockExecutor::new(&latest_state_update, rollup_exec_config),
             executor_events_sender,
             sequence_number_of_next_blob: next_sequence_number,
             in_flight_blobs,
             batch_size_tracker: BatchSizeTracker::new(config.max_batch_size_bytes),
             is_ready: Err(SequencerNotReadyDetails::Startup),
             has_finished_startup: false,
+            metrics: Vec::with_capacity(128),
+            stop_at_rollup_height,
         };
 
         let side_effects_task = SideEffectsTask {
@@ -699,9 +335,10 @@ where
             shutdown_receiver: shutdown_receiver.clone(),
             api_ledger_db,
             shutdown_sender,
-            tx_queue_id: AtomicU64::new(0),
+            tx_queue_id,
             stop_at_rollup_height,
             test_only_state_update_notification_sender: broadcast::channel(100).0,
+            da_address,
         });
 
         // Launch replica sync task (only IF postgres is configured). Rocksdb sequencers have no
@@ -747,110 +384,17 @@ where
     }
 
     #[tracing::instrument(skip_all, level = "debug")]
-    pub(crate) async fn lock_inner(&self) -> MutexGuard<Inner<S, Rt>> {
-        self.inner.lock().await
-    }
-
-    /// Creates a new executor for recovery. This must *not* be called to create executors
-    /// under other circumstances, since it causes side effects on the transaction cache.
-    ///
-    /// If you need an executor for normal "replay" use a different constructor which does
-    /// not pass a transaction cache writer.
-    fn create_new_executor_for_recovery(
-        &self,
-        info: &StateUpdateInfo<S::Storage>,
-    ) -> RollupBlockExecutor<S, Rt> {
-        RollupBlockExecutor::<_, Rt>::new(
-            info,
-            self.config.clone(),
-            self.block_executors_shutdown_notifier.clone(),
-            self.state_root_compute_task.request_sender.clone(),
-            self.shutdown_receiver.clone(),
-            self.shutdown_sender.clone(),
-            Some(self.transaction_cache.write_handle()), // update the tx cache as we go
-        )
-    }
-
-    async fn check_readiness(
-        is_master: bool,
-        inner: &Inner<S, Rt>,
-        max_concurrent_blobs: usize,
-        height_to_stop_at: Option<RollupHeight>,
-    ) -> Result<(), SequencerNotReadyDetails> {
-        if !is_master {
-            return Err(SequencerNotReadyDetails::ReplicaMode);
-        }
-
-        // We cannot accept transactions until the latest finalized slot number
-        // is AT LEAST 1. Meaning, as long as we're stuck at genesis, we can't
-        // accept any transactions.
-        if inner.latest_info.latest_finalized_slot_number == SlotNumber::GENESIS {
-            tracing::error!("Timed out while waiting for the node to progress beyond genesis. The sequencer can't accept transactions until that happens");
-            return Err(SequencerNotReadyDetails::WaitingOnDa {
-                finalized_slot_number: SlotNumber::GENESIS,
-                needed_finalized_slot_number: SlotNumber::new(1),
-            });
-        }
-
-        if let Some(nb_of_blobs_in_flight) = inner.blob_sender_busy() {
-            return Err(SequencerNotReadyDetails::WaitingOnBlobSender {
-                max_concurrent_blobs,
-                nb_of_blobs_in_flight,
-            });
-        }
-
-        if let Some(height_to_stop_at) = height_to_stop_at {
-            let current_height = inner.current_height();
-            if current_height > height_to_stop_at {
-                return Err(SequencerNotReadyDetails::PreferredSequencerAtStopHeight {
-                    current_height,
-                    height_to_stop_at,
-                });
-            }
-        }
-
-        inner.is_ready.as_ref().map_err(|details| details.clone())?;
-        Ok(())
-    }
-
-    fn current_visible_slot_number_according_to_node(
-        &self,
-        info: &StateUpdateInfo<S::Storage>,
-    ) -> SlotNumber {
-        let mut rt = Rt::default();
-        let node_checkpoint = StateCheckpoint::new(info.storage.clone(), &rt.kernel());
-        node_checkpoint.current_visible_slot_number().as_true()
-    }
-
-    async fn trigger_recovery(
-        &self,
-        info: &StateUpdateInfo<S::Storage>,
-        mut inner: MutexGuard<'_, Inner<S, Rt>>,
-    ) {
-        inner.is_ready = Err(SequencerNotReadyDetails::PreferredSequencerRecovering);
-        let next_sequence_number_according_to_node =
-            get_next_sequence_number_according_to_node(info, &mut Rt::default());
-        inner
-            .executor_events_sender
-            .send(ExecutorEvent::EnterRecoveryMode {
-                recovery_strategy: self.config.sequencer_kind_config.recovery_strategy.clone(),
-                next_sequence_number_according_to_node,
-            })
-            .await;
-
-        let executor_from_info = self.create_new_executor_for_recovery(info);
-        inner
-            .force_overwrite_state(info.clone(), executor_from_info)
-            .await;
-
-        info!(?info, current_visible_slot_number = %self.current_visible_slot_number_according_to_node(info), "Beginning sequencer recovery");
+    pub(crate) async fn lock_inner(&self, reason: &'static str) -> InnerGuard<'_, S, Rt> {
+        let guard = InnerGuard::new(self.inner.lock().await, reason);
+        guard
     }
 
     /// Returns a range to allow hysteresis during catchup. The first (lower) value will be the
     /// minimum to be considered successfully recovered, the second (upper) value will be the
     /// target.
     fn catchup_batches_to_send(&self, info: &StateUpdateInfo<S::Storage>) -> (u64, u64) {
-        let current_visible_slot_number = self.current_visible_slot_number_according_to_node(info);
+        let current_visible_slot_number =
+            current_visible_slot_number_according_to_node::<S, Rt>(info);
         let raw_catchup_delta = info
             .latest_finalized_slot_number
             .saturating_delta(current_visible_slot_number);
@@ -873,23 +417,18 @@ where
         state_update_receiver: &mut StateUpdateReceiver<S::Storage>,
         shutdown_receiver: &watch::Receiver<()>,
         mut info: StateUpdateInfo<S::Storage>,
-        inner: MutexGuard<'_, Inner<S, Rt>>,
     ) -> anyhow::Result<()> {
+        // Sanity check - this should only ever be called after trigger_recovery, which should
+        // already have checked that we're not a replica. But we check again just in case.
         if !self.is_master().await {
-            // Replicas don't run recovery. We let the main sequencer run catchup. If we fail-over
-            // midway, update_state() will automatically re-trigger recovery on this instance if
-            // necessary - if the previous master already recovered enough then we'll just continue
-            // operating.
-            //
-            // TODO: we do need to overwrite our state with the node's to implement automatic
-            // recovery following properly. #3100
-            error!("We have encountered recovery conditions, but this is a replica sequencer. Recovery is currently unsupported for replicas. Please run a single master instance of the sequencer to restore the rollup to normal functionality. Wait for the rollup to be fully recovered, and then restart any replicas.");
+            // Replicas don't run recovery. We let the main sequencer run catchup.
+            // TODO: #3100
+            error!("Sanity check: replica tried to run recovery. This is currently not implemented (and should be checked earlier, so this error should never trigger).");
             exit_rollup(&self.shutdown_sender).await;
             unreachable!();
         }
 
         let mut rt = Rt::default();
-        self.trigger_recovery(&info, inner).await;
 
         loop {
             let (min_batches_to_send, max_batches_to_send) = self.catchup_batches_to_send(&info);
@@ -915,7 +454,9 @@ where
                         tokio::time::sleep(Duration::from_millis(100)).await;
                     }
                 }
-                let mut inner = self.lock_inner().await;
+                let mut inner = self
+                    .lock_inner("recover_and_catch_up:dump_catchup_batches")
+                    .await;
                 if i % 10 == 0 {
                     tracing::info!(number = %i, min = %min_batches_to_send, max = %max_batches_to_send, "Sending catchup batch");
                 } else {
@@ -932,7 +473,9 @@ where
 
             // 2. Wait for node to catch up to our sequence number
             let target_sequence_number = {
-                let inner = self.lock_inner().await;
+                let inner = self
+                    .lock_inner("recover_and_catch_up:get_next_sequence_number")
+                    .await;
                 inner.next_sequence_number()
             };
 
@@ -957,12 +500,19 @@ where
                     "update_state_task",
                 )
                 .await?;
-                let mut inner = self.lock_inner().await;
+
+                let rollup_exec_config = self.create_bloc_exec_config_for_recovery();
+                let mut inner = self
+                    .lock_inner("recover_and_catch_up:overwrite_executor")
+                    .await;
                 inner
                     .executor_events_sender
                     .flush_transactions_cache(info.next_tx_number)
                     .await;
-                let executor_from_info = self.create_new_executor_for_recovery(&info);
+
+                let executor_from_info =
+                    RollupBlockExecutor::<_, Rt>::new(&info, rollup_exec_config);
+
                 inner
                     .force_overwrite_state(info.clone(), executor_from_info)
                     .await;
@@ -976,6 +526,23 @@ where
             "Sequencer exiting recovery and resuming normal operation."
         );
         Ok(())
+    }
+
+    // Creates a new executor config for recovery. This must *not* be called to create executors
+    // under other circumstances, since it causes side effects on the transaction cache.
+    //
+    // If you need an executor for normal "replay" use a different constructor which does
+    // not pass a transaction cache writer.
+    fn create_bloc_exec_config_for_recovery(&self) -> RollupBlockExecutorConfig<S, Rt> {
+        RollupBlockExecutorConfig {
+            config: self.config.clone(),
+            da_address: self.da_address.clone(),
+            shutdown_notifier: self.block_executors_shutdown_notifier.clone(),
+            state_root_request_sender: self.state_root_compute_task.request_sender.clone(),
+            shutdown_receiver: self.shutdown_receiver.clone(),
+            shutdown_sender: self.shutdown_sender.clone(),
+            startup_transaction_cache_writer: Some(self.transaction_cache.write_handle()), // update the tx cache as we go
+        }
     }
 
     fn raw_max_deferred_slots_delay(&self) -> u64 {
@@ -1039,21 +606,14 @@ where
         shutdown_receiver: &watch::Receiver<()>,
         distance_to_tip: u64,
         current_info: StateUpdateInfo<S::Storage>,
-        mut inner: MutexGuard<'_, Inner<S, Rt>>,
     ) -> anyhow::Result<()> {
-        inner.is_ready = Err(SequencerNotReadyDetails::Syncing {
-            target_da_height: self.da_sync_state.target_da_height.load(Ordering::Relaxed),
-            synced_da_height: self.da_sync_state.synced_da_height.load(Ordering::Relaxed),
-        });
-        drop(inner); // Drop the lock so that we can reacquire it on the first loop iteration
-
         let mut rt = Rt::default();
         let mut info = current_info;
 
         loop {
             let is_synced = self.da_sync_state.status().distance() <= distance_to_tip;
 
-            let mut inner = self.lock_inner().await;
+            let mut inner = self.lock_inner("wait_for_node_resync").await;
 
             inner.is_ready = Err(SequencerNotReadyDetails::Syncing {
                 target_da_height: self.da_sync_state.target_da_height.load(Ordering::Relaxed),
@@ -1083,7 +643,7 @@ where
             let checkpoint = StateCheckpoint::new(info.storage.clone(), &rt.kernel());
             inner
                 .executor_events_sender
-                .send(ExecutorEvent::UpdateStateForRecovery(checkpoint))
+                .update_state_for_recovery(checkpoint)
                 .await;
 
             self.update_api_ledger(&info).await;
@@ -1109,7 +669,6 @@ where
         state_update_receiver: &mut StateUpdateReceiver<S::Storage>,
         shutdown_receiver: &watch::Receiver<()>,
         current_info: StateUpdateInfo<S::Storage>,
-        inner: MutexGuard<'_, Inner<S, Rt>>, // We pass the lock to ensure no txs can be accepted before the sequencer is marked unready
     ) -> anyhow::Result<()> {
         self.wait_for_node_resync(
             state_update_receiver,
@@ -1117,7 +676,6 @@ where
             // Catch up a bit extra to avoid immediately triggering another resync
             self.config.max_allowed_node_distance_behind.div_ceil(2),
             current_info,
-            inner,
         )
         .await
     }
@@ -1127,16 +685,9 @@ where
         state_update_receiver: &mut StateUpdateReceiver<S::Storage>,
         shutdown_receiver: &watch::Receiver<()>,
         current_info: StateUpdateInfo<S::Storage>,
-        inner: MutexGuard<'_, Inner<S, Rt>>,
     ) -> anyhow::Result<()> {
-        self.wait_for_node_resync(
-            state_update_receiver,
-            shutdown_receiver,
-            1,
-            current_info,
-            inner,
-        )
-        .await
+        self.wait_for_node_resync(state_update_receiver, shutdown_receiver, 1, current_info)
+            .await
     }
 
     /// Update the replica status (used during failover)
@@ -1154,107 +705,8 @@ where
         }
         self.is_master.store(is_master, Ordering::Release);
 
-        let inner = self.lock_inner().await;
-        let next_sequence_number_according_to_node =
-            get_next_sequence_number_according_to_node(&inner.latest_info, &mut Rt::default());
-        inner
-            .executor_events_sender
-            .send(ExecutorEvent::UpdateMasterStatus {
-                is_master,
-                next_sequence_number_according_to_node,
-            })
-            .await;
-    }
-
-    /// Closes the current batch if it is nearly full (by gas limit) or has reached the target batch execution time.
-    async fn close_batch_if_nearly_full(
-        &self,
-        inner: &mut Inner<S, Rt>,
-        remaining_slot_gas: &<S as GasSpec>::Gas,
-    ) {
-        // Check if we're close to the gas limit and close the batch if we are.
-        let mut comfortable_gas_limit = <S as GasSpec>::initial_gas_limit();
-        comfortable_gas_limit
-            .scalar_division(COMFORTABLE_GAS_LIMIT_DIVISOR)
-            .checked_scalar_product(COMFORTABLE_GAS_LIMIT_MULTIPLIER)
-            .unwrap_or_else(|| {
-                panic!(
-                    "Cannot overflow after dividing by {COMFORTABLE_GAS_LIMIT_DIVISOR} and multiplying by {COMFORTABLE_GAS_LIMIT_MULTIPLIER}",
-                )
-            });
-        let close_to_gas_limit = remaining_slot_gas.dim_is_less_or_eq(&comfortable_gas_limit);
-        if close_to_gas_limit {
-            tracing::debug!(%comfortable_gas_limit, %remaining_slot_gas, "Closing and publishing current batch because we're close to the gas limit");
-            inner.close_current_batch().await;
-        }
-
-        // Here we need to mutliply by 1000 to convert from millis to micros.
-        let batch_execution_time_limit_micros = self
-            .config
-            .sequencer_kind_config
-            .batch_execution_time_limit_millis
-            * 1000;
-
-        let current_batch_execution_time_micros =
-            inner.batch_size_tracker.batch_execution_time_micros;
-
-        if current_batch_execution_time_micros > batch_execution_time_limit_micros {
-            tracing::debug!(%batch_execution_time_limit_micros, %current_batch_execution_time_micros, "Closing and publishing current batch because we've reached the batch execution time cap");
-            inner.close_current_batch().await;
-        } else {
-            tracing::trace!(%batch_execution_time_limit_micros, %current_batch_execution_time_micros, "Batch execution time is within comfortable range, not closing batch");
-        }
-
-        let comfortable_size_limit = (inner.batch_size_tracker.max_batch_size as u64)
-            .checked_div(COMFORTABLE_SIZE_LIMIT_DIVISOR)
-            .and_then(|x| x.checked_mul(COMFORTABLE_SIZE_LIMIT_MULTIPLIER))
-            .unwrap_or_else(|| {
-                panic!(
-                    "Cannot overflow after dividing by {COMFORTABLE_SIZE_LIMIT_DIVISOR} and multiplying by {COMFORTABLE_SIZE_LIMIT_MULTIPLIER}",
-                )
-            });
-        if (inner.batch_size_tracker.current_batch_size as u64) > comfortable_size_limit {
-            tracing::debug!(%comfortable_size_limit, current_batch_size = %inner.batch_size_tracker.current_batch_size, "Closing and publishing current batch because we're close to the size limit");
-            inner.close_current_batch().await;
-        } else {
-            tracing::trace!(%comfortable_size_limit, current_batch_size = %inner.batch_size_tracker.current_batch_size, "Batch size is within comfortable range, not closing batch");
-        }
-    }
-
-    #[tracing::instrument(skip_all, level = "trace")]
-    async fn completed_batches_to_replay(
-        &self,
-        inner: &Inner<S, Rt>,
-        sequence_number: SequenceNumber,
-        include_in_progress_batch: bool,
-    ) -> anyhow::Result<(
-        Vec<PreferredBatchToReplay>,
-        PreferredSequencerFetchBatchesToReplayMetrics,
-    )>
-    where
-        S: Spec,
-        Rt: Runtime<S>,
-    {
-        let start = std::time::Instant::now();
-        let (sender, receiver) = oneshot::channel();
-        inner
-            .executor_events_sender
-            .send(ExecutorEvent::FetchCompletedBlobs {
-                after_and_including: sequence_number,
-                oneshot_sender: sender,
-                include_in_progress_batch,
-            })
-            .await;
-        let result = receiver.await.map_err(|_| {
-            anyhow!("Failed to fetch completed batches because the databse shut down.")
-        })?;
-        let duration = start.elapsed();
-        let metrics = PreferredSequencerFetchBatchesToReplayMetrics {
-            duration,
-            num_batches: result.len() as u64,
-            num_transactions: result.iter().map(|b| b.batch.inner.data.len()).sum(),
-        };
-        Ok((result, metrics))
+        let inner = self.lock_inner("set_is_master").await;
+        inner.set_is_master(is_master).await;
     }
 }
 
@@ -1282,6 +734,66 @@ async fn update_state_task<S, Rt, Da>(
             // For any other error, trigger a shut down
             error!("Error in preferred sequencer update state task: {e:?}. Shutting down rollup.");
             exit_rollup(&seq.shutdown_sender).await;
+        }
+    }
+}
+
+fn current_visible_slot_number_according_to_node<S: Spec, Rt: Runtime<S>>(
+    info: &StateUpdateInfo<S::Storage>,
+) -> SlotNumber {
+    let mut rt = Rt::default();
+    let node_checkpoint = StateCheckpoint::new(info.storage.clone(), &rt.kernel());
+    node_checkpoint.current_visible_slot_number().as_true()
+}
+
+enum PreferredSeqOperation {
+    // Something has gone terribly wrong, and I don't see a way for us
+    // to meaningfully recover without nuking the sequencer DB.
+    Unreachable,
+    // We found a preferred batch of which we have no memory very close
+    // to the chain tip.
+    WaitForNodeResyncToTip,
+    // The node is lagging behind the chain tip. Pause the sequencer (if
+    // it wasn't already paused), and wait for the node to catch up.
+    WaitForNodeResyncWithAllowedSlack,
+    // We are either dangerously close to hitting the
+    // `deferred_slots_count` threshold or we've hit it already. Our
+    // soft-confirmations might easily get invalidated.
+    RecoverAndCatchUp,
+    // This is by far the most common scenario, i.e. a nominal
+    // `update_state` call during sequencer execution with no unusual
+    // conditions.
+    ReplaySoftConfirmationsOnTopOfNodeState,
+}
+
+impl PreferredSeqOperation {
+    fn new(
+        condition_nodes_sequence_number_is_fresher: bool,
+        condition_too_close_to_deferred_slots_count_for_comfort: bool,
+        condition_node_is_lagging: bool,
+        condition_are_there_batches_to_replay: bool,
+    ) -> Self {
+        tracing::debug!(
+            condition_nodes_sequence_number_is_fresher,
+            condition_too_close_to_deferred_slots_count_for_comfort,
+            condition_node_is_lagging,
+            condition_are_there_batches_to_replay,
+            "Choosing the state update code path"
+        );
+
+        match (
+            condition_nodes_sequence_number_is_fresher,
+            condition_too_close_to_deferred_slots_count_for_comfort,
+            condition_node_is_lagging,
+            condition_are_there_batches_to_replay,
+        ) {
+            (true, _, _, true) => PreferredSeqOperation::Unreachable,
+            (true, _, false, false) => PreferredSeqOperation::WaitForNodeResyncToTip,
+            (_, _, true, _) => PreferredSeqOperation::WaitForNodeResyncWithAllowedSlack,
+            (false, true, false, _) => PreferredSeqOperation::RecoverAndCatchUp,
+            (false, false, false, _) => {
+                PreferredSeqOperation::ReplaySoftConfirmationsOnTopOfNodeState
+            }
         }
     }
 }
@@ -1318,11 +830,12 @@ where
     // We acquire the lock and hold it until we've decided whether the sequencer needs to enter an unready state.
     // This prevents `accept_tx` from sneaking in any new txs between the time we check if there are soft confirmations to replay
     // and the time the sequencer is marked unready.
-    let inner = seq.lock_inner().await;
+    let mut inner = seq
+        .lock_inner("update_state::fetch_initial_batches_to_replay")
+        .await;
     let ((batches_to_replay, fetch_batches_to_replay_metrics), next_sequence_number, is_startup) = {
         (
-            seq.completed_batches_to_replay(&inner, next_sequence_number_according_to_node, true)
-                .await?,
+            inner.completed_batches_to_replay(next_sequence_number_according_to_node, true),
             inner.next_sequence_number(),
             !inner.has_finished_startup,
         )
@@ -1340,7 +853,7 @@ where
     // Once we're this close to `deferred_slots_count`, we risk crossing the
     // `deferred_slots_count` threshold before the next call to
     // `update_state`. That's no good.
-    let current_visible_slot_number = seq.current_visible_slot_number_according_to_node(&info);
+    let current_visible_slot_number = current_visible_slot_number_according_to_node::<S, Rt>(&info);
     let condition_too_close_to_deferred_slots_count_for_comfort =
         info.slot_number.delta(current_visible_slot_number)
             > seq.slot_count_delta_acceptable_lower_bound();
@@ -1354,57 +867,66 @@ where
     // Note that we're holding a lock on the sequencer, so this is guaranteed to be up to date.
     let condition_are_there_batches_to_replay = !batches_to_replay.is_empty();
 
-    tracing::debug!(
+    let operation = PreferredSeqOperation::new(
         condition_nodes_sequence_number_is_fresher,
         condition_too_close_to_deferred_slots_count_for_comfort,
         condition_node_is_lagging,
         condition_are_there_batches_to_replay,
-        "Choosing the state update code path"
     );
 
-    match (
-        condition_nodes_sequence_number_is_fresher,
-        condition_too_close_to_deferred_slots_count_for_comfort,
-        condition_node_is_lagging,
-        condition_are_there_batches_to_replay,
-    ) {
-        // Something has gone terribly wrong, and I don't see a way for us
-        // to meaningfully recover without nuking the sequencer DB.
-        (true, _, _, true) => {
+    match operation {
+        PreferredSeqOperation::Unreachable => {
             panic!("The node has a higher sequence number than the sequencer, but the sequencer has some batches that it must replay (i.e. we're not just re-indexing a chain starting from an empty sequencer DB). This is an unusual scenario. It could mean you're running a competing preferred sequencer (which is not allowed!), or your sequencer DB data is corrupted... or it's just a bug. Please report it. You might attempt to recover by deleting the entire sequencer DB.")
         }
-        // We found a preferred batch of which we have no memory very close
-        // to the chain tip.
-        (true, _, false, false) => {
+
+        PreferredSeqOperation::WaitForNodeResyncToTip => {
             warn!("The node has a higher sequence number than the sequencer, but we're very close to the chain tip, i.e. we don't expect to be simply syncing. This could mean there is another preferred sequencer running (which is not supported and will likely lead to issues), or you very recently restarted the node and there's still some in-flight blobs. Resyncing to the chain tip.");
-            seq.wait_for_node_resync_to_tip(state_update_receiver, shutdown_receiver, info, inner)
+            inner.is_ready = Err(SequencerNotReadyDetails::Syncing {
+                target_da_height: seq.da_sync_state.target_da_height.load(Ordering::Relaxed),
+                synced_da_height: seq.da_sync_state.synced_da_height.load(Ordering::Relaxed),
+            });
+            drop(inner);
+
+            seq.wait_for_node_resync_to_tip(state_update_receiver, shutdown_receiver, info)
                 .await?;
         }
-        // The node is lagging behind the chain tip. Pause the sequencer (if
-        // it wasn't already paused), and wait for the node to catch up.
-        (_, _, true, _) => {
+
+        PreferredSeqOperation::WaitForNodeResyncWithAllowedSlack => {
             warn!(?distance, "The sequencer must pause because the node has lagged behind the DA blockchain. This might lead to a brief downtime for users.");
+            inner.is_ready = Err(SequencerNotReadyDetails::Syncing {
+                target_da_height: seq.da_sync_state.target_da_height.load(Ordering::Relaxed),
+                synced_da_height: seq.da_sync_state.synced_da_height.load(Ordering::Relaxed),
+            });
+            drop(inner);
+
             seq.wait_for_node_resync_with_allowed_slack(
                 state_update_receiver,
                 shutdown_receiver,
                 info,
-                inner,
             )
             .await?;
         }
-        // We are either dangerously close to hitting the
-        // `deferred_slots_count` threshold or we've hit it already. Our
-        // soft-confirmations might easily get invalidated.
-        (false, true, false, _) => {
+        PreferredSeqOperation::RecoverAndCatchUp => {
             error!(slot_number_according_to_node=%info.slot_number, %current_visible_slot_number, "Sequencer has detected that it is past, or very close to, having the visible_slot_number lag behind the deferred_slots_count threshold. Normal operation will be suspended until this can be remedied.");
-            seq.recover_and_catch_up(state_update_receiver, shutdown_receiver, info, inner)
+
+            let rollup_exec_config = seq.create_bloc_exec_config_for_recovery();
+            let recovery_strategy = seq.config.sequencer_kind_config.recovery_strategy.clone();
+
+            inner
+                .trigger_recovery(
+                    recovery_strategy,
+                    &info,
+                    rollup_exec_config,
+                    seq.is_master().await,
+                )
+                .await;
+            drop(inner);
+            seq.recover_and_catch_up(state_update_receiver, shutdown_receiver, info)
                 .await?;
         }
-        // This is by far the most common scenario, i.e. a nominal
-        // `update_state` call during sequencer execution with no unusual
-        // conditions.
-        (false, false, false, _) => {
-            drop(inner); // Drop the lock. We don't need to hold it while we do replay.
+
+        PreferredSeqOperation::ReplaySoftConfirmationsOnTopOfNodeState => {
+            drop(inner);
             seq.replay_soft_confirmations_on_top_of_node_state(
                 info,
                 timer_start,
@@ -1459,15 +981,15 @@ where
     async fn is_ready(&self) -> Result<(), SequencerNotReadyDetails> {
         // We don't actually care about the `inner`, we just want to reuse the
         // same logic.
-        let inner = self.inner.lock().await;
-        Self::check_readiness(
-            self.is_master().await,
-            &inner,
-            self.config.max_concurrent_blobs,
-            self.stop_at_rollup_height,
-        )
-        .await
-        .map(|_| ())
+        let inner = self.lock_inner("check_readiness").await;
+        inner
+            .check_readiness(
+                self.is_master().await,
+                self.config.max_concurrent_blobs,
+                self.stop_at_rollup_height,
+            )
+            .await
+            .map(|_| ())
     }
 
     async fn is_master(&self) -> bool {
@@ -1484,7 +1006,7 @@ where
 
     #[cfg(feature = "test-utils")]
     async fn force_close_current_batch(&self) -> anyhow::Result<()> {
-        let mut inner = self.lock_inner().await;
+        let mut inner = self.lock_inner("force_close_current_batch").await;
         inner.force_close_current_batch().await
     }
 
@@ -1574,9 +1096,9 @@ where
             Err(_) => {
                 return Err(ErrorObject {
                     status: StatusCode::BAD_REQUEST,
-                    title: "Unable to decode transaction".to_string(),
+                    message: "Unable to decode transaction".to_string(),
                     details: sov_rest_utils::json_obj!({
-                        "message": "Unable to decode transaction".to_string(),
+                        "error": "Unable to decode transaction".to_string(),
                     }),
                 });
             }
@@ -1590,115 +1112,79 @@ where
             tracing::debug!(%tx_hash, "Transaction delay completed, proceeding with processing");
         }
 
-        let mut inner = self.lock_inner().await;
-        // If the sequencer had to give out 503s at any point during the time we were waiting for the lock, we need to return a 503 - otherwise
-        // we've effectively jumped the line
-        let new_tx_queue_id = self.tx_queue_id.load(Ordering::Acquire);
-        if new_tx_queue_id != original_tx_queue_id {
-            tracing::debug!(%tx_hash, "Transaction was queued before downtime. Dropping.");
-            return Err(sequencer_overloaded_503());
-        }
-
-        Self::check_readiness(
-            self.is_master().await,
-            &inner,
-            self.config.max_concurrent_blobs,
-            self.stop_at_rollup_height,
-        )
-        .await
-        .map_err(error_not_fully_synced)?;
-
-        if let Err(e) = inner
-            .try_to_create_and_start_batch_if_none_in_progress(self.stop_at_rollup_height, false)
-            .await
-        {
-            // On all errors, we treat the sequencer as having had downtime and clear out the transaction queue.
-            // Note that we'll increment the queue ID once per rejected tx. This is totally fine - we have 2**64 ids to play with
-            // and atomic increments are very cheap relative to the cost of executing the tx
-            self.tx_queue_id.fetch_add(1, Ordering::AcqRel);
-            match e {
-                BatchCreationError::NoFinalizedSlotAvailable => {
-                    return Err(sequencer_overloaded_503());
-                }
-                BatchCreationError::BlobSenderBusy => {
-                    return Err(error_not_fully_synced(
-                        SequencerNotReadyDetails::WaitingOnBlobSender {
-                            max_concurrent_blobs: self.config.max_concurrent_blobs,
-                            nb_of_blobs_in_flight: inner.nb_of_concurrent_blob_submissions(),
-                        },
-                    ));
-                }
-                BatchCreationError::PreferredSequencerAtStopHeight {
-                    height_to_stop_at,
-                    current_height,
-                } => {
-                    return Err(error_not_fully_synced(
-                        SequencerNotReadyDetails::PreferredSequencerAtStopHeight {
-                            height_to_stop_at,
-                            current_height,
-                        },
-                    ));
-                }
-                BatchCreationError::DatabaseError(e) => {
-                    return Err(database_error_500(e));
-                }
-            }
-        };
-
-        if self.shutdown_receiver.has_changed().unwrap_or(true) {
-            tracing::info!("The sequencer is shutting down. Cannot accept transactions");
-            return Err(shut_down_error());
-        }
-
-        if !inner.executor.has_in_progress_batch() {
-            panic!(
-                "No batch in progress, and no batch could be started. Please report this bug. {:?} {:?}",
-                &inner.executor.checkpoint, inner.latest_info
-            );
-        }
-
-        err_if_cant_fit_tx(&inner.batch_size_tracker, &baked_tx)?;
-
-        let Inner {
-            executor,
-            batch_size_tracker,
-            executor_events_sender,
-            ..
-        } = &mut *inner;
-
-        let apply_tx_res = executor.apply_tx_to_in_progress_batch(&baked_tx).await;
-
-        let (
-            AcceptedTxWithBudgetInfo {
-                accepted_tx,
-                remaining_slot_gas,
-                execution_time_micros,
-            },
-            tx_changes,
-        ) = match apply_tx_res {
-            Ok(res) => {
-                assert_eq!(
-                    tx_hash, res.0.accepted_tx.tx_hash,
-                    "The executor returned a different tx hash than expected"
-                );
-                res
-            }
-            Err(err) => {
-                tracing::debug!(%tx_hash, %err, "Transaction was dropped by the sequencer");
-                return Err(RollupBlockExecutorError::into_http_error(err));
-            }
-        };
-        batch_size_tracker.add_tx(baked_tx.data.len(), execution_time_micros);
-        let rx = executor_events_sender
-            .send_accept_tx(accepted_tx, tx_changes)
-            .await;
-        self.close_batch_if_nearly_full(&mut *inner, &remaining_slot_gas)
+        let mut inner = self.lock_inner("accept_tx").await;
+        let res = inner
+            .process_accept_tx(
+                &baked_tx,
+                tx_hash,
+                original_tx_queue_id,
+                self.stop_at_rollup_height,
+                self.is_master().await,
+            )
             .await;
         drop(inner);
 
-        rx.await
-            .map_err(database_error_500)?
-            .ok_or_else(|| error_not_fully_synced(SequencerNotReadyDetails::ReplicaMode))
+        match res {
+            Ok(rx) => rx
+                .await
+                .map_err(database_error_500)?
+                .ok_or_else(|| error_not_fully_synced(SequencerNotReadyDetails::ReplicaMode)),
+            Err(e) => match e {
+                AcceptTxError::SequencerOverloaded503 => {
+                    return Err(sequencer_overloaded_503());
+                }
+                AcceptTxError::NotFullySynced(details) => {
+                    return Err(error_not_fully_synced(details))
+                }
+                AcceptTxError::BatchError {
+                    batch_creation_error,
+                    nb_of_concurrent_blob_submissions,
+                } => match batch_creation_error {
+                    BatchCreationError::NoFinalizedSlotAvailable => {
+                        return Err(sequencer_overloaded_503());
+                    }
+                    BatchCreationError::BlobSenderBusy => {
+                        return Err(error_not_fully_synced(
+                            SequencerNotReadyDetails::WaitingOnBlobSender {
+                                max_concurrent_blobs: self.config.max_concurrent_blobs,
+                                nb_of_blobs_in_flight: nb_of_concurrent_blob_submissions,
+                            },
+                        ));
+                    }
+                    BatchCreationError::DatabaseError(e) => {
+                        return Err(database_error_500(e));
+                    }
+                    BatchCreationError::PreferredSequencerAtStopHeight {
+                        height_to_stop_at,
+                        current_height,
+                    } => {
+                        return Err(error_not_fully_synced(
+                            SequencerNotReadyDetails::PreferredSequencerAtStopHeight {
+                                height_to_stop_at,
+                                current_height,
+                            },
+                        ));
+                    }
+                },
+                AcceptTxError::TxTooBig {
+                    current_batch_size,
+                    max_batch_size,
+                } => {
+                    return Err(err_cant_fit_tx(
+                        current_batch_size,
+                        max_batch_size,
+                        baked_tx.data.len(),
+                    ))
+                }
+                AcceptTxError::ExecutorError(err) => {
+                    return Err(RollupBlockExecutorError::into_http_error(err));
+                }
+
+                AcceptTxError::Shutdown => {
+                    return Err(shut_down_error());
+                }
+            },
+        }
     }
 
     async fn tx_status(
@@ -1718,9 +1204,9 @@ fn shut_down_error() -> ErrorObject {
     tracing::info!("The sequencer is shutting down. Cannot accept transactions");
     ErrorObject {
         status: StatusCode::SERVICE_UNAVAILABLE,
-        title: "The sequencer is shutting down".to_string(),
+        message: "The sequencer is shutting down".to_string(),
         details: sov_rest_utils::json_obj!({
-            "message": "The sequencer is shutting down. Transactions cannot be accepted at this time".to_string(),
+            "error": "The sequencer is shutting down. Transactions cannot be accepted at this time".to_string(),
         }),
     }
 }
@@ -1814,7 +1300,7 @@ where
 {
     async fn produce_and_publish_proof_blob(&self, proof_data: Arc<[u8]>) -> anyhow::Result<()> {
         let blob_id = new_blob_id();
-        let mut inner = self.inner.lock().await;
+        let mut inner = self.lock_inner("produce_and_publish_proof_blob").await;
 
         inner.publish_proof_blob(blob_id, proof_data.clone()).await;
 
@@ -1934,22 +1420,18 @@ fn accepts_preferred_batches<B: BlobSelector>(_blob_selector: B) -> bool {
     B::ACCEPTS_PREFERRED_BATCHES
 }
 
-fn err_if_cant_fit_tx(tracker: &BatchSizeTracker, tx: &FullyBakedTx) -> Result<(), ErrorObject> {
-    if !tracker.can_fit_tx_bytes(tx.data.len()) {
-        return Err(ErrorObject {
-            status: StatusCode::SERVICE_UNAVAILABLE,
-            title: "Transaction cannot be included in the batch due to batch size limitations"
-                .to_string(),
-            details: sov_rest_utils::json_obj!({
-                "message": "The transaction is too large.",
-                "serialized_tx_size": BatchSizeTracker::serialized_tx_size(tx.data.len()),
-                "current_batch_size": tracker.current_batch_size,
-                "max_batch_size": tracker.max_batch_size,
-            }),
-        });
+fn err_cant_fit_tx(current_batch_size: usize, max_batch_size: usize, tx_len: usize) -> ErrorObject {
+    ErrorObject {
+        status: StatusCode::SERVICE_UNAVAILABLE,
+        message: "Transaction cannot be included in the batch due to batch size limitations"
+            .to_string(),
+        details: sov_rest_utils::json_obj!({
+            "error": "The transaction is too large.",
+            "serialized_tx_size": BatchSizeTracker::serialized_tx_size(tx_len),
+            "current_batch_size": current_batch_size,
+            "max_batch_size": max_batch_size,
+        }),
     }
-
-    Ok(())
 }
 
 pub(crate) async fn exit_rollup(shutdown_sender: &watch::Sender<()>) {

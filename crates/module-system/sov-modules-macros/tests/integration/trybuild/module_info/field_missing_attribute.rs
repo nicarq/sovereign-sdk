@@ -1,6 +1,6 @@
 use sov_modules_api::{Context, Module, ModuleId, ModuleInfo, Spec, StateMap, TxState};
 
-#[derive(ModuleInfo)]
+#[derive(Clone, ModuleInfo)]
 struct TestStruct<S: Spec> {
     #[id]
     pub id: ModuleId,
@@ -28,7 +28,7 @@ impl<S: Spec> Module for TestStruct<S> {
         _message: Self::CallMessage,
         _context: &Context<Self::Spec>,
         _state: &mut impl TxState<S>,
-    ) -> Result<(), sov_modules_api::Error> {
+    ) -> anyhow::Result<()> {
         todo!()
     }
 }

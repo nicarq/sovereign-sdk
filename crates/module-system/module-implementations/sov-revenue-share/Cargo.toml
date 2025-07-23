@@ -36,5 +36,5 @@ native = [
 	"sov-bank/native",
 	"sov-modules-api/native",
 	"sov-modules-stf-blueprint/native",
-	"sov-revenue-share/native"
+	"sov-revenue-share/native",
 ]

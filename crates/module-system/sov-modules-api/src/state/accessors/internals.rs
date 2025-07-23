@@ -1,7 +1,6 @@
 use core::fmt;
 use std::collections::HashMap;
 
-use sov_rollup_interface::common::SlotNumber;
 use sov_state::{
     namespaces, AccessSize, IsValueCached, Namespace, ProvableStorageCache, SlotKey, SlotValue,
     StateAccesses, Storage,
@@ -21,10 +20,6 @@ use crate::state::traits::PerBlockCache;
 /// when the `Delta` is frozen.
 pub(super) struct Delta<S: Storage> {
     pub(super) inner: S,
-    /// What version of the [`Storage`] the changes are based on.
-    ///
-    /// If absent, the latest version of the [`Storage`] is assumed.
-    pub(super) version: Option<SlotNumber>,
     witness: S::Witness,
     pub(crate) kernel_cache: ProvableStorageCache<namespaces::Kernel>,
     pub(crate) user_cache: ProvableStorageCache<namespaces::User>,
@@ -40,7 +35,6 @@ impl<S: Storage> Delta<S> {
             kernel_cache: self.kernel_cache.clone(),
             user_cache: self.user_cache.clone(),
             accessory_writes: self.accessory_writes.clone(),
-            version: self.version,
         }
     }
 
@@ -49,14 +43,13 @@ impl<S: Storage> Delta<S> {
         &self.inner
     }
 
-    pub(super) fn with_witness(inner: S, witness: S::Witness, version: Option<SlotNumber>) -> Self {
+    pub(super) fn with_witness(inner: S, witness: S::Witness) -> Self {
         Self {
             inner,
             witness,
             user_cache: Default::default(),
             kernel_cache: Default::default(),
             accessory_writes: Default::default(),
-            version,
         }
     }
 
@@ -67,7 +60,6 @@ impl<S: Storage> Delta<S> {
             kernel_cache,
             accessory_writes,
             witness,
-            version,
         } = self;
 
         (
@@ -76,7 +68,6 @@ impl<S: Storage> Delta<S> {
                 kernel: kernel_cache.to_ordered_writes_and_reads(),
             },
             AccessoryDelta {
-                version,
                 writes: accessory_writes,
                 storage: inner.clone(),
             },
@@ -135,19 +126,18 @@ impl<S: Storage> Delta<S> {
 
     pub fn get_size(&mut self, namespace: Namespace, key: &SlotKey) -> Option<u32> {
         match namespace {
-            Namespace::User => {
-                self.user_cache
-                    .get_size_or_fetch(key, &self.inner, &self.witness, self.version)
-            }
+            Namespace::User => self
+                .user_cache
+                .get_size_or_fetch(key, &self.inner, &self.witness),
             Namespace::Kernel => {
                 self.kernel_cache
-                    .get_size_or_fetch(key, &self.inner, &self.witness, self.version)
+                    .get_size_or_fetch(key, &self.inner, &self.witness)
             }
             Namespace::Accessory => match self.accessory_writes.get(key).cloned() {
                 Some(Some(value)) => Some(value.size()),
                 Some(None) => None,
                 None => {
-                    let val = self.inner.get_accessory(key, self.version);
+                    let val = self.inner.get_accessory(key, None);
                     val.map(|v| v.size())
                 }
             },
@@ -156,18 +146,16 @@ impl<S: Storage> Delta<S> {
 
     pub fn get(&mut self, namespace: Namespace, key: &SlotKey) -> Option<SlotValue> {
         match namespace {
-            Namespace::User => {
-                self.user_cache
-                    .get_or_fetch(key, &self.inner, &self.witness, self.version)
-            }
-            Namespace::Kernel => {
-                self.kernel_cache
-                    .get_or_fetch(key, &self.inner, &self.witness, self.version)
-            }
+            Namespace::User => self
+                .user_cache
+                .get_or_fetch(key, &self.inner, &self.witness),
+            Namespace::Kernel => self
+                .kernel_cache
+                .get_or_fetch(key, &self.inner, &self.witness),
             Namespace::Accessory => match self.accessory_writes.get(key).cloned() {
                 Some(Some(value)) => Some(value),
                 Some(None) => None,
-                None => self.inner.get_accessory(key, self.version),
+                None => self.inner.get_accessory(key, None),
             },
         }
     }
@@ -201,10 +189,6 @@ impl<S: Storage> fmt::Debug for Delta<S> {
 
 /// A delta containing *only* the accessory state.
 pub struct AccessoryDelta<S: Storage> {
-    // This inner storage is never accessed inside the zkVM because reads are
-    // not allowed, so it can result as dead code.
-    #[allow(dead_code)]
-    version: Option<SlotNumber>,
     writes: HashMap<SlotKey, Option<SlotValue>>,
     storage: S,
 }
@@ -222,7 +206,7 @@ impl<S: Storage> UniversalStateAccessor for AccessoryDelta<S> {
             return value.clone().map(|v| v.size());
         }
 
-        let val = self.storage.get_accessory(key, self.version);
+        let val = self.storage.get_accessory(key, None);
         val.map(|v| v.size())
     }
 
@@ -231,7 +215,7 @@ impl<S: Storage> UniversalStateAccessor for AccessoryDelta<S> {
             return value.clone();
         }
 
-        self.storage.get_accessory(key, self.version)
+        self.storage.get_accessory(key, None)
     }
 
     fn set_value(&mut self, _namespace: Namespace, key: &SlotKey, value: SlotValue) {

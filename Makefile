@@ -180,3 +180,9 @@ mini-ci: ## Runs multiple checks that can most often fail CI as a single command
 	$(MAKE) docs-generate
 	$(MAKE) check-provers
 	cargo switcheroo set _backup
+
+start-obs: ## Start docker containers needed for observability stack: influxdb, grafana, etc
+	./scripts/start_observability.sh
+
+stop-obs: ## Stops observability stack
+	./scripts/stop_observability.sh

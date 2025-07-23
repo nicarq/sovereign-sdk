@@ -282,15 +282,7 @@ paths:
           content:
             application/json:
               schema:
-                type: object
-                properties:
-                  data:
-                    $ref: "#/components/schemas/TxInfoWithConfirmation"
-                  meta:
-                    type: object
-                required:
-                  - data
-                  - meta
+                $ref: "#/components/schemas/TxInfoWithConfirmation"
         "400":
           "$ref": "#/components/responses/ApiErrorResponse"
         "403":
@@ -313,14 +305,7 @@ paths:
           content:
             application/json:
               schema:
-                type: object
-                properties:
-                  data:
-                    $ref: "#/components/schemas/TxInfo"
-                  meta:
-                    type: object
-                required:
-                  - meta
+                $ref: "#/components/schemas/TxInfo"
         "404":
           $ref: "#/components/responses/ApiErrorResponse"
   /sequencer/txs/{txHash}:
@@ -337,14 +322,7 @@ paths:
           content:
             application/json:
               schema:
-                type: object
-                properties:
-                  data:
-                    $ref: "#/components/schemas/ApiAcceptedTx"
-                  meta:
-                    type: object
-                required:
-                  - meta
+                $ref: "#/components/schemas/ApiAcceptedTx"
         "404":
           $ref: "#/components/responses/ApiErrorResponse"
   /sequencer/unstable/events/{eventOffset}:
@@ -398,17 +376,9 @@ paths:
           content:
             application/json:
               schema:
-                type: object
-                properties:
-                  data:
-                    type: string
-                    format: uuid
-                    description: UUID v7 node identifier
-                  meta:
-                    type: object
-                required:
-                  - data
-                  - meta
+                type: string
+                format: uuid
+                description: UUID v7 node identifier
         "500":
           $ref: "#/components/responses/ApiErrorResponse"
   /sequencer/is-master:
@@ -424,16 +394,8 @@ paths:
           content:
             application/json:
               schema:
-                type: object
-                properties:
-                  data:
-                    type: boolean
-                    description: True if sequencer is master, false if replica
-                  meta:
-                    type: object
-                required:
-                  - data
-                  - meta
+                type: boolean
+                description: True if sequencer is master, false if replica
         "500":
           $ref: "#/components/responses/ApiErrorResponse"
   /rollup/base-fee-per-gas/latest:
@@ -448,18 +410,7 @@ paths:
           content:
             application/json:
               schema:
-                type: object
-                properties:
-                  data:
-                    $ref: "#/components/schemas/BaseFeePerGas"
-                  meta:
-                    type: object
-                  errors:
-                    type: array
-                    items:
-                      $ref: "#/components/schemas/ApiError"
-                required:
-                  - meta
+                $ref: "#/components/schemas/BaseFeePerGas"
   /rollup/schema:
     get:
       summary: Get schema
@@ -536,14 +487,7 @@ paths:
           content:
             application/json:
               schema:
-                type: object
-                properties:
-                  data:
-                    $ref: "#/components/schemas/SimulateExecutionResponse"
-                  meta:
-                    type: object
-                required:
-                  - meta
+                $ref: "#/components/schemas/SimulateExecutionResponse"
   /rollup/sync-status:
     get:
       summary: Get the current sync status of the rollup
@@ -556,15 +500,7 @@ paths:
           content:
             application/json:
               schema:
-                type: object
-                properties:
-                  data:
-                    $ref: "#/components/schemas/SyncStatus"
-                  meta:
-                    type: object
-                required:
-                  - data
-                  - meta
+                $ref: "#/components/schemas/SyncStatus"
 components:
   parameters:
     pageType:
@@ -669,71 +605,39 @@ components:
       content:
         application/json:
           schema:
-            type: object
-            properties:
-              data:
-                $ref: "#/components/schemas/AggregatedProof"
-              meta:
-                $ref: "#/components/schemas/AnyJsonValue"
+            $ref: "#/components/schemas/AggregatedProof"
     Slot:
       description: Success
       content:
         application/json:
           schema:
-            type: object
-            properties:
-              data:
-                $ref: "#/components/schemas/Slot"
-              meta:
-                $ref: "#/components/schemas/AnyJsonValue"
+            $ref: "#/components/schemas/Slot"
     LedgerBatch:
       description: Success
       content:
         application/json:
           schema:
-            type: object
-            properties:
-              data:
-                $ref: "#/components/schemas/LedgerBatch"
-              meta:
-                $ref: "#/components/schemas/AnyJsonValue"
+            $ref: "#/components/schemas/LedgerBatch"
     LedgerTx:
       description: Success
       content:
         application/json:
           schema:
-            type: object
-            properties:
-              data:
-                $ref: "#/components/schemas/LedgerTx"
-              meta:
-                $ref: "#/components/schemas/AnyJsonValue"
+            $ref: "#/components/schemas/LedgerTx"
     LedgerEvent:
       description: Success
       content:
         application/json:
           schema:
-            type: object
-            properties:
-              data:
-                $ref: "#/components/schemas/LedgerEvent"
-              meta:
-                $ref: "#/components/schemas/AnyJsonValue"
+            $ref: "#/components/schemas/LedgerEvent"
     LedgerEventResponse:
       description: Success
       content:
         application/json:
           schema:
-            type: object
-            properties:
-              data:
-                type: array
-                items:
-                  $ref: "#/components/schemas/LedgerEvent"
-              meta:
-                $ref: "#/components/schemas/AnyJsonValue"
-            required:
-              - data
+            type: array
+            items:
+              $ref: "#/components/schemas/LedgerEvent"
     PaginatedLedgerEvents:
       description: Success
       content:
@@ -741,76 +645,38 @@ components:
           schema:
             type: object
             properties:
-              data:
-                type: object
-                properties:
-                  next_cursor:
-                    type: string
-                  items:
-                    type: array
-                    items:
-                      $ref: "#/components/schemas/LedgerEvent"
-                required:
-                  - items
-              meta:
-                $ref: "#/components/schemas/AnyJsonValue"
+              next_cursor:
+                type: string
+              items:
+                type: array
+                items:
+                  $ref: "#/components/schemas/LedgerEvent"
             required:
-              - data
+              - items
     Dedup:
       description: Successfully calculated dedup details for the provided address.
       content:
         application/json:
           schema:
-            type: object
-            properties:
-              data:
-                $ref: "#/components/schemas/AnyJsonValue"
-              meta:
-                $ref: "#/components/schemas/AnyJsonValue"
-            required:
-              - meta
+            $ref: "#/components/schemas/AnyJsonValue"
     Schema:
       description: Schema of the rollup.
       content:
         application/json:
           schema:
-            type: object
-            properties:
-              data:
-                $ref: "#/components/schemas/AnyJsonValue"
-              meta:
-                $ref: "#/components/schemas/AnyJsonValue"
-            required:
-              - meta
+            $ref: "#/components/schemas/AnyJsonValue"
     Constants:
       description: Constants of the rollup.
       content:
         application/json:
           schema:
-            type: object
-            properties:
-              data:
-                $ref: "#/components/schemas/Constants"
-              meta:
-                $ref: "#/components/schemas/AnyJsonValue"
-            required:
-              - meta
+            $ref: "#/components/schemas/Constants"
     ApiErrorResponse:
       description: The request sent was invalid.
       content:
         application/json:
           schema:
-            type: object
-            properties:
-              errors:
-                type: array
-                items:
-                  $ref: "#/components/schemas/ApiError"
-              meta:
-                $ref: "#/components/schemas/AnyJsonValue"
-            required:
-              - errors
-              - meta
+            $ref: "#/components/schemas/ApiError"
   schemas:
     RewardedAddresses:
       type: array
@@ -1250,13 +1116,14 @@ components:
           type: integer
           format: int32
           description: HTTP status code related to this error
-        title:
+        message:
           type: string
         details:
           type: object
+          additionalProperties: true
       required:
         - status
-        - title
+        - message
         - details
     SyncStatus:
       oneOf:

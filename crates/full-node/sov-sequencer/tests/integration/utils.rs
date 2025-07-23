@@ -12,8 +12,8 @@ use sov_modules_api::prelude::*;
 use sov_modules_api::rest::HasRestApi;
 use sov_modules_api::transaction::{Transaction, TxDetails};
 use sov_modules_api::{
-    Amount, BlockHooks, CryptoSpec, DispatchCall, FullyBakedTx, GasUnit, Module, ModuleError,
-    ModuleId, ModuleInfo, RawTx, StateCheckpoint, TxState,
+    Amount, BlockHooks, CryptoSpec, DispatchCall, FullyBakedTx, GasUnit, Module, ModuleId,
+    ModuleInfo, RawTx, StateCheckpoint, TxState,
 };
 use sov_modules_stf_blueprint::GenesisParams;
 use sov_paymaster::PaymasterPolicyInitializer;
@@ -182,7 +182,7 @@ impl<S: Spec> Module for ModuleWithVersionedStateAccessInSlotHook<S> {
         _msg: Self::CallMessage,
         _context: &Context<Self::Spec>,
         _state: &mut impl TxState<S>,
-    ) -> Result<(), ModuleError> {
+    ) -> anyhow::Result<()> {
         Ok(())
     }
 }

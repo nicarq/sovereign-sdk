@@ -13,7 +13,7 @@ pub mod first_test_module {
 
     use super::*;
 
-    #[derive(ModuleInfo)]
+    #[derive(Clone, ModuleInfo)]
     pub struct FirstTestStruct<S: Spec> {
         #[id]
         pub id: ModuleId,
@@ -63,7 +63,7 @@ pub mod first_test_module {
 
             _config: &Self::Config,
             state: &mut impl sov_modules_api::GenesisState<S>,
-        ) -> Result<(), Error> {
+        ) -> anyhow::Result<()> {
             self.state_in_first_struct.set(&1, state).unwrap();
             Ok(())
         }
@@ -73,10 +73,8 @@ pub mod first_test_module {
             msg: Self::CallMessage,
             _context: &Context<Self::Spec>,
             state: &mut impl TxState<S>,
-        ) -> Result<(), Error> {
-            self.state_in_first_struct
-                .set(&msg, state)
-                .map_err(|e| Error::ModuleError(e.into()))?;
+        ) -> anyhow::Result<()> {
+            self.state_in_first_struct.set(&msg, state)?;
             Ok(())
         }
     }
@@ -87,7 +85,7 @@ pub mod second_test_module {
 
     use super::*;
 
-    #[derive(ModuleInfo)]
+    #[derive(Clone, ModuleInfo)]
     pub struct SecondTestStruct<S: Spec> {
         #[id]
         pub id: ModuleId,
@@ -135,7 +133,7 @@ pub mod second_test_module {
 
             _config: &Self::Config,
             state: &mut impl sov_modules_api::GenesisState<S>,
-        ) -> Result<(), Error> {
+        ) -> anyhow::Result<()> {
             self.state_in_second_struct.set(&2, state).unwrap();
             Ok(())
         }
@@ -145,16 +143,15 @@ pub mod second_test_module {
             msg: Self::CallMessage,
             _context: &Context<Self::Spec>,
             state: &mut impl TxState<S>,
-        ) -> Result<(), Error> {
-            self.state_in_second_struct
-                .set(&msg, state)
-                .map_err(|e| Error::ModuleError(e.into()))?;
+        ) -> anyhow::Result<()> {
+            self.state_in_second_struct.set(&msg, state)?;
             Ok(())
         }
     }
 }
 
 pub mod third_test_module {
+    use sov_modules_api::sov_universal_wallet::schema::UniversalWallet;
     use sov_modules_api::ModuleId;
 
     use super::*;
@@ -162,6 +159,8 @@ pub mod third_test_module {
     pub trait ModuleThreeStorable:
         borsh::BorshSerialize
         + borsh::BorshDeserialize
+        + UniversalWallet
+        + schemars::JsonSchema
         + core::fmt::Debug
         + Default
         + PartialEq
@@ -169,13 +168,14 @@ pub mod third_test_module {
         + Clone
         + Send
         + Sync
+        + UniversalWallet
         + 'static
     {
     }
 
     impl ModuleThreeStorable for u32 {}
 
-    #[derive(ModuleInfo)]
+    #[derive(Clone, ModuleInfo)]
     pub struct ThirdTestStruct<S: Spec, OtherGeneric: ModuleThreeStorable> {
         #[id]
         pub id: ModuleId,
@@ -206,6 +206,7 @@ pub mod third_test_module {
         Debug,
         PartialEq,
         Clone,
+        schemars::JsonSchema,
     )]
     pub enum Event {
         ThirdModuleEnum,
@@ -223,7 +224,7 @@ pub mod third_test_module {
 
             _config: &Self::Config,
             state: &mut impl sov_modules_api::GenesisState<S>,
-        ) -> Result<(), Error> {
+        ) -> anyhow::Result<()> {
             self.state_in_third_struct
                 .set(&Default::default(), state)
                 .unwrap();
@@ -235,10 +236,8 @@ pub mod third_test_module {
             msg: Self::CallMessage,
             _context: &Context<Self::Spec>,
             state: &mut impl TxState<S>,
-        ) -> Result<(), Error> {
-            self.state_in_third_struct
-                .set(&msg, state)
-                .map_err(|e| Error::ModuleError(e.into()))?;
+        ) -> anyhow::Result<()> {
+            self.state_in_third_struct.set(&msg, state)?;
             Ok(())
         }
     }

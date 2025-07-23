@@ -74,7 +74,10 @@ pub async fn setup_rollup(
     genesis_config: GenesisConfig<S>,
     telegraf_address: TelegrafSocketConfig,
 ) -> anyhow::Result<BenchRollup> {
-    let sequencer_da_address = genesis_config.sequencer_registry.seq_da_address;
+    let sequencer_da_address = genesis_config
+        .sequencer_registry
+        .sequencer_config
+        .seq_da_address;
     let prover_address = genesis_config
         .prover_incentives
         .initial_provers

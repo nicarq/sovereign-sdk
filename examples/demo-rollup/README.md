@@ -114,9 +114,9 @@ Once a batch is submitted, the output should also contain the transaction hashes
 ```text
 2025-06-29T19:32:39.786604Z  INFO sov_cli::workflows::node: Executing node workflow
 2025-06-29T19:32:39.823949Z DEBUG sov_node_client: Queried nonce url="http://127.0.0.1:12346/modules/nonces/state/nonces/items/0xf8ad2437a279e1c8932c07358c91dc4fe34864a98c6c25f298e2a0199c1509ff" nonce=0
-2025-06-29T19:32:39.824189Z  INFO sov_cli::workflows::node: Submitting tx index=0 tx_hash=0x35646bb7c01c3c69201d57152c6b78046cab9aed08668629a4d8998028872c50
+2025-06-29T19:32:39.824189Z  INFO sov_cli::workflows::node: Submitting tx index=0 tx_hash=0x1846983d3d7ff20a78e0d514d1f95576bcb8b33971b1ca7eb9e327443085a090
 2025-06-29T19:32:39.824203Z  INFO sov_node_client: Calling `publish_batch` sequencer endpoint txs_included=1
-2025-06-29T19:32:39.826676Z  INFO sov_node_client: Submitted tx hash="0x35646bb7c01c3c69201d57152c6b78046cab9aed08668629a4d8998028872c50"
+2025-06-29T19:32:39.826676Z  INFO sov_node_client: Submitted tx hash="0xb9ca0657fdcdc6edc77f9c83511b232f6218d983856836d690503b3f713a526f"
 2025-06-29T19:32:39.826700Z  INFO sov_node_client: Going to wait for batch to be processed max_waiting_time=300s
 2025-06-29T19:32:48.303757Z  INFO sov_node_client: Rollup has processed the submitted batch!
 ```
@@ -126,46 +126,43 @@ this case have the TokenCreated Event
 
 ```sh,test-ci,bashtestmd:compare-output
 $ sleep 5
-$ curl -sS http://127.0.0.1:12346/ledger/txs/0x35646bb7c01c3c69201d57152c6b78046cab9aed08668629a4d8998028872c50/events | jq
-{
-  "data": [
-    {
-      "type": "event",
-      "number": 0,
-      "key": "Bank/TokenCreated",
-      "value": {
-        "token_created": {
-          "token_name": "sov-test-token",
-          "coins": {
-            "amount": "1000000",
-            "token_id": "token_17732u2vyp35dl6lkgjrdqs4mtuzt7rmy02hq9nqct8wq3g74rqyqz0rt2x"
-          },
-          "mint_to_address": {
-            "user": "sov10d6chuh8vu86ltmt7qq4ec8lt25qyvr0cl3lg4mzs5llcfnx69m"
-          },
-          "minter": {
+$ curl -sS http://127.0.0.1:12346/ledger/txs/0xb9ca0657fdcdc6edc77f9c83511b232f6218d983856836d690503b3f713a526f/events | jq
+[
+  {
+    "type": "event",
+    "number": 0,
+    "key": "Bank/TokenCreated",
+    "value": {
+      "token_created": {
+        "token_name": "sov-test-token",
+        "coins": {
+          "amount": "1000000",
+          "token_id": "token_17732u2vyp35dl6lkgjrdqs4mtuzt7rmy02hq9nqct8wq3g74rqyqz0rt2x"
+        },
+        "mint_to_address": {
+          "user": "sov10d6chuh8vu86ltmt7qq4ec8lt25qyvr0cl3lg4mzs5llcfnx69m"
+        },
+        "minter": {
+          "user": "sov1lzkjgdaz08su3yevqu6ceywufl35se9f33kztu5cu2spja5hyyf"
+        },
+        "supply_cap": "340282366920938463463374607431768211455",
+        "admins": [
+          {
             "user": "sov1lzkjgdaz08su3yevqu6ceywufl35se9f33kztu5cu2spja5hyyf"
           },
-          "supply_cap": "340282366920938463463374607431768211455",
-          "admins": [
-            {
-              "user": "sov1lzkjgdaz08su3yevqu6ceywufl35se9f33kztu5cu2spja5hyyf"
-            },
-            {
-              "user": "sov10d6chuh8vu86ltmt7qq4ec8lt25qyvr0cl3lg4mzs5llcfnx69m"
-            }
-          ]
-        }
-      },
-      "module": {
-        "type": "moduleRef",
-        "name": "Bank"
-      },
-      "tx_hash": "0x35646bb7c01c3c69201d57152c6b78046cab9aed08668629a4d8998028872c50"
-    }
-  ],
-  "meta": {}
-}
+          {
+            "user": "sov10d6chuh8vu86ltmt7qq4ec8lt25qyvr0cl3lg4mzs5llcfnx69m"
+          }
+        ]
+      }
+    },
+    "module": {
+      "type": "moduleRef",
+      "name": "Bank"
+    },
+    "tx_hash": "0xb9ca0657fdcdc6edc77f9c83511b232f6218d983856836d690503b3f713a526f"
+  }
+]
 ```
 
 We can see the TokenCreated event which contains the id of the token
@@ -337,7 +334,7 @@ Adding the following transaction to batch:
       }
     }
   },
-  "chain_hash": "0x672f49a623e325540b52fe25a255a584f4cdf8e2b0c5c1fca13eab8a92c610ed",
+  "chain_hash": "0xe88ef8c77a95689ba18bc256ed8e9b09f67ca644f751de9146e047b2c9f23e33",
   "details": {
     "max_priority_fee_bips": 0,
     "max_fee": "100000000",
@@ -370,7 +367,7 @@ $ ./../../target/debug/sov-cli node submit-batch --wait-for-processing by-addres
 
 ```bash,test-ci,bashtestmd:compare-output
 $ curl -Ss http://127.0.0.1:12346/modules/bank/tokens/token_1nyl0e0yweragfsatygt24zmd8jrr2vqtvdfptzjhxkguz2xxx3vs0y07u7/total-supply | jq -c -M
-{"data":{"amount":"10030000000000000","token_id":"token_1nyl0e0yweragfsatygt24zmd8jrr2vqtvdfptzjhxkguz2xxx3vs0y07u7"},"meta":{}}
+{"amount":"10030000000000000","token_id":"token_1nyl0e0yweragfsatygt24zmd8jrr2vqtvdfptzjhxkguz2xxx3vs0y07u7"}
 ```
 
 #### 6. Wait for aggregated proof to be available

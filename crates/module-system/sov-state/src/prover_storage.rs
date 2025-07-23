@@ -72,6 +72,36 @@ impl<S: MerkleProofSpec> ProverStorage<S> {
         }
     }
 
+    fn do_get_leaf<N: ProvableCompileTimeNamespace>(
+        &self,
+        key: &SlotKey,
+        witness: &<Self as Storage>::Witness,
+        version: Option<SlotNumber>,
+    ) -> Option<NodeLeafAndMaybeValue> {
+        let val = self.read_value::<N>(key, version);
+
+        // First, we create a node that we put in the cache. This one contains the value.
+        let node_leaf_with_fetched_value = val.map(|v| {
+            let leaf = NodeLeaf::make_leaf::<S::Hasher>(&v);
+            NodeLeafAndMaybeValue {
+                leaf,
+                value: ReadType::GetSizeValueFetched(v),
+            }
+        });
+
+        // Second, we create a node that we put in the witness. This one doesn't contain the value.
+        let node_leaf_without_value =
+            node_leaf_with_fetched_value
+                .clone()
+                .map(|node| NodeLeafAndMaybeValue {
+                    leaf: node.leaf,
+                    value: ReadType::GetSizeValueNotFetched,
+                });
+
+        witness.add_hint(&node_leaf_without_value);
+        node_leaf_with_fetched_value
+    }
+
     // Return version to use, if applicable
     // If none returned, means no version can be used and should return empty value
     fn get_version_to_use(&self, version: Option<SlotNumber>) -> Option<SlotNumber> {
@@ -318,40 +348,17 @@ impl<S: MerkleProofSpec> Storage for ProverStorage<S> {
     fn get_leaf<N: ProvableCompileTimeNamespace>(
         &self,
         key: &SlotKey,
-        version: Option<SlotNumber>,
         witness: &Self::Witness,
     ) -> Option<NodeLeafAndMaybeValue> {
-        let val = self.read_value::<N>(key, version);
-
-        // First, we create a node that we put in the cache. This one contains the value.
-        let node_leaf_with_fetched_value = val.map(|v| {
-            let leaf = NodeLeaf::make_leaf::<S::Hasher>(&v);
-            NodeLeafAndMaybeValue {
-                leaf,
-                value: ReadType::GetSizeValueFetched(v),
-            }
-        });
-
-        // Second, we create a node that we put in the witness. This one doesn't contain the value.
-        let node_leaf_without_value =
-            node_leaf_with_fetched_value
-                .clone()
-                .map(|node| NodeLeafAndMaybeValue {
-                    leaf: node.leaf,
-                    value: ReadType::GetSizeValueNotFetched,
-                });
-
-        witness.add_hint(&node_leaf_without_value);
-        node_leaf_with_fetched_value
+        self.do_get_leaf::<N>(key, witness, None)
     }
 
     fn get<N: ProvableCompileTimeNamespace>(
         &self,
         key: &SlotKey,
-        version: Option<SlotNumber>,
         witness: &Self::Witness,
     ) -> Option<SlotValue> {
-        let val = self.read_value::<N>(key, version);
+        let val = self.read_value::<N>(key, None);
         witness.add_hint(&val);
         val
     }
@@ -438,6 +445,24 @@ impl<S: MerkleProofSpec> NativeStorage for ProverStorage<S> {
         // because detecting an unbound version is error-prone due to kernel/user state split and versions.
         // And JMT works fine with its view of the data.
         self.latest_version()
+    }
+
+    fn get_historical<N: ProvableCompileTimeNamespace>(
+        &self,
+        key: &SlotKey,
+        version: Option<SlotNumber>,
+        _witness: &Self::Witness,
+    ) -> Option<SlotValue> {
+        self.read_value::<N>(key, version)
+    }
+
+    fn get_leaf_historical<N: ProvableCompileTimeNamespace>(
+        &self,
+        key: &SlotKey,
+        version: Option<SlotNumber>,
+        witness: &Self::Witness,
+    ) -> Option<NodeLeafAndMaybeValue> {
+        self.do_get_leaf::<N>(key, witness, version)
     }
 
     fn get_with_proof<N: ProvableCompileTimeNamespace>(

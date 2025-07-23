@@ -10,7 +10,7 @@ use sov_modules_stf_blueprint::GenesisParams;
 use sov_paymaster::{PaymasterConfig, SafeVec};
 use sov_prover_incentives::ProverIncentivesConfig;
 use sov_rollup_interface::common::SlotNumber;
-use sov_sequencer_registry::SequencerConfig;
+use sov_sequencer_registry::{SequencerConfig, SequencerRegistryConfig};
 use sov_value_setter::{ValueSetter, ValueSetterConfig};
 
 use crate::interface::AsUser;
@@ -23,7 +23,7 @@ use crate::{
     default_test_tx_details, generate_optimistic_runtime, TestPrivateKey, TestSpec, TestUser,
     TransactionTestAssert, TransactionTestCase, TransactionType, UserTokenInfo,
     TEST_DEFAULT_USER_BALANCE, TEST_DEFAULT_USER_STAKE, TEST_LIGHT_CLIENT_FINALIZED_HEIGHT,
-    TEST_MAX_ATTESTED_HEIGHT, TEST_ROLLUP_FINALITY_PERIOD,
+    TEST_MAX_ATTESTED_HEIGHT, TEST_MIN_SEQ_BOND, TEST_ROLLUP_FINALITY_PERIOD,
 };
 
 const SEQUENCER_ADDR: [u8; 28] = [42u8; 28];
@@ -139,11 +139,14 @@ fn create_test_rt_genesis_config<S: Spec>(
         paymaster: PaymasterConfig {
             payers: SafeVec::new(),
         },
-        sequencer_registry: SequencerConfig {
-            seq_rollup_address: seq_rollup_address.clone(),
-            seq_da_address,
-            seq_bond,
-            is_preferred_sequencer: true,
+        sequencer_registry: SequencerRegistryConfig {
+            minimum_bond: TEST_MIN_SEQ_BOND,
+            sequencer_config: SequencerConfig {
+                seq_rollup_address: seq_rollup_address.clone(),
+                seq_da_address,
+                seq_bond,
+                is_preferred_sequencer: true,
+            },
         },
         operator_incentives: sov_operator_incentives::OperatorIncentivesConfig {
             reward_address: prover_placeholder.address(),

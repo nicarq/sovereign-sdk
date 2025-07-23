@@ -3,8 +3,8 @@ use borsh::{BorshDeserialize, BorshSerialize};
 use serde::{Deserialize, Serialize};
 use sov_modules_api::macros::{config_value, UniversalWallet};
 use sov_modules_api::{
-    Context, DaSpec, Error, GenesisState, Module, ModuleId, ModuleInfo, ModuleRestApi, Spec,
-    StateValue, TxState,
+    Context, DaSpec, GenesisState, Module, ModuleId, ModuleInfo, ModuleRestApi, Spec, StateValue,
+    TxState,
 };
 
 /// A message to set a value
@@ -63,7 +63,7 @@ impl<S: Spec> Module for GasTester<S> {
         _genesis_rollup_header: &<<S as Spec>::Da as DaSpec>::BlockHeader,
         _config: &Self::Config,
         _state: &mut impl GenesisState<S>,
-    ) -> Result<(), Error> {
+    ) -> anyhow::Result<()> {
         Ok(())
     }
 
@@ -72,17 +72,16 @@ impl<S: Spec> Module for GasTester<S> {
         msg: Self::CallMessage,
         _context: &Context<Self::Spec>,
         state: &mut impl TxState<S>,
-    ) -> Result<(), Error> {
+    ) -> anyhow::Result<()> {
         match msg {
             CallMessage::SetValue { value } => {
                 self.charge_gas(
                     state,
                     &S::Gas::from(config_value!("EXAMPLE_CUSTOM_GAS_PRICE")),
-                )
-                .map_err(|e| anyhow::anyhow!(e))?;
-                self.value
-                    .set(&value, state)
-                    .map_err(|e| anyhow::anyhow!(e))?;
+                )?;
+
+                self.value.set(&value, state)?;
+
                 Ok(())
             }
         }

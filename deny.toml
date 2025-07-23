@@ -360,6 +360,11 @@ name = "sov-module-schemas"
 expression = "LicenseRef-Sovereign-Labs-Community-Software-License"
 license-files = []
 
+[[licenses.clarify]]
+name = "sov-zkvm-utils"
+expression = "LicenseRef-Sovereign-Labs-Community-Software-License"
+license-files = []
+
 
 [[licenses.exceptions]]
 allow = ["LGPL-3.0"]

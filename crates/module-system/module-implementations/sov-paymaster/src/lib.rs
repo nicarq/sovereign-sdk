@@ -16,7 +16,7 @@ pub use policies::*;
 use sov_bank::ReserveGasError;
 use sov_modules_api::transaction::AuthenticatedTransactionData;
 use sov_modules_api::{
-    Context, DaSpec, Error, Gas, GenesisState, InnerEnumVariant, Module, ModuleId, ModuleInfo,
+    Context, DaSpec, Gas, GenesisState, InnerEnumVariant, Module, ModuleId, ModuleInfo,
     ModuleRestApi, Spec, StateAccessor, StateMap, TxState,
 };
 use sov_state::{BorshCodec, EncodeLike};
@@ -152,9 +152,9 @@ impl<S: Spec> Module for Paymaster<S> {
         _genesis_rollup_header: &<<S as Spec>::Da as DaSpec>::BlockHeader,
         config: &Self::Config,
         state: &mut impl GenesisState<S>,
-    ) -> Result<(), Error> {
+    ) -> anyhow::Result<()> {
         // The initialization logic
-        Ok(self.init_module(config, state)?)
+        self.init_module(config, state)
     }
 
     fn call(
@@ -162,7 +162,7 @@ impl<S: Spec> Module for Paymaster<S> {
         msg: Self::CallMessage,
         context: &Context<Self::Spec>,
         state: &mut impl TxState<S>,
-    ) -> Result<(), Error> {
+    ) -> anyhow::Result<()> {
         match msg {
             CallMessage::RegisterPaymaster { policy } => {
                 self.register_paymaster(policy, context, state)?;

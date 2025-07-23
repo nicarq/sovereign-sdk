@@ -11,8 +11,8 @@ pub use genesis::*;
 use sov_bank::Amount;
 use sov_modules_api::runtime::OperatingMode;
 use sov_modules_api::{
-    Context, DaSpec, Error, Gas, GenesisState, GetGasPrice, ModuleId, ModuleInfo, ModuleRestApi,
-    Spec, StateMap, StateReader, StateValue, TxState,
+    Context, DaSpec, Gas, GenesisState, GetGasPrice, ModuleId, ModuleInfo, ModuleRestApi, Spec,
+    StateMap, StateReader, StateValue, TxState,
 };
 use sov_rollup_interface::common::SlotNumber;
 use sov_state::User;
@@ -75,9 +75,9 @@ impl<S: Spec> sov_modules_api::Module for ProverIncentives<S> {
         _genesis_rollup_header: &<<S as Spec>::Da as DaSpec>::BlockHeader,
         config: &Self::Config,
         state: &mut impl GenesisState<S>,
-    ) -> Result<(), Error> {
+    ) -> anyhow::Result<()> {
         // The initialization logic
-        Ok(self.init_module(config, state)?)
+        self.init_module(config, state)
     }
 
     fn call(
@@ -85,23 +85,21 @@ impl<S: Spec> sov_modules_api::Module for ProverIncentives<S> {
         msg: Self::CallMessage,
         context: &Context<Self::Spec>,
         state: &mut impl TxState<S>,
-    ) -> Result<(), Error> {
+    ) -> anyhow::Result<()> {
         if !self.should_reward_fees(state) {
             return Err(anyhow::anyhow!(
                 "Prover incentives call message received when operating in optimistic mode"
-            )
-            .into());
+            ));
         }
         match msg {
             call::CallMessage::Register(bond_amount) => {
-                self.register(bond_amount, context.sender(), state)
+                Ok(self.register(bond_amount, context.sender(), state)?)
             }
-            call::CallMessage::Exit => self.exit(context.sender(), state),
+            call::CallMessage::Exit => Ok(self.exit(context.sender(), state)?),
             call::CallMessage::Deposit(bond_amount) => {
-                self.deposit(bond_amount, context.sender(), state)
+                Ok(self.deposit(bond_amount, context.sender(), state)?)
             }
         }
-        .map_err(|e| Error::ModuleError(e.into()))
     }
 }
 

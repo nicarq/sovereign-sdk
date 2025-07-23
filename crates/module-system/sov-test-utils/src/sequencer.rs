@@ -37,7 +37,7 @@ use crate::{
 pub struct TestSequencerSetup<Rt: Runtime<TestSpec>> {
     _dir: TempDir,
     /// The [`SequencerConfig`] used in this test.
-    pub config: SequencerConfig<MockDaSpec, <TestSpec as Spec>::Address, StdSequencerConfig>,
+    pub config: SequencerConfig<<TestSpec as Spec>::Address, StdSequencerConfig>,
     /// The DA service used by the sequencer.
     pub da_service: StorableMockDaService,
     /// What was passed to Sequencer::create.
@@ -99,7 +99,10 @@ impl<Rt: Runtime<TestSpec>> TestSequencerSetup<Rt> {
             value_setter_config,
             paymaster_config,
         );
-        let sequencer_rollup_address = genesis_config.sequencer_registry.seq_rollup_address;
+        let sequencer_rollup_address = genesis_config
+            .sequencer_registry
+            .sequencer_config
+            .seq_rollup_address;
 
         let params = GenesisParams {
             runtime: genesis_config,
@@ -142,7 +145,6 @@ impl<Rt: Runtime<TestSpec>> TestSequencerSetup<Rt> {
         shutdown_receiver.mark_unchanged();
 
         let config = SequencerConfig {
-            da_address: da_service.sequencer_da_address,
             rollup_address: sequencer_rollup_address,
             admin_addresses,
             automatic_batch_production: true,

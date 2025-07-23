@@ -6,8 +6,8 @@ use serde::{Deserialize, Serialize};
 #[cfg(feature = "native")]
 use sov_modules_api::rest::HasRestApi;
 use sov_modules_api::{
-    Base58Address, Context, DaSpec, Error, GenesisState, HexHash, HexString, Module, ModuleId,
-    ModuleInfo, ModuleRestApi, Spec, StateMap, StateReader, StateValue, TxState,
+    Base58Address, Context, DaSpec, GenesisState, HexHash, HexString, Module, ModuleId, ModuleInfo,
+    ModuleRestApi, Spec, StateMap, StateReader, StateValue, TxState,
 };
 use sov_state::User;
 #[cfg(feature = "native")]
@@ -125,9 +125,9 @@ where
         _genesis_rollup_header: &<<S as Spec>::Da as DaSpec>::BlockHeader,
         config: &Self::Config,
         state: &mut impl GenesisState<S>,
-    ) -> Result<(), Error> {
+    ) -> anyhow::Result<()> {
         // The initialization logic
-        Ok(self.init_module(config, state)?)
+        self.init_module(config, state)
     }
 
     fn call(
@@ -135,7 +135,7 @@ where
         msg: Self::CallMessage,
         context: &Context<Self::Spec>,
         state: &mut impl TxState<S>,
-    ) -> Result<(), Error> {
+    ) -> anyhow::Result<()> {
         match msg {
             call::CallMessage::Dispatch {
                 domain,

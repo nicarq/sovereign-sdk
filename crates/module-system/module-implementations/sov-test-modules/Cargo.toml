@@ -24,6 +24,7 @@ sov-modules-api = { workspace = true, features = ["native"] }
 sov-test-utils = { workspace = true }
 sov-state = { workspace = true, features = ["native"] }
 sov-bank = { workspace = true, features = ["native"] }
+sov-universal-wallet = { workspace = true }
 
 [dependencies]
 derivative = { workspace = true }

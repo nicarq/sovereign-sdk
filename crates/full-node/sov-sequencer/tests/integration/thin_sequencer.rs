@@ -47,6 +47,7 @@ async fn test_thin_direct_same_transactions() {
     genesis_params
         .runtime
         .sequencer_registry
+        .sequencer_config
         .is_preferred_sequencer = false;
 
     let test_rollup = RollupBuilder::<TestBlueprint>::new(
@@ -145,7 +146,7 @@ async fn accept_tx_in_rollup(
         body: BASE64_STANDARD.encode(&tx.data),
     };
     let tx_accepted = api_client.accept_tx(&accept_tx_body).await?;
-    tx_accepted.data.id.parse()
+    tx_accepted.id.parse()
 }
 
 async fn compare_block_at_height(height: u64, da_service: &StorableMockDaService) {

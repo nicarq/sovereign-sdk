@@ -71,9 +71,9 @@ where
             .build_api_state_accessor(height_param)
             .map_err(|e| ErrorObject {
                 status: StatusCode::NOT_FOUND,
-                title: "invalid rollup height".to_string(),
+                message: "invalid rollup height".to_string(),
                 details: json_obj!({
-                    "message": e.to_string(),
+                    "error": e.to_string(),
                 }),
             })
     }

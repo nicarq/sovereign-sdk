@@ -69,7 +69,7 @@ where
             std::sync::Arc<DefaultRollupStateProvider<B::Spec, B::Runtime>>,
         >::axum_router(
             state_update_receiver,
-            config.sequencer.da_address.clone(),
+            sequencer.da_address.clone(),
             config.sequencer.rollup_address.clone(),
             sync_status_receiver,
         );

@@ -66,16 +66,16 @@ impl<S: Spec> RollupBlockExecutorError<S> {
         match self {
             RollupBlockExecutorError::DecodeCall(_) => ErrorObject {
                 status: StatusCode::BAD_REQUEST,
-                title: "Malformed transaction".to_string(),
+                message: "Malformed transaction".to_string(),
                 details: json_obj!({
-                    "message": self.to_string(),
+                    "error": self.to_string(),
                 }),
             },
             RollupBlockExecutorError::Overloaded => ErrorObject {
                 status: StatusCode::SERVICE_UNAVAILABLE,
-                title: "Temporarily unavailable".to_string(),
+                message: "Temporarily unavailable".to_string(),
                 details: json_obj!({
-                    "message": self.to_string(),
+                    "error": self.to_string(),
                 }),
             },
             RollupBlockExecutorError::Rejected { reason, call } => {
@@ -86,9 +86,9 @@ impl<S: Spec> RollupBlockExecutorError<S> {
             }
             RollupBlockExecutorError::UnexpectedFailure => ErrorObject {
                 status: StatusCode::INTERNAL_SERVER_ERROR,
-                title: "Internal Server Error".to_string(),
+                message: "Internal Server Error".to_string(),
                 details: json_obj!({
-                    "message": "The sequencer is shutting down due to an internal error. Your transaction was not accepted.",
+                    "error": "The sequencer is shutting down due to an internal error. Your transaction was not accepted.",
                 }),
             },
         }
@@ -97,6 +97,16 @@ impl<S: Spec> RollupBlockExecutorError<S> {
 
 type StateRootReceiver<S> =
     oneshot::Receiver<(RollupHeight, <<S as Spec>::Storage as Storage>::Root)>;
+
+pub struct RollupBlockExecutorConfig<S: Spec, Rt: Runtime<S>> {
+    pub config: SequencerConfig<S::Address, PreferredSequencerConfig>,
+    pub da_address: <S::Da as DaSpec>::Address,
+    pub shutdown_notifier: Sender<()>,
+    pub state_root_request_sender: tokio::sync::mpsc::Sender<StateRootComputeRequest<S>>,
+    pub shutdown_receiver: watch::Receiver<()>,
+    pub shutdown_sender: watch::Sender<()>,
+    pub startup_transaction_cache_writer: Option<TxResultWriter<S, Rt>>,
+}
 
 pub struct RollupBlockExecutor<S, Rt>
 where
@@ -108,7 +118,8 @@ where
 
     next_event_number: u64,
     next_tx_number: u64,
-    config: SequencerConfig<S::Da, S::Address, PreferredSequencerConfig>,
+    config: SequencerConfig<S::Address, PreferredSequencerConfig>,
+    da_address: <S::Da as DaSpec>::Address,
     // A sender notifying that this acceptor has successfully shut down. We give a handle to
     // each background task when it is spawned, ensuring that this channel remains open as long
     // as any background task is operational even if the acceptor is dropped.
@@ -133,15 +144,20 @@ impl<S: Spec, Rt: Runtime<S>> RollupBlockExecutor<S, Rt> {
     #[allow(clippy::too_many_arguments)]
     pub fn new(
         info: &StateUpdateInfo<S::Storage>,
-        config: SequencerConfig<S::Da, S::Address, PreferredSequencerConfig>,
-        shutdown_notifier: Sender<()>,
-        state_root_request_sender: tokio::sync::mpsc::Sender<StateRootComputeRequest<S>>,
-        shutdown_receiver: watch::Receiver<()>,
-        shutdown_sender: watch::Sender<()>,
-        startup_transaction_cache_writer: Option<TxResultWriter<S, Rt>>,
+        rollup_exec_config: RollupBlockExecutorConfig<S, Rt>,
     ) -> RollupBlockExecutor<S, Rt> {
         let mut rt = Rt::default();
         let checkpoint = StateCheckpoint::new(info.storage.clone(), &rt.kernel());
+
+        let RollupBlockExecutorConfig {
+            config,
+            da_address,
+            shutdown_notifier,
+            state_root_request_sender,
+            shutdown_receiver,
+            shutdown_sender,
+            startup_transaction_cache_writer,
+        } = rollup_exec_config;
 
         Self {
             checkpoint,
@@ -149,6 +165,7 @@ impl<S: Spec, Rt: Runtime<S>> RollupBlockExecutor<S, Rt> {
             next_event_number: info.next_event_number,
             next_tx_number: info.next_tx_number,
             config,
+            da_address,
             shutdown_notifier,
             state_root_request_sender,
             state_roots: Default::default(),
@@ -353,24 +370,24 @@ impl<S: Spec, Rt: Runtime<S>> RollupBlockExecutor<S, Rt> {
         &mut self,
         tx_hash: TxHash,
         tx: &FullyBakedTx,
-    ) -> AcceptedTxWithBudgetInfo<S, Rt> {
+    ) -> (AcceptedTxWithBudgetInfo<S, Rt>, TxChangeSet) {
         trace!(
             %tx_hash,
             "Re-applying state changes for the soft-confirmed transaction"
         );
 
         match self.apply_tx_to_in_progress_batch(tx).await {
-            Ok((output, _tx_changes)) => {
-                if tx_hash != output.accepted_tx.tx_hash {
+            Ok(res) => {
+                if tx_hash != res.0.accepted_tx.tx_hash {
                     tracing::error!(
                         expected_hash = %tx_hash,
-                        executor_output_hash = %output.accepted_tx.tx_hash,
+                        executor_output_hash = %res.0.accepted_tx.tx_hash,
                         "The executor returned a different tx hash than expected"
                     );
                     exit_rollup(&self.shutdown_sender).await;
                     unreachable!()
                 }
-                output
+                res
             }
             Err(err) => {
                 tracing::error!(
@@ -441,7 +458,7 @@ impl<S: Spec, Rt: Runtime<S>> RollupBlockExecutor<S, Rt> {
                 minimum_profit_per_tx,
                 admin_addresses: self.config.admin_addresses.clone().into(),
                 sequencer_rollup_address: self.config.rollup_address.clone(),
-                sequencer_da_address: self.config.da_address.clone(),
+                sequencer_da_address: self.da_address.clone(),
             };
 
             move || rollup_block_task_body::<S, Rt>(ctx)
@@ -594,7 +611,7 @@ impl<S: Spec, Rt: Runtime<S>> RollupBlockExecutor<S, Rt> {
         for batch_receipt in batch_receipts {
             // We already increment the event number for our own transactions
             // inside `apply_tx_to_in_progress_batch`.
-            if batch_receipt.inner.da_address == self.config.da_address {
+            if batch_receipt.inner.da_address == self.da_address {
                 continue;
             }
             let mut accepted_txs = Vec::with_capacity(batch_receipt.tx_receipts.len());
@@ -799,25 +816,25 @@ fn reject_reason_to_error(
     match error {
         RejectReason::SequencerOutOfGas => ErrorObject {
             status: StatusCode::SERVICE_UNAVAILABLE,
-            title: "Batch is full".to_string(),
+            message: "Batch is full".to_string(),
             details: json_obj!({
-                "message": "More transactions were submitted that the sequencer is allowed to put into a single batch. Wait a few seconds and try again."
+                "error": "More transactions were submitted that the sequencer is allowed to put into a single batch. Wait a few seconds and try again."
             }),
         },
         RejectReason::InsufficientReward { expected, found } => ErrorObject {
             status: StatusCode::FORBIDDEN,
-            title: "Sequencer tip too low".to_string(),
+            message: "Sequencer tip too low".to_string(),
             details: json_obj!({
-                "message": "This transaction did not pay a sufficient net fee.",
+                "error": "This transaction did not pay a sufficient net fee.",
                 "minimum": expected,
                 "found": found,
             }),
         },
         RejectReason::SenderMustBeAdmin => ErrorObject {
             status: StatusCode::FORBIDDEN,
-            title: "The transaction is forbidden".to_string(),
+            message: "The transaction is forbidden".to_string(),
             details: json_obj!({
-                "message": format!("Only designated admins are allowed to send `{:#?}` transactions through this sequencer", call_discriminant),
+                "error": format!("Only designated admins are allowed to send `{:#?}` transactions through this sequencer", call_discriminant),
             }),
         },
     }

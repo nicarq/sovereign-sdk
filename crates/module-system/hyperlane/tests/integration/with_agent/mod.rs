@@ -31,7 +31,7 @@ use helpers::{
 };
 use preferred_sequencer_runtime::{TestRuntime, TestRuntimeCall};
 use serde_json::{Map, Value};
-use sov_api_spec::types::{self as api_types, GetSlotFilteredEventsResponse, IntOrHash, Slot};
+use sov_api_spec::types::{self as api_types, IntOrHash, LedgerEvent, Slot};
 use sov_api_spec::Client;
 use sov_bank::Amount;
 use sov_hyperlane_integration::igp::ExchangeRateAndGasPrice;
@@ -678,7 +678,7 @@ async fn submit_tx(client: &Client, tx_body: RawTx) {
         .unwrap();
 }
 
-async fn next_slot_events<S>(client: &Client, subscription: &mut S) -> GetSlotFilteredEventsResponse
+async fn next_slot_events<S>(client: &Client, subscription: &mut S) -> Vec<LedgerEvent>
 where
     S: Stream<Item = Result<Slot>> + Unpin,
 {
@@ -690,9 +690,8 @@ where
         .clone()
 }
 
-fn find_event(events: &GetSlotFilteredEventsResponse, event: &str) -> Option<Map<String, Value>> {
+fn find_event(events: &[LedgerEvent], event: &str) -> Option<Map<String, Value>> {
     events
-        .data
         .iter()
         .find(|ev| ev.key == event)
         .map(|ev| ev.value.clone())

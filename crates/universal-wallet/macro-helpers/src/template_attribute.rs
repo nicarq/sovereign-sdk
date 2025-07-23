@@ -10,7 +10,7 @@ use syn::{Expr, ExprCall, ExprLit, Ident, Lit, Meta, Token};
 
 /// Attributes of the format
 /// `#[sov_wallet(template("transfer" = value("hi"), "other_template" = input("msg")))]`
-/// providing the annotations necessary to generate SchemaGenerator::get_child_templates() for
+/// providing the annotations necessary to generate UniversalWallet::get_child_templates() for
 /// fields which are part of standard templated transactions
 #[derive(Debug, Default, Clone)]
 pub struct TransactionTemplates {

@@ -29,7 +29,7 @@ impl<S: Spec> Module for TestModule<S> {
         _message: Self::CallMessage,
         _context: &sov_modules_api::Context<Self::Spec>,
         _state: &mut impl sov_modules_api::TxState<Self::Spec>,
-    ) -> Result<(), sov_modules_api::Error> {
+    ) -> anyhow::Result<()> {
         Ok(())
     }
 }

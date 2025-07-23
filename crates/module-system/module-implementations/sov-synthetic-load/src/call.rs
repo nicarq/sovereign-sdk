@@ -4,7 +4,7 @@ use rand::{Rng, SeedableRng};
 use rand_chacha::ChaCha8Rng;
 use schemars::JsonSchema;
 use sov_modules_api::digest::Digest;
-use sov_modules_api::macros::UniversalWallet;
+use sov_modules_api::macros::{serialize, UniversalWallet};
 use sov_modules_api::{Context, CryptoSpec, EventEmitter, Spec, TxState};
 use strum::{EnumDiscriminants, EnumIs, VariantArray};
 
@@ -12,23 +12,11 @@ use super::{SyntheticLoad, VERY_LARGE_VEC_LENGTH};
 use crate::event::Event;
 
 /// This enumeration represents the available call messages for interacting with the module.
-#[derive(
-    borsh::BorshDeserialize,
-    borsh::BorshSerialize,
-    serde::Serialize,
-    serde::Deserialize,
-    Debug,
-    PartialEq,
-    Eq,
-    Clone,
-    JsonSchema,
-    EnumDiscriminants,
-    EnumIs,
-    UniversalWallet,
-)]
-#[serde(rename_all = "snake_case")]
+#[derive(Debug, PartialEq, Eq, Clone, JsonSchema, EnumDiscriminants, EnumIs, UniversalWallet)]
+#[serialize(Borsh, Serde)]
 #[schemars(rename = "CallMessage")]
 #[strum_discriminants(derive(VariantArray, EnumIs))]
+#[serde(rename_all = "snake_case")]
 pub enum CallMessage {
     /// Read and set many individual values.
     ReadAndSetManyIndividualValues {

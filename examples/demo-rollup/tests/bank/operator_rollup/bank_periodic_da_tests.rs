@@ -9,7 +9,6 @@ use sov_cli::NodeClient;
 use sov_demo_rollup::{mock_da_risc0_host_args, MockDemoRollup};
 use sov_mock_da::storable::service::StorableMockDaService;
 use sov_modules_api::execution_mode::Native;
-use sov_modules_api::rest::utils::ResponseObject;
 use sov_modules_api::{OperatingMode, Spec};
 use sov_test_utils::test_rollup::{RollupBuilder, RollupProverConfig};
 use sov_test_utils::{TestSpec, TEST_DEFAULT_MOCK_DA_PERIODIC_PRODUCING};

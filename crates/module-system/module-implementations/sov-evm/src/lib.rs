@@ -37,8 +37,8 @@ use sov_address::{EthereumAddress, FromVmAddress};
 use sov_modules_api::prelude::UnwrapInfallible as _;
 use sov_modules_api::{
     AccessoryStateMap, AccessoryStateReader, AccessoryStateReaderAndWriter, AccessoryStateValue,
-    AccessoryStateVec, Context, DaSpec, Error, GenesisState, InfallibleStateReaderAndWriter,
-    Module, ModuleId, ModuleInfo, Spec, StateAccessor, StateMap, StateReader, StateValue, StateVec,
+    AccessoryStateVec, Context, DaSpec, GenesisState, InfallibleStateReaderAndWriter, Module,
+    ModuleId, ModuleInfo, Spec, StateAccessor, StateMap, StateReader, StateValue, StateVec,
     TxState, UnmeteredStateWrapper,
 };
 use sov_state::codec::BcsCodec;
@@ -182,8 +182,8 @@ where
         _genesis_rollup_header: &<<S as Spec>::Da as DaSpec>::BlockHeader,
         config: &Self::Config,
         state: &mut impl GenesisState<S>,
-    ) -> Result<(), Error> {
-        Ok(self.init_module(config, state)?)
+    ) -> anyhow::Result<()> {
+        self.init_module(config, state)
     }
 
     fn call(
@@ -191,8 +191,8 @@ where
         msg: Self::CallMessage,
         context: &Context<Self::Spec>,
         state: &mut impl TxState<S>,
-    ) -> Result<(), Error> {
-        Ok(self.execute_call(msg, context, state)?)
+    ) -> anyhow::Result<()> {
+        self.execute_call(msg, context, state)
     }
 }
 

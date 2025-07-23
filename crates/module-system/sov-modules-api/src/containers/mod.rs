@@ -235,7 +235,9 @@ mod test {
     use sov_mock_zkvm::MockZkvm;
     use sov_rollup_interface::common::{IntoSlotNumber, SlotNumber};
     use sov_state::namespaces::User;
-    use sov_state::{DefaultStorageSpec, ProverStorage, SlotKey, SlotValue, Storage};
+    use sov_state::{
+        DefaultStorageSpec, NativeStorage, ProverStorage, SlotKey, SlotValue, Storage,
+    };
     use sov_test_utils::storage::SimpleStorageManager;
     use sov_test_utils::validate_and_materialize;
 
@@ -304,7 +306,7 @@ mod test {
                     let storage = storage_manager.create_storage();
                     assert_eq!(
                         Some(test.value.clone()),
-                        storage.get::<User>(&test.key, None, &witness),
+                        storage.get_historical::<User>(&test.key, None, &witness),
                         "Prover storage does not have correct value"
                     );
                 }
@@ -316,7 +318,11 @@ mod test {
             for test in tests {
                 assert_eq!(
                     Some(test.value),
-                    storage.get::<User>(&test.key, Some(test.version), &Default::default())
+                    storage.get_historical::<User>(
+                        &test.key,
+                        Some(test.version),
+                        &Default::default()
+                    )
                 );
             }
         }
@@ -357,7 +363,7 @@ mod test {
             let storage = storage_manager.create_storage();
             assert_eq!(
                 Some(value),
-                storage.get::<User>(&key, None, &Default::default())
+                storage.get_historical::<User>(&key, None, &Default::default())
             );
         }
 

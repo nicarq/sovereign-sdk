@@ -11,7 +11,6 @@ use sov_mock_da::storable::service::StorableMockDaService;
 use sov_mock_da::BlockProducingConfig;
 use sov_modules_api::execution_mode::Native;
 use sov_modules_api::macros::config_value;
-use sov_modules_api::rest::utils::ResponseObject;
 use sov_modules_api::OperatingMode;
 use sov_test_utils::test_rollup::RollupBuilder;
 
@@ -142,10 +141,8 @@ async fn get_max_attested_height(
         .map(|h| format!("?rollup_height={h}"))
         .unwrap_or_default();
     let url = format!("/modules/attester-incentives/state/maximum-attested-height{param}");
-    let response = client
-        .query_rest_endpoint::<ResponseObject<ValueResponse>>(&url)
-        .await?;
+    let response = client.query_rest_endpoint::<ValueResponse>(&url).await?;
 
-    let height = response.data.unwrap().value;
+    let height = response.value;
     Ok(height)
 }

@@ -61,7 +61,7 @@ pub enum RegistrationError<
         "The minimum bond is not set. This is a bug - the minimum bond should be set at genesis"
     )]
     /// The minimum bond is not set. This is a bug - the minimum bond should be set at genesis
-    NoMinimumBondSet(RollupAddress),
+    NoMinimumBondSet,
 
     #[error("The user is already registered")]
     /// The user is already registered.

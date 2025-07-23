@@ -21,7 +21,7 @@ use schemars::gen::SchemaGenerator;
 use schemars::JsonSchema;
 use serde::de::{SeqAccess, Visitor};
 use serde::{Deserialize, Deserializer, Serialize};
-use sov_universal_wallet::schema::{OverrideSchema, SchemaGenerator as SovSchemaGenerator};
+use sov_universal_wallet::schema::{OverrideSchema, UniversalWallet as SovSchemaGenerator};
 use thiserror::Error;
 
 /// A wrapper around `Vec` which guarantees that the length of the `Vec` will never

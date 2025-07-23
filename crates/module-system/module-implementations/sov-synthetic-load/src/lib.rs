@@ -7,8 +7,8 @@ mod event;
 pub use call::*;
 pub use event::Event;
 use sov_modules_api::{
-    Context, DaSpec, Error, GenesisState, Module, ModuleId, ModuleInfo, ModuleRestApi, Spec,
-    StateValue, StateVec, TxState,
+    Context, DaSpec, GenesisState, Module, ModuleId, ModuleInfo, ModuleRestApi, Spec, StateValue,
+    StateVec, TxState,
 };
 
 /// Maximum length for the very large vector used in testing.
@@ -51,8 +51,8 @@ impl<S: Spec> Module for SyntheticLoad<S> {
         _genesis_rollup_header: &<<S as Spec>::Da as DaSpec>::BlockHeader,
         _config: &Self::Config,
         state: &mut impl GenesisState<S>,
-    ) -> Result<(), Error> {
-        Ok(self.init_module(state)?)
+    ) -> anyhow::Result<()> {
+        self.init_module(state)
     }
 
     fn call(
@@ -60,7 +60,7 @@ impl<S: Spec> Module for SyntheticLoad<S> {
         msg: Self::CallMessage,
         context: &Context<Self::Spec>,
         state: &mut impl TxState<S>,
-    ) -> Result<(), Error> {
+    ) -> anyhow::Result<()> {
         let mut state_wrapped = state.to_revertable();
         let state = &mut state_wrapped;
         let res = match msg {

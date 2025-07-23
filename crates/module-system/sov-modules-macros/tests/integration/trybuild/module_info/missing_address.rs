@@ -1,6 +1,6 @@
 use sov_modules_api::{ModuleInfo, StateMap};
 
-#[derive(ModuleInfo)]
+#[derive(Clone, ModuleInfo)]
 struct TestStruct<S: sov_modules_api::Spec> {
     #[state]
     test_state1: StateMap<u32, u32>,

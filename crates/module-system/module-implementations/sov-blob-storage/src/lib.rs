@@ -271,7 +271,7 @@ impl<S: Spec> Module for BlobStorage<S> {
         _genesis_rollup_header: &<<S as Spec>::Da as DaSpec>::BlockHeader,
         _config: &Self::Config,
         _state: &mut impl GenesisState<S>,
-    ) -> Result<(), sov_modules_api::Error> {
+    ) -> anyhow::Result<()> {
         Ok(())
     }
 
@@ -280,7 +280,7 @@ impl<S: Spec> Module for BlobStorage<S> {
         _message: Self::CallMessage,
         _context: &sov_modules_api::Context<Self::Spec>,
         _state: &mut impl sov_modules_api::TxState<Self::Spec>,
-    ) -> Result<(), sov_modules_api::Error> {
+    ) -> anyhow::Result<()> {
         Ok(())
     }
 }

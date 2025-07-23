@@ -375,7 +375,6 @@ fn get_da_polling_interval_ms(da_config: &MockDaConfig) -> u64 {
 pub fn rollup_config_with_da<Da: DaService<Config = MockDaConfig>>(
     path: &std::path::Path,
     da_config: MockDaConfig,
-    sequencer_address: <Da::Spec as DaSpec>::Address,
     aggregated_proof_block_jump: usize,
 ) -> RollupConfig<MockAddress, Da> {
     RollupConfig {
@@ -400,7 +399,6 @@ pub fn rollup_config_with_da<Da: DaService<Config = MockDaConfig>>(
             // Set ttl to zero to disable for testing. This prevents nondeterminism.
             dropped_tx_ttl_secs: 0,
             admin_addresses: vec![],
-            da_address: sequencer_address,
             rollup_address: MockAddress::new([0u8; 32]),
             sequencer_kind_config: SequencerKindConfig::Standard(StdSequencerConfig {
                 mempool_max_txs_count: None,
@@ -422,7 +420,6 @@ fn rollup_config(
     rollup_config_with_da::<MockDaService>(
         path,
         MockDaConfig::instant_with_sender(da_service.sequencer_address()),
-        da_service.sequencer_address(),
         aggregated_proof_block_jump,
     )
 }

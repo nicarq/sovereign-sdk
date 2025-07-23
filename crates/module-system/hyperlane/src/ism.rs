@@ -111,10 +111,7 @@ impl Ism {
                 validators: original_validators,
                 threshold,
             } => {
-                let threshold = (*threshold)
-                    .try_into()
-                    .expect("Threshold is too big for a usize. This is only possible on 16-bit platforms, which are not supported.");
-                let metadata = MessageIdMultisigIsmMetadata::decode(&metadata.0, threshold)?;
+                let metadata = MessageIdMultisigIsmMetadata::decode(&metadata.0, *threshold)?;
 
                 let hash = compute_hash_for_signatures(
                     message,
@@ -172,9 +169,16 @@ impl MessageIdMultisigIsmMetadata {
     /// Decode the metadata from a message.
     // See <https://github.com/hyperlane-xyz/hyperlane-monorepo/blob/7656fe1c3865f817d68971ed3c8b939376065283/solidity/contracts/isms/libs/MessageIdMultisigIsmMetadata.sol#L9>
     // for the reference on the expected format.
-    fn decode(metadata: &[u8], num_signatures: usize) -> Result<Self> {
-        let expected_len =
-            ADDRESS_SIZE + MERKLE_ROOT_SIZE + MERKLE_INDEX_SIZE + num_signatures * SIGNATURE_SIZE;
+    fn decode(metadata: &[u8], num_signatures: u32) -> Result<Self> {
+        let num_signatures: usize = num_signatures.try_into().expect("Threshold is too big for a usize. This is only possible on 16-bit platforms, which are not supported.");
+
+        let Some(expected_len) = expected_len_check_overflow_u32(num_signatures) else {
+            anyhow::bail!(
+                "Invalid metadata length, calulation overflowed {}",
+                num_signatures
+            );
+        };
+
         anyhow::ensure!(
             metadata.len() == expected_len,
             "Invalid metadata length: expected {}, got {}",
@@ -206,11 +210,40 @@ impl MessageIdMultisigIsmMetadata {
             num_signatures,
             signatures.len()
         );
+
         Ok(Self {
             origin_merkle_tree,
             merkle_root,
             merkle_index,
             signatures,
         })
+    }
+}
+
+fn expected_len_check_overflow_u32(num_signatures: usize) -> Option<usize> {
+    let total_sig_size: usize = num_signatures.checked_mul(SIGNATURE_SIZE)?;
+    let expected_len = ADDRESS_SIZE
+        .checked_add(MERKLE_ROOT_SIZE)?
+        .checked_add(MERKLE_INDEX_SIZE)?
+        .checked_add(total_sig_size)?;
+
+    // We don’t support platforms where `usize` is smaller than `u32`.
+    // If `expected_len` overflows, we’ll catch it during native execution —
+    // where `usize` is most likely a `u64`.
+    TryInto::<u32>::try_into(expected_len).ok()?;
+    Some(expected_len)
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn test_overflow_foo() {
+        let len_res = expected_len_check_overflow_u32(100);
+        assert!(len_res.is_some());
+
+        let len_res = expected_len_check_overflow_u32(u32::MAX as usize);
+        assert!(len_res.is_none());
     }
 }

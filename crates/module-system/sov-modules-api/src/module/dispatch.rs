@@ -3,6 +3,7 @@
 use std::fmt::Debug;
 
 use borsh::{BorshDeserialize, BorshSerialize};
+use sov_universal_wallet::schema::UniversalWallet;
 use strum::{VariantArray, VariantNames};
 
 use super::ModuleInfo;
@@ -65,7 +66,8 @@ pub trait DispatchCall: Send + Sync {
         + Debug
         + PartialEq
         + Eq
-        + Clone;
+        + Clone
+        + UniversalWallet;
 
     /// Encode a [`Self::Decodable`]
     fn encode(decodable: &Self::Decodable) -> Vec<u8>;
