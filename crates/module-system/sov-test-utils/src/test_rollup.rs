@@ -734,9 +734,12 @@ where
         if let Err(error) = self.shutdown_sender.send(()) {
             tracing::info!(%error, "shutdown triggered elsewhere, this is probably OK");
         }
+        println!("  awaiting rollup task...");
         self.rollup_task.await.expect("Can't join rollup task")?;
 
+        println!("  There are {} other handles.", self.other_handles.len());
         for handle in self.other_handles {
+            println!("  awaiting handle...");
             handle.await.expect("Can't join other handles");
         }
 
@@ -789,13 +792,18 @@ where
         start_at_height: Option<RollupHeight>,
         stop_at_height: Option<RollupHeight>,
     ) -> anyhow::Result<Self> {
+        println!(" test_rollup: restarting...");
         let builder = self.shutdown().await?;
+        println!(" test_rollup: shut down.");
         tokio::time::sleep(std::time::Duration::from_millis(50)).await;
         let builder = builder.set_config(|c| {
             c.start_at_rollup_height = start_at_height;
             c.stop_at_rollup_height = stop_at_height;
         });
-        builder.start().await
+        println!(" test_rollup: starting again...");
+        let a = builder.start().await;
+        println!(" test_rollup: started.");
+        a
     }
 }
 

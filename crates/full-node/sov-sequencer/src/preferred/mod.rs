@@ -58,7 +58,7 @@ use tokio::sync::mpsc::{self, Sender};
 use tokio::sync::{broadcast, watch, Mutex};
 use tokio::task::JoinHandle;
 use tokio::time::sleep;
-use tracing::{debug, error, info, trace, warn};
+use tracing::{debug, error, info, trace};
 use transaction_subscriptions::TransactionCache;
 use uuid::Uuid;
 
@@ -400,8 +400,10 @@ where
             .saturating_delta(current_visible_slot_number);
         let increase_per_batch = config_value!("MAX_VISIBLE_HEIGHT_INCREASE_PER_SLOT");
 
-        let (maximum_delta, minimum_delta) = self.slot_count_delta_acceptable_upper_bound_range();
-        tracing::debug!(deferred_slots_count = self.raw_max_deferred_slots_delay(), maximum_delta, minimum_delta, current_catchup_delta = raw_catchup_delta, %current_visible_slot_number, increase_per_batch, "Calculating amount of batches to send");
+        let (maximum_delta, minimum_delta) = Self::slot_count_delta_acceptable_upper_bound_range(
+            self.config.max_allowed_node_distance_behind,
+        );
+        tracing::debug!(deferred_slots_count = raw_max_deferred_slots_delay(self.config.max_allowed_node_distance_behind), maximum_delta, minimum_delta, current_catchup_delta = raw_catchup_delta, %current_visible_slot_number, increase_per_batch, "Calculating amount of batches to send");
         (
             raw_catchup_delta
                 .saturating_sub(maximum_delta)
@@ -432,6 +434,7 @@ where
 
         loop {
             let (min_batches_to_send, max_batches_to_send) = self.catchup_batches_to_send(&info);
+            println!(" sequencer: sending min {min_batches_to_send}, max {max_batches_to_send} catchup batches");
             if min_batches_to_send == 0 {
                 tracing::info!(
                     min_batches_to_send,
@@ -452,6 +455,10 @@ where
                         break;
                     } else {
                         tokio::time::sleep(Duration::from_millis(100)).await;
+                    }
+                    if self.shutdown_receiver.has_changed().unwrap_or(true) {
+                        tracing::info!("The sequencer is shutting down. Aborting recovery procedure.");
+                        anyhow::bail!("Shutting down during recovery.");
                     }
                 }
                 if i % 10 == 0 {
@@ -495,6 +502,11 @@ where
                     break;
                 }
 
+                if self.shutdown_receiver.has_changed().unwrap_or(true) {
+                    tracing::info!("The sequencer is shutting down. Aborting recovery procedure.");
+                    anyhow::bail!("Shutting down during recovery.");
+                }
+
                 info = poll_state_update::<S>(
                     state_update_receiver,
                     shutdown_receiver,
@@ -506,6 +518,7 @@ where
                 let mut inner = self
                     .lock_inner("recover_and_catch_up:overwrite_executor")
                     .await;
+
                 inner
                     .process_flush_tx_cache(
                         &self.api_ledger_db,
@@ -521,6 +534,7 @@ where
             ?info,
             "Sequencer exiting recovery and resuming normal operation."
         );
+        println!(" sequencer: recovery DONE!");
         Ok(())
     }
 
@@ -541,51 +555,22 @@ where
         }
     }
 
-    fn raw_max_deferred_slots_delay(&self) -> u64 {
-        // TODO: there should be a DA config for added slack to account for DA inclusion delay here as well
-        sov_blob_storage::config_deferred_slots_count()
-            // Subtract one because node always force-increments visible slot number once it reaches
-            // deferred_slots_count, so the delta will always be 1 below it during update_state
-            .checked_sub(1)
-            .expect("config_deferred_slots_count cannot be less than 1")
-            // Subtract the max node delay because we know the node could be up to this far behind
-            // (if it was further, we'd have triggered a resync). So the slot_number we will see
-            // might be up to this far behind what it would be at the DA tip
-            .checked_sub(self.config.max_allowed_node_distance_behind)
-            .expect(
-                "config_deferred_slots_count cannot be lower than max_allowed_node_distance_behind",
-            )
-    }
-
     /// How far to catch back up if we need to recover/fast-forward due to being too close to (or
     /// past) slot_count_delay_acceptable_lower_bound.
     /// Returns a range to allow hysteresis during catchup. The first (lower) value will be the
     /// minimum to be considered successfully recovered, the second (upper) value will be the
     /// target.
-    fn slot_count_delta_acceptable_upper_bound_range(&self) -> (u64, u64) {
+    fn slot_count_delta_acceptable_upper_bound_range(
+        max_allowed_node_distance_behind: u64,
+    ) -> (u64, u64) {
         // TODO: check this at compile time (#3041)
         const OVERFLOW_ERROR_STR: &str = "Overflow calculating deferred slots count range. In the future this should be handled better, but the config value should never be set high enough to cause this.";
-        let raw_max_delay = self.raw_max_deferred_slots_delay();
+        let raw_max_delay = raw_max_deferred_slots_delay(max_allowed_node_distance_behind);
         (
             // TODO: consider making these percentages a sequencer config value
             raw_max_delay.checked_mul(5).expect(OVERFLOW_ERROR_STR) / 10, // 50% of max delay
             raw_max_delay.checked_mul(4).expect(OVERFLOW_ERROR_STR) / 10, // 40% of max delay
         )
-    }
-
-    fn slot_count_delta_acceptable_lower_bound(&self) -> u64 {
-        // TODO: check this at compile time (#3041)
-        const OVERFLOW_ERROR_STR: &str = "Overflow calculating deferred slots count range. In the future this should be handled better, but the config value should never be set high enough to cause this.";
-
-        // Take 90% of the value to conservatively account for update_state not being called every
-        // slot.
-        // This will give us a better chance of successfully saving our soft-confirmations
-        // if we catch it in time.
-        // TODO: consider making this a sequencer config value
-        self.raw_max_deferred_slots_delay()
-            .checked_mul(9)
-            .expect(OVERFLOW_ERROR_STR)
-            / 10
     }
 
     async fn wait_for_node_resync(
@@ -674,6 +659,37 @@ where
     }
 }
 
+pub(crate) fn slot_count_delta_acceptable_lower_bound(
+    max_allowed_node_distance_behind: u64,
+) -> u64 {
+    // TODO: check this at compile time (#3041)
+    const OVERFLOW_ERROR_STR: &str = "Overflow calculating deferred slots count range. In the future this should be handled better, but the config value should never be set high enough to cause this.";
+
+    // Take 90% of the value to conservatively account for update_state not being called every
+    // slot.
+    // This will give us a better chance of successfully saving our soft-confirmations
+    // if we catch it in time.
+    // TODO: consider making this a sequencer config value
+    raw_max_deferred_slots_delay(max_allowed_node_distance_behind)
+        .checked_mul(9)
+        .expect(OVERFLOW_ERROR_STR)
+        / 10
+}
+
+fn raw_max_deferred_slots_delay(max_allowed_node_distance_behind: u64) -> u64 {
+    // TODO: there should be a DA config for added slack to account for DA inclusion delay here as well
+    sov_blob_storage::config_deferred_slots_count()
+        // Subtract one because node always force-increments visible slot number once it reaches
+        // deferred_slots_count, so the delta will always be 1 below it during update_state
+        .checked_sub(1)
+        .expect("config_deferred_slots_count cannot be less than 1")
+        // Subtract the max node delay because we know the node could be up to this far behind
+        // (if it was further, we'd have triggered a resync). So the slot_number we will see
+        // might be up to this far behind what it would be at the DA tip
+        .checked_sub(max_allowed_node_distance_behind)
+        .expect("config_deferred_slots_count cannot be lower than max_allowed_node_distance_behind")
+}
+
 async fn update_state_task<S, Rt, Da>(
     seq: Arc<PreferredSequencer<S, Rt, Da>>,
     mut state_update_receiver: StateUpdateReceiver<S::Storage>,
@@ -710,7 +726,7 @@ fn current_visible_slot_number_according_to_node<S: Spec, Rt: Runtime<S>>(
     node_checkpoint.current_visible_slot_number().as_true()
 }
 
-enum PreferredSeqOperation {
+pub(crate) enum PreferredSeqOperation {
     // Something has gone terribly wrong, and I don't see a way for us
     // to meaningfully recover without nuking the sequencer DB.
     Unreachable,
@@ -727,39 +743,7 @@ enum PreferredSeqOperation {
     // This is by far the most common scenario, i.e. a nominal
     // `update_state` call during sequencer execution with no unusual
     // conditions.
-    ReplaySoftConfirmationsOnTopOfNodeState,
-}
-
-impl PreferredSeqOperation {
-    fn new(
-        condition_nodes_sequence_number_is_fresher: bool,
-        condition_too_close_to_deferred_slots_count_for_comfort: bool,
-        condition_node_is_lagging: bool,
-        condition_are_there_batches_to_replay: bool,
-    ) -> Self {
-        tracing::debug!(
-            condition_nodes_sequence_number_is_fresher,
-            condition_too_close_to_deferred_slots_count_for_comfort,
-            condition_node_is_lagging,
-            condition_are_there_batches_to_replay,
-            "Choosing the state update code path"
-        );
-
-        match (
-            condition_nodes_sequence_number_is_fresher,
-            condition_too_close_to_deferred_slots_count_for_comfort,
-            condition_node_is_lagging,
-            condition_are_there_batches_to_replay,
-        ) {
-            (true, _, _, true) => PreferredSeqOperation::Unreachable,
-            (true, _, false, false) => PreferredSeqOperation::WaitForNodeResyncToTip,
-            (_, _, true, _) => PreferredSeqOperation::WaitForNodeResyncWithAllowedSlack,
-            (false, true, false, _) => PreferredSeqOperation::RecoverAndCatchUp,
-            (false, false, false, _) => {
-                PreferredSeqOperation::ReplaySoftConfirmationsOnTopOfNodeState
-            }
-        }
-    }
+    ReplaySoftConfirmationsOnTopOfNodeState(bool, Duration),
 }
 
 pub(crate) async fn update_api_ledger<S: Spec, Rt: Runtime<S>>(
@@ -801,52 +785,26 @@ where
     let next_sequence_number_according_to_node =
         get_next_sequence_number_according_to_node(&info, &mut rt);
 
+    let recovery_rollup_exec_config = seq.create_bloc_exec_config_for_recovery();
+
     // We acquire the lock and hold it until we've decided whether the sequencer needs to enter an unready state.
     // This prevents `accept_tx` from sneaking in any new txs between the time we check if there are soft confirmations to replay
     // and the time the sequencer is marked unready.
     let mut inner = seq
         .lock_inner("update_state::fetch_initial_batches_to_replay")
         .await;
-    let ((batches_to_replay, fetch_batches_to_replay_metrics), next_sequence_number, is_startup) = {
-        (
-            inner.completed_batches_to_replay(next_sequence_number_according_to_node, true),
-            inner.next_sequence_number(),
-            !inner.has_finished_startup,
+
+    let operation = inner
+        .process_sequencer_conditions(
+            &info,
+            seq.da_sync_state.clone(),
+            next_sequence_number_according_to_node,
+            recovery_rollup_exec_config,
+            seq.is_master().await,
         )
-    };
-    let time_spent_fetching_batches = fetch_batches_to_replay_metrics.duration;
-    sov_metrics::track_metrics(|t| {
-        t.submit(fetch_batches_to_replay_metrics);
-    });
+        .await;
 
-    let distance = seq.da_sync_state.status().distance();
-
-    let condition_nodes_sequence_number_is_fresher =
-        next_sequence_number_according_to_node > next_sequence_number;
-
-    // Once we're this close to `deferred_slots_count`, we risk crossing the
-    // `deferred_slots_count` threshold before the next call to
-    // `update_state`. That's no good.
-    let current_visible_slot_number = current_visible_slot_number_according_to_node::<S, Rt>(&info);
-    let condition_too_close_to_deferred_slots_count_for_comfort =
-        info.slot_number.delta(current_visible_slot_number)
-            > seq.slot_count_delta_acceptable_lower_bound();
-
-    // Resuming operations while the node is
-    // lagging can cause issues e.g. during failover or after sequencer DB
-    // deletion due to in-flight blobs that are not yet processed.
-    let condition_node_is_lagging = distance > seq.config.max_allowed_node_distance_behind;
-
-    // Are there ANY soft confirmations to replay at all?
-    // Note that we're holding a lock on the sequencer, so this is guaranteed to be up to date.
-    let condition_are_there_batches_to_replay = !batches_to_replay.is_empty();
-
-    let operation = PreferredSeqOperation::new(
-        condition_nodes_sequence_number_is_fresher,
-        condition_too_close_to_deferred_slots_count_for_comfort,
-        condition_node_is_lagging,
-        condition_are_there_batches_to_replay,
-    );
+    drop(inner);
 
     match operation {
         PreferredSeqOperation::Unreachable => {
@@ -854,25 +812,11 @@ where
         }
 
         PreferredSeqOperation::WaitForNodeResyncToTip => {
-            warn!("The node has a higher sequence number than the sequencer, but we're very close to the chain tip, i.e. we don't expect to be simply syncing. This could mean there is another preferred sequencer running (which is not supported and will likely lead to issues), or you very recently restarted the node and there's still some in-flight blobs. Resyncing to the chain tip.");
-            inner.is_ready = Err(SequencerNotReadyDetails::Syncing {
-                target_da_height: seq.da_sync_state.target_da_height.load(Ordering::Relaxed),
-                synced_da_height: seq.da_sync_state.synced_da_height.load(Ordering::Relaxed),
-            });
-            drop(inner);
-
             seq.wait_for_node_resync_to_tip(state_update_receiver, shutdown_receiver, info)
                 .await?;
         }
 
         PreferredSeqOperation::WaitForNodeResyncWithAllowedSlack => {
-            warn!(?distance, "The sequencer must pause because the node has lagged behind the DA blockchain. This might lead to a brief downtime for users.");
-            inner.is_ready = Err(SequencerNotReadyDetails::Syncing {
-                target_da_height: seq.da_sync_state.target_da_height.load(Ordering::Relaxed),
-                synced_da_height: seq.da_sync_state.synced_da_height.load(Ordering::Relaxed),
-            });
-            drop(inner);
-
             seq.wait_for_node_resync_with_allowed_slack(
                 state_update_receiver,
                 shutdown_receiver,
@@ -881,26 +825,14 @@ where
             .await?;
         }
         PreferredSeqOperation::RecoverAndCatchUp => {
-            error!(slot_number_according_to_node=%info.slot_number, %current_visible_slot_number, "Sequencer has detected that it is past, or very close to, having the visible_slot_number lag behind the deferred_slots_count threshold. Normal operation will be suspended until this can be remedied.");
-
-            let rollup_exec_config = seq.create_bloc_exec_config_for_recovery();
-            let recovery_strategy = seq.config.sequencer_kind_config.recovery_strategy.clone();
-
-            inner
-                .trigger_recovery(
-                    recovery_strategy,
-                    &info,
-                    rollup_exec_config,
-                    seq.is_master().await,
-                )
-                .await;
-            drop(inner);
             seq.recover_and_catch_up(state_update_receiver, shutdown_receiver, info)
                 .await?;
         }
 
-        PreferredSeqOperation::ReplaySoftConfirmationsOnTopOfNodeState => {
-            drop(inner);
+        PreferredSeqOperation::ReplaySoftConfirmationsOnTopOfNodeState(
+            is_startup,
+            time_spent_fetching_batches,
+        ) => {
             seq.replay_soft_confirmations_on_top_of_node_state(
                 info,
                 timer_start,

@@ -29,10 +29,10 @@ use crate::preferred::update_state::do_next_event;
 use crate::preferred::{
     current_visible_slot_number_according_to_node, exit_rollup,
     get_next_sequence_number_according_to_node, is_lagging_less_than_ideal_amount,
-    next_visible_slot_number_increase, update_api_ledger, AcceptedTx, BatchCreationError,
-    Confirmation, DbEvent, LedgerDb, PreferredBatchToReplay, PreferredSequencerConfig,
-    PreferredSequencerFetchBatchesToReplayMetrics, RecoveryStrategy, RollupBlockExecutorConfig,
-    TransactionCache,
+    next_visible_slot_number_increase, slot_count_delta_acceptable_lower_bound, update_api_ledger,
+    AcceptedTx, BatchCreationError, Confirmation, DbEvent, LedgerDb, PreferredBatchToReplay,
+    PreferredSeqOperation, PreferredSequencerConfig, PreferredSequencerFetchBatchesToReplayMetrics,
+    PreferredSequencerReadBatch, RecoveryStrategy, RollupBlockExecutorConfig, TransactionCache,
 };
 use crate::{SequencerConfig, SequencerNotReadyDetails, SlotNumber, TxHash};
 
@@ -565,6 +565,7 @@ where
             .await;
 
         info!(?info, current_visible_slot_number = %current_visible_slot_number_according_to_node::<S,Rt>(info), "Beginning sequencer recovery");
+        println!(" inner: triggered recovery; current_visible_slot_number: {:?}", current_visible_slot_number_according_to_node::<S,Rt>(info));
     }
 
     pub(crate) async fn set_is_master(&self, is_master: bool) {
@@ -950,4 +951,156 @@ where
 
         update_api_ledger(api_ledger_db, transaction_cache, &info).await;
     }
+
+    pub(crate) fn process_fetch_completed_batches(
+        &mut self,
+        next_sequence_number: u64,
+    ) -> FetchBatches {
+        let lock_start = std::time::Instant::now();
+
+        let (completed_batches, metrics) =
+            self.completed_batches_to_replay(next_sequence_number, false);
+
+        // Once we've caught up to the in-progress batch, we're done.
+        let (db_events_sender, subscription) =
+            mpsc::channel(self.config.sequencer_kind_config.db_event_channel_size);
+        if completed_batches.is_empty() {
+            self.executor_events_sender
+                .subscribe_to_events(db_events_sender);
+
+            let fetch_in_progress_batch_time_start = std::time::Instant::now();
+            let in_progress_batch = self.executor_events_sender.fetch_in_progress_batch();
+            let fetch_in_progress_batch_time = fetch_in_progress_batch_time_start.elapsed();
+
+            return FetchBatches {
+                metrics,
+                lock_start,
+                flow: Flow::Break {
+                    in_progress_batch,
+                    subscription,
+                    fetch_in_progress_batch_time,
+                },
+            };
+        }
+
+        FetchBatches {
+            metrics,
+            lock_start,
+            flow: Flow::Continue { completed_batches },
+        }
+    }
+
+    pub(crate) async fn process_sequencer_conditions(
+        &mut self,
+        info: &StateUpdateInfo<S::Storage>,
+        da_sync_state: Arc<DaSyncState>,
+        next_sequence_number_according_to_node: u64,
+        recovery_rollup_exec_config: RollupBlockExecutorConfig<S, Rt>,
+        is_master: bool,
+    ) -> PreferredSeqOperation {
+        let (
+            (batches_to_replay, fetch_batches_to_replay_metrics),
+            next_sequence_number,
+            is_startup,
+        ) = {
+            (
+                self.completed_batches_to_replay(next_sequence_number_according_to_node, true),
+                self.next_sequence_number(),
+                !self.has_finished_startup,
+            )
+        };
+        let time_spent_fetching_batches = fetch_batches_to_replay_metrics.duration;
+        sov_metrics::track_metrics(|t| {
+            t.submit(fetch_batches_to_replay_metrics);
+        });
+
+        let distance = da_sync_state.status().distance();
+
+        let condition_nodes_sequence_number_is_fresher =
+            next_sequence_number_according_to_node > next_sequence_number;
+
+        // Once we're this close to `deferred_slots_count`, we risk crossing the
+        // `deferred_slots_count` threshold before the next call to
+        // `update_state`. That's no good.
+        let current_visible_slot_number =
+            current_visible_slot_number_according_to_node::<S, Rt>(info);
+        let condition_too_close_to_deferred_slots_count_for_comfort = info
+            .slot_number
+            .delta(current_visible_slot_number)
+            > slot_count_delta_acceptable_lower_bound(self.config.max_allowed_node_distance_behind);
+        println!(" inner: info slot number {:?}, current visible slot number {:?}, delta {:?}", info.slot_number, current_visible_slot_number, slot_count_delta_acceptable_lower_bound(self.config.max_allowed_node_distance_behind));
+
+        // Resuming operations while the node is
+        // lagging can cause issues e.g. during failover or after sequencer DB
+        // deletion due to in-flight blobs that are not yet processed.
+        let condition_node_is_lagging = distance > self.config.max_allowed_node_distance_behind;
+
+        // Are there ANY soft confirmations to replay at all?
+        // Note that we're holding a lock on the sequencer, so this is guaranteed to be up to date.
+        let condition_are_there_batches_to_replay = !batches_to_replay.is_empty();
+
+        let operation = match (
+            condition_nodes_sequence_number_is_fresher,
+            condition_too_close_to_deferred_slots_count_for_comfort,
+            condition_node_is_lagging,
+            condition_are_there_batches_to_replay,
+        ) {
+            (true, _, _, true) => PreferredSeqOperation::Unreachable,
+            (true, _, false, false) => {
+                warn!("The node has a higher sequence number than the sequencer, but we're very close to the chain tip, i.e. we don't expect to be simply syncing. This could mean there is another preferred sequencer running (which is not supported and will likely lead to issues), or you very recently restarted the node and there's still some in-flight blobs. Resyncing to the chain tip.");
+                self.is_ready = Err(SequencerNotReadyDetails::Syncing {
+                    target_da_height: da_sync_state.target_da_height.load(Ordering::Relaxed),
+                    synced_da_height: da_sync_state.synced_da_height.load(Ordering::Relaxed),
+                });
+                PreferredSeqOperation::WaitForNodeResyncToTip
+            }
+            (_, _, true, _) => {
+                warn!(?distance, "The sequencer must pause because the node has lagged behind the DA blockchain. This might lead to a brief downtime for users.");
+                self.is_ready = Err(SequencerNotReadyDetails::Syncing {
+                    target_da_height: da_sync_state.target_da_height.load(Ordering::Relaxed),
+                    synced_da_height: da_sync_state.synced_da_height.load(Ordering::Relaxed),
+                });
+                PreferredSeqOperation::WaitForNodeResyncWithAllowedSlack
+            }
+            (false, true, false, _) => {
+                println!(" -> INNER: triggering recovery");
+                error!(slot_number_according_to_node=%info.slot_number, %current_visible_slot_number, "Sequencer has detected that it is past, or very close to, having the visible_slot_number lag behind the deferred_slots_count threshold. Normal operation will be suspended until this can be remedied.");
+                let recovery_strategy = self.config.sequencer_kind_config.recovery_strategy.clone();
+
+                self.trigger_recovery(
+                    recovery_strategy,
+                    info,
+                    recovery_rollup_exec_config,
+                    is_master,
+                )
+                .await;
+
+                PreferredSeqOperation::RecoverAndCatchUp
+            }
+            (false, false, false, _) => {
+                PreferredSeqOperation::ReplaySoftConfirmationsOnTopOfNodeState(
+                    is_startup,
+                    time_spent_fetching_batches,
+                )
+            }
+        };
+        operation
+    }
+}
+
+pub(crate) enum Flow {
+    Break {
+        in_progress_batch: Option<PreferredSequencerReadBatch>,
+        subscription: mpsc::Receiver<DbEvent>,
+        fetch_in_progress_batch_time: Duration,
+    },
+    Continue {
+        completed_batches: Vec<PreferredBatchToReplay>,
+    },
+}
+
+pub(crate) struct FetchBatches {
+    pub(crate) metrics: PreferredSequencerFetchBatchesToReplayMetrics,
+    pub(crate) lock_start: Instant,
+    pub(crate) flow: Flow,
 }
