@@ -958,6 +958,15 @@ where
                     } else {
                         tokio::time::sleep(Duration::from_millis(100)).await;
                     }
+<<<<<<< HEAD
+=======
+                    if self.shutdown_receiver.has_changed().unwrap_or(true) {
+                        tracing::info!(
+                            "The sequencer is shutting down. Aborting recovery procedure."
+                        );
+                        anyhow::bail!("Shutting down during recovery.");
+                    }
+>>>>>>> fmt
                 }
                 if i % 10 == 0 {
                     tracing::info!(number = %i, min = %min_batches_to_send, max = %max_batches_to_send, "Sending catchup batch");
