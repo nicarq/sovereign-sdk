@@ -434,7 +434,6 @@ where
 
         loop {
             let (min_batches_to_send, max_batches_to_send) = self.catchup_batches_to_send(&info);
-            println!(" sequencer: sending min {min_batches_to_send}, max {max_batches_to_send} catchup batches");
             if min_batches_to_send == 0 {
                 tracing::info!(
                     min_batches_to_send,
@@ -534,7 +533,6 @@ where
             ?info,
             "Sequencer exiting recovery and resuming normal operation."
         );
-        println!(" sequencer: recovery DONE!");
         Ok(())
     }
 

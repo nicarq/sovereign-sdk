@@ -241,7 +241,6 @@ async fn rollup_operates_only_on_finalized_blocks_if_stop_at_height_set(finaliza
 async fn check_start_at(finalization_blocks: u32) {
     let stop_at_height = RollupHeight::new(15);
 
-    println!("Starting...");
     let (test_rollup, _) = create_test_rollup(
         0,
         TEST_MAX_BATCH_SIZE,
@@ -250,7 +249,6 @@ async fn check_start_at(finalization_blocks: u32) {
         finalization_blocks,
     )
     .await;
-    println!("Created test rollup...");
 
     let test_rollup = test_rollup.unwrap();
     let client = test_rollup.client.clone();
@@ -261,7 +259,6 @@ async fn check_start_at(finalization_blocks: u32) {
         .await
         .unwrap();
 
-    println!("Produced 10 blocks...");
     let mut shutdown_rec = test_rollup.shutdown_sender.subscribe();
     let mut slot_subscription = test_rollup.client.client.subscribe_slots().await.unwrap();
 
@@ -276,11 +273,9 @@ async fn check_start_at(finalization_blocks: u32) {
     })
     .await
     .unwrap();
-    println!("Got height to shutdown at...");
 
     // Let's wait for the shutdown.
     shutdown_rec.changed().await.unwrap();
-    println!("Shutdown sender changed...");
 
     pause_update_state::set(true);
 
@@ -290,11 +285,9 @@ async fn check_start_at(finalization_blocks: u32) {
         .restart_with_heights(Some(start_at), None)
         .await
         .unwrap();
-    println!("Restarted...");
 
     let client = test_rollup.client.clone();
     let current_height = get_height(&client).await.unwrap();
-    println!("Got current height...");
 
     pause_update_state::set(false);
 

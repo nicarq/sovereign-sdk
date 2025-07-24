@@ -565,7 +565,6 @@ where
             .await;
 
         info!(?info, current_visible_slot_number = %current_visible_slot_number_according_to_node::<S,Rt>(info), "Beginning sequencer recovery");
-        println!(" inner: triggered recovery; current_visible_slot_number: {:?}", current_visible_slot_number_according_to_node::<S,Rt>(info));
     }
 
     pub(crate) async fn set_is_master(&self, is_master: bool) {
@@ -901,12 +900,12 @@ where
 
     pub(crate) async fn process_prune_sequencer_db(
         &mut self,
-        is_replica: bool,
+        is_master: bool,
         start_prune: Instant,
         stop_at_rollup_height: Option<RollupHeight>,
     ) -> Duration {
         let time_to_lock = start_prune.elapsed();
-        if !is_replica {
+        if is_master {
             self.trigger_batch_production_if_convenient(stop_at_rollup_height)
                 .await;
         }
@@ -1028,7 +1027,6 @@ where
             .slot_number
             .delta(current_visible_slot_number)
             > slot_count_delta_acceptable_lower_bound(self.config.max_allowed_node_distance_behind);
-        println!(" inner: info slot number {:?}, current visible slot number {:?}, delta {:?}", info.slot_number, current_visible_slot_number, slot_count_delta_acceptable_lower_bound(self.config.max_allowed_node_distance_behind));
 
         // Resuming operations while the node is
         // lagging can cause issues e.g. during failover or after sequencer DB
@@ -1063,7 +1061,6 @@ where
                 PreferredSeqOperation::WaitForNodeResyncWithAllowedSlack
             }
             (false, true, false, _) => {
-                println!(" -> INNER: triggering recovery");
                 error!(slot_number_according_to_node=%info.slot_number, %current_visible_slot_number, "Sequencer has detected that it is past, or very close to, having the visible_slot_number lag behind the deferred_slots_count threshold. Normal operation will be suspended until this can be remedied.");
                 let recovery_strategy = self.config.sequencer_kind_config.recovery_strategy.clone();
 
