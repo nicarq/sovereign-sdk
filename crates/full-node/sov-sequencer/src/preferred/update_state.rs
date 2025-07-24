@@ -3,12 +3,12 @@ use std::time::Instant;
 use sov_modules_api::{Runtime, Spec};
 use sov_rollup_interface::node::da::DaService;
 use sov_state::{NativeStorage, Storage};
-use tokio::sync::mpsc;
 
 use crate::metrics::{PreferredSequencerPruneMetrics, PreferredSequencerUpdateStateMetrics};
 use crate::preferred::{
-    get_next_sequence_number_according_to_node, DbEvent, PreferredBatchToReplay,
-    PreferredSequencer, RollupBlockExecutor, RollupBlockExecutorConfig, StateUpdateInfo,
+    get_next_sequence_number_according_to_node, DbEvent, FetchBatches, Flow,
+    PreferredBatchToReplay, PreferredSequencer, RollupBlockExecutor, RollupBlockExecutorConfig,
+    StateUpdateInfo,
 };
 
 impl<S, Rt, Da> PreferredSequencer<S, Rt, Da>
@@ -79,39 +79,38 @@ where
             let mut inner = self
                 .lock_inner("update_state::fetch_completed_batches_iteration")
                 .await;
-            let lock_start = std::time::Instant::now();
-            // Because we just sent our own message while holding the lock, we know that it will be the last message in the db channel.
-            // So, the response we receive is a completely up-to-date picture of the DB.
-            let (completed_batches, fetch_batches_to_replay_metrics) =
-                inner.completed_batches_to_replay(next_sequence_number, false);
 
-            // Once we've caught up to the in-progress batch, we're done.
-            let (db_events_sender, subscription) =
-                mpsc::channel(self.config.sequencer_kind_config.db_event_channel_size);
-            if completed_batches.is_empty() {
-                inner
-                    .executor_events_sender
-                    .subscribe_to_events(db_events_sender);
-
-                let fetch_in_progress_batch_time = std::time::Instant::now();
-                let in_progress_batch = inner.executor_events_sender.fetch_in_progress_batch();
-                // Update metrics
-                {
-                    time_spent_fetching_batches += fetch_batches_to_replay_metrics.duration;
-                    time_spent_fetching_batches += fetch_in_progress_batch_time.elapsed();
-                    sov_metrics::track_metrics(|t| {
-                        t.submit(fetch_batches_to_replay_metrics);
-                    });
-                    total_lock_duration += lock_start.elapsed();
-                }
-
-                break (in_progress_batch, subscription);
-            }
+            let FetchBatches {
+                metrics: fetch_batches_to_replay_metrics,
+                lock_start,
+                flow,
+            } = inner.process_fetch_completed_batches(next_sequence_number);
 
             drop(inner); // Drop quickly so we don't block the sequencer
-                         // Update metrics
+            total_lock_duration += lock_start.elapsed();
+
+            let completed_batches = match flow {
+                Flow::Break {
+                    in_progress_batch,
+                    subscription,
+                    fetch_in_progress_batch_time,
+                } => {
+                    // Update metrics
+                    {
+                        time_spent_fetching_batches += fetch_batches_to_replay_metrics.duration;
+                        time_spent_fetching_batches += fetch_in_progress_batch_time;
+                        sov_metrics::track_metrics(|t| {
+                            t.submit(fetch_batches_to_replay_metrics);
+                        });
+                    }
+
+                    break (in_progress_batch, subscription);
+                }
+                Flow::Continue { completed_batches } => completed_batches,
+            };
+
+            // Update metrics
             {
-                total_lock_duration += lock_start.elapsed();
                 time_spent_fetching_batches += fetch_batches_to_replay_metrics.duration;
                 sov_metrics::track_metrics(|t| {
                     t.submit(fetch_batches_to_replay_metrics);
