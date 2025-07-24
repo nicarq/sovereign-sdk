@@ -456,7 +456,9 @@ where
                         tokio::time::sleep(Duration::from_millis(100)).await;
                     }
                     if self.shutdown_receiver.has_changed().unwrap_or(true) {
-                        tracing::info!("The sequencer is shutting down. Aborting recovery procedure.");
+                        tracing::info!(
+                            "The sequencer is shutting down. Aborting recovery procedure."
+                        );
                         anyhow::bail!("Shutting down during recovery.");
                     }
                 }
