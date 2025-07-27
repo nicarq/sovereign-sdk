@@ -126,6 +126,8 @@ where
 
     type Config = AttesterIncentivesConfig<S>;
 
+    type Error = anyhow::Error;
+
     type CallMessage = call::CallMessage;
 
     type Event = Event<S>;

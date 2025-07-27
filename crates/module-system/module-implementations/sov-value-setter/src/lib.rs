@@ -61,6 +61,8 @@ impl<S: Spec> Module for ValueSetter<S> {
 
     type Config = ValueSetterConfig<S>;
 
+    type Error = anyhow::Error;
+
     type CallMessage = CallMessage<S>;
 
     type Event = Event;
@@ -80,7 +82,7 @@ impl<S: Spec> Module for ValueSetter<S> {
         msg: Self::CallMessage,
         context: &Context<Self::Spec>,
         state: &mut impl TxState<S>,
-    ) -> anyhow::Result<()> {
+    ) -> Result<(), Self::Error> {
         let mut state_wrapped = state.to_revertable();
         let state = &mut state_wrapped;
         let res = match msg {

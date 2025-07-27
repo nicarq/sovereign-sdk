@@ -6,6 +6,7 @@ mod genesis;
 mod event;
 pub use call::*;
 pub use event::Event;
+use sov_modules_api::rest::utils::to_json_object;
 use sov_modules_api::{
     Context, DaSpec, GenesisState, Module, ModuleId, ModuleInfo, ModuleRestApi, Spec, StateValue,
     StateVec, TxState,
@@ -37,10 +38,50 @@ pub struct SyntheticLoad<S: Spec> {
     _spec: std::marker::PhantomData<S>,
 }
 
+/// ytest
+#[derive(Debug, serde::Serialize)]
+pub struct SyntheticLoadTestError {
+    code: u32,
+    amount: u32,
+    message: String,
+}
+
+impl sov_modules_api::ErrorDetail for SyntheticLoadTestError {
+    fn error_detail(&self) -> sov_modules_api::prelude::sov_rest_utils::JsonObject {
+        to_json_object(self)
+    }
+}
+
+/// ytest
+#[derive(Debug)]
+pub enum SyntheticLoadError {
+    /// ytest
+    Anyhow(anyhow::Error),
+    /// ytest
+    Test(SyntheticLoadTestError),
+}
+
+impl From<anyhow::Error> for SyntheticLoadError {
+    fn from(value: anyhow::Error) -> Self {
+        Self::Anyhow(value)
+    }
+}
+
+impl sov_modules_api::ErrorDetail for SyntheticLoadError {
+    fn error_detail(&self) -> sov_modules_api::prelude::sov_rest_utils::JsonObject {
+        match self {
+            SyntheticLoadError::Anyhow(e) => e.error_detail(),
+            SyntheticLoadError::Test(e) => e.error_detail(),
+        }
+    }
+}
+
 impl<S: Spec> Module for SyntheticLoad<S> {
     type Spec = S;
 
     type Config = ();
+
+    type Error = SyntheticLoadError;
 
     type CallMessage = call::CallMessage;
 
@@ -60,7 +101,7 @@ impl<S: Spec> Module for SyntheticLoad<S> {
         msg: Self::CallMessage,
         context: &Context<Self::Spec>,
         state: &mut impl TxState<S>,
-    ) -> anyhow::Result<()> {
+    ) -> Result<(), Self::Error> {
         let mut state_wrapped = state.to_revertable();
         let state = &mut state_wrapped;
         let res = match msg {
@@ -86,6 +127,13 @@ impl<S: Spec> Module for SyntheticLoad<S> {
             )?),
             CallMessage::RunCPUHeavyOperation { iterations } => {
                 Ok(self.run_cpu_heavy_operation(iterations, context, state)?)
+            }
+            CallMessage::TestCustomError { amount } => {
+                Err(SyntheticLoadError::Test(SyntheticLoadTestError {
+                    code: 11,
+                    amount,
+                    message: "Returning a structed error".to_string(),
+                }))
             }
         };
         state_wrapped.commit();

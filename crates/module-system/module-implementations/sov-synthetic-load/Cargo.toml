@@ -27,6 +27,7 @@ sov-modules-api = { workspace = true }
 sov-rollup-interface = { workspace = true }
 schemars = { workspace = true }
 serde = { workspace = true }
+serde_json = { workspace = true }
 borsh = { workspace = true, features = ["rc"] }
 sov-state = { workspace = true }
 rand = { workspace = true }
@@ -35,8 +36,8 @@ rand_chacha = { workspace = true }
 [features]
 default = []
 native = [
-    "sov-modules-api/native",
-    "sov-rollup-interface/native",
-    "sov-state/native",
-    "sov-address/native"
+  "sov-modules-api/native",
+  "sov-rollup-interface/native",
+  "sov-state/native",
+  "sov-address/native",
 ]

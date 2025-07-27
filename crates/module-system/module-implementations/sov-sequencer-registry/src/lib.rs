@@ -185,6 +185,8 @@ impl<S: Spec> Module for SequencerRegistry<S> {
 
     type Config = SequencerRegistryConfig<S>;
 
+    type Error = anyhow::Error;
+
     type CallMessage = CallMessage<S>;
 
     type Event = Event<S>;

@@ -6,7 +6,7 @@ pub type TransactionReceipt<S> =
     sov_rollup_interface::stf::TransactionReceipt<TxReceiptContents<S>>;
 
 /// The effect of a batch using the STF blueprint.
-#[derive(Debug, serde::Serialize, serde::Deserialize, Clone, PartialEq)]
+#[derive(Debug, Eq, serde::Serialize, serde::Deserialize, Clone, PartialEq)]
 pub struct TxReceiptContents<S>(std::marker::PhantomData<S>);
 
 /// The effect of a transaction using the STF blueprint.
@@ -19,7 +19,7 @@ impl<S: Spec> sov_rollup_interface::stf::TxReceiptContents for TxReceiptContents
     type Ignored = IgnoredTxContents<S>;
 }
 
-#[derive(Debug, Clone, serde::Serialize, serde::Deserialize, thiserror::Error)]
+#[derive(Debug, Clone, PartialEq, Eq, serde::Serialize, serde::Deserialize, thiserror::Error)]
 /// The contents of the receipt for a reverted transaction
 pub struct RevertedTxContents<S: Spec> {
     /// The gas consumed by the transaction
@@ -28,12 +28,12 @@ pub struct RevertedTxContents<S: Spec> {
     pub reason: Error,
 }
 
-impl<S: Spec> PartialEq for RevertedTxContents<S> {
-    fn eq(&self, other: &Self) -> bool {
-        self.gas_used == other.gas_used && self.reason == other.reason
-    }
-}
-impl<S: Spec> Eq for RevertedTxContents<S> {}
+// impl<S: Spec> PartialEq for RevertedTxContents<S> {
+//     fn eq(&self, other: &Self) -> bool {
+//         self.gas_used == other.gas_used && self.reason == other.reason
+//     }
+// }
+// impl<S: Spec> Eq for RevertedTxContents<S> {}
 
 #[derive(Debug, Clone, serde::Serialize, serde::Deserialize, thiserror::Error)]
 /// The contents of the receipt for a successful transaction

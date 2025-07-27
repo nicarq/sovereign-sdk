@@ -41,6 +41,7 @@ pub mod first_test_module {
     impl<S: Spec> Module for FirstTestStruct<S> {
         type Spec = S;
         type Config = ();
+        type Error = anyhow::Error;
         type CallMessage = MyStruct;
         type Event = ();
 
@@ -103,6 +104,7 @@ pub mod second_test_module {
     impl<S: Spec> Module for SecondTestStruct<S> {
         type Spec = S;
         type Config = ();
+        type Error = anyhow::Error;
         type CallMessage = MyEnum;
         type Event = ();
 

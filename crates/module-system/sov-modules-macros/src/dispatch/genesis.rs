@@ -88,7 +88,7 @@ impl GenesisMacro {
                 for module in sorted_modules {
                      match module {
                          #(#matches)*
-                         _ => Err(::sov_modules_api::Error::ModuleError(::anyhow::Error::msg(format!("Module not found. Please verify that the module is included in the Runtime: {:?}", module)))),
+                         _ => Err(::anyhow::Error::msg(format!("Module not found. Please verify that the module is included in the Runtime: {:?}", module)).into()),
                      }?
                 }
         }

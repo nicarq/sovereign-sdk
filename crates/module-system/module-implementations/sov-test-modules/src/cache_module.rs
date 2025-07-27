@@ -118,6 +118,8 @@ impl<S: Spec> Module for CacheAndRevertTester<S> {
 
     type Config = ();
 
+    type Error = anyhow::Error;
+
     type CallMessage = CallMessage;
 
     type Event = Event;

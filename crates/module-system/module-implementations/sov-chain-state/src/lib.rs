@@ -514,6 +514,8 @@ impl<S: Spec> Module for ChainState<S> {
 
     type Config = ChainStateConfig<S>;
 
+    type Error = anyhow::Error;
+
     type Event = ();
 
     /// Genesis is called when a rollup is deployed and can be used to set initial state values in the module.

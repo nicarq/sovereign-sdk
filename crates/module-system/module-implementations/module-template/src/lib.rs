@@ -42,6 +42,8 @@ impl<S: Spec> Module for ExampleModule<S> {
 
     type Config = ExampleModuleConfig;
 
+    type Error = anyhow::Error;
+
     type CallMessage = CallMessage;
 
     type Event = Event;

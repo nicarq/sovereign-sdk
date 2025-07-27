@@ -54,6 +54,8 @@ impl<S: Spec> Module for GasTester<S> {
 
     type Config = ();
 
+    type Error = anyhow::Error;
+
     type CallMessage = CallMessage;
 
     type Event = ();

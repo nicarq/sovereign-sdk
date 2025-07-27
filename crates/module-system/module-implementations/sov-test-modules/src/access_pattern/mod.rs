@@ -281,6 +281,8 @@ impl<S: Spec> Module for AccessPattern<S> {
 
     type Config = AccessPatternGenesisConfig<S>;
 
+    type Error = anyhow::Error;
+
     type CallMessage = AccessPatternMessages<S>;
 
     type Event = ();

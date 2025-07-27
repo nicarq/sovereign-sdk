@@ -174,6 +174,7 @@ pub struct ModuleWithVersionedStateAccessInSlotHook<S: Spec> {
 impl<S: Spec> Module for ModuleWithVersionedStateAccessInSlotHook<S> {
     type Spec = S;
     type Config = ();
+    type Error = anyhow::Error;
     type CallMessage = ();
     type Event = ();
 

@@ -71,6 +71,8 @@ impl<S: Spec> Module for Bank<S> {
 
     type Config = BankConfig<S>;
 
+    type Error = anyhow::Error;
+
     type CallMessage = call::CallMessage<S>;
 
     type Event = Event<S>;
@@ -89,7 +91,7 @@ impl<S: Spec> Module for Bank<S> {
         msg: Self::CallMessage,
         context: &Context<Self::Spec>,
         state: &mut impl TxState<S>,
-    ) -> anyhow::Result<()> {
+    ) -> Result<(), Self::Error> {
         match msg {
             call::CallMessage::CreateToken {
                 token_name,

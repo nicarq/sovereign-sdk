@@ -3,7 +3,7 @@ use std::fmt::Debug;
 use anyhow::Result;
 use schemars::JsonSchema;
 use sov_modules_api::macros::{serialize, UniversalWallet};
-use sov_modules_api::{Context, EventEmitter, Gas, Spec, TxState};
+use sov_modules_api::{Context, ErrorDetail, EventEmitter, Gas, Spec, TxState};
 use strum::{EnumDiscriminants, EnumIs, VariantArray};
 use thiserror::Error;
 
@@ -58,6 +58,12 @@ pub enum SetValueError<S: Spec> {
         /// The sender.
         sender: S::Address,
     },
+}
+
+impl<S: Spec> ErrorDetail for SetValueError<S> {
+    fn error_detail(&self) -> sov_modules_api::prelude::serde_json::Value {
+        sov_modules_api::prelude::serde_json::json!({})
+    }
 }
 
 impl<S: Spec> ValueSetter<S> {

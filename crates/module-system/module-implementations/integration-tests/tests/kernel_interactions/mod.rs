@@ -37,6 +37,7 @@ pub struct TestVisibleHashModule<S: Spec> {
 impl<S: Spec> Module for TestVisibleHashModule<S> {
     type Spec = S;
     type Config = ();
+    type Error = anyhow::Error;
     type CallMessage = ();
     type Event = ();
 

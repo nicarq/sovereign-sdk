@@ -1,5 +1,10 @@
 //! Module error definitions.
 
+use std::sync::Arc;
+
+use serde::{Deserialize, Deserializer, Serialize, Serializer};
+use sov_rest_utils::{json_obj, JsonObject};
+
 /// A bech32 address parse error.
 #[derive(Debug, thiserror::Error)]
 pub enum Bech32ParseError {
@@ -14,113 +19,88 @@ pub enum Bech32ParseError {
     WrongLength(usize, usize),
 }
 
-/// General error type in the Module System.
-#[derive(Debug, thiserror::Error)]
-pub enum ModuleError {
-    /// Custom error thrown by a module.
-    #[error(transparent)]
-    ModuleError(#[from] anyhow::Error),
+/// test
+pub trait ErrorDetail: std::fmt::Debug {
+    /// test
+    fn error_detail(&self) -> JsonObject;
 }
 
-impl serde::Serialize for ModuleError {
+impl ErrorDetail for anyhow::Error {
+    fn error_detail(&self) -> JsonObject {
+        json_obj!({"error": self.to_string()})
+    }
+}
+
+#[derive(Clone, Debug)]
+struct DeserializedError {
+    data: serde_json::Value,
+}
+
+impl ErrorDetail for DeserializedError {
+    fn error_detail(&self) -> JsonObject {
+        match &self.data {
+            serde_json::Value::Object(map) => map.clone(),
+            _ => panic!("data wasn't a JSON object: {:?}", self.data),
+        }
+    }
+}
+
+/// test
+#[derive(Clone, Debug)]
+pub struct ModuleError {
+    inner: Arc<dyn ErrorDetail + Send + Sync>,
+}
+
+impl ModuleError {
+    /// Returns the error details JSON object.
+    pub fn error_detail(&self) -> JsonObject {
+        self.inner.error_detail()
+    }
+}
+
+// `ModuleError` must derive Display.
+// Dummy implementation to relax the trait bound on inner errors.
+impl std::fmt::Display for ModuleError {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        write!(f, "{:?}", self)
+    }
+}
+
+impl Serialize for ModuleError {
     fn serialize<S>(&self, serializer: S) -> Result<S::Ok, S::Error>
     where
-        S: serde::Serializer,
+        S: Serializer,
     {
-        let error = match self {
-            ModuleError::ModuleError(e) => format!("{e:}"),
-        };
-        error.serialize(serializer)
+        self.inner.error_detail().serialize(serializer)
     }
 }
 
-impl<'de> serde::Deserialize<'de> for ModuleError {
+impl<'de> Deserialize<'de> for ModuleError {
     fn deserialize<D>(deserializer: D) -> Result<Self, D::Error>
     where
-        D: serde::Deserializer<'de>,
+        D: Deserializer<'de>,
     {
-        let error = String::deserialize(deserializer)?;
-        Ok(Self::ModuleError(anyhow::Error::msg(error)))
+        let value = serde_json::Value::deserialize(deserializer)?;
+        let deserialized_error = DeserializedError { data: value };
+
+        Ok(ModuleError {
+            inner: Arc::new(deserialized_error),
+        })
     }
 }
 
-/// We are manually implementing clone because the inner [`anyhow::Error`] doesn't implement clone.
-/// We need to manually loop through the error chain to not loose any of the error context. The intermediate
-/// error types are not clonable so we need to manually convert them to strings.
-impl Clone for ModuleError {
-    fn clone(&self) -> Self {
-        match self {
-            Self::ModuleError(anyhow_err) => {
-                let mut chain = anyhow_err.chain();
-
-                Self::ModuleError(if let Some(err) = chain.next() {
-                    let mut output = anyhow::Error::msg(err.to_string());
-
-                    for outer_err in chain {
-                        output = output.context(anyhow::Error::msg(outer_err.to_string()));
-                    }
-
-                    output
-                } else {
-                    anyhow::anyhow!("Empty error message")
-                })
-            }
-        }
-    }
-}
-
-impl PartialEq for ModuleError {
-    fn eq(&self, other: &Self) -> bool {
-        match (self, other) {
-            (Self::ModuleError(e1), Self::ModuleError(e2)) => e1.to_string() == e2.to_string(),
-        }
+impl PartialEq<ModuleError> for ModuleError {
+    fn eq(&self, other: &ModuleError) -> bool {
+        self.to_string() == other.to_string()
     }
 }
 
 impl Eq for ModuleError {}
 
-#[cfg(test)]
-mod test {
-    use anyhow::anyhow;
-
-    use crate::ModuleError;
-
-    #[test]
-    fn test_module_error_roundtrip() {
-        let error = ModuleError::ModuleError(anyhow::Error::msg("test"));
-        let serialized = serde_json::to_string(&error).unwrap();
-        let deserialized: ModuleError = serde_json::from_str(&serialized).unwrap();
-        // We can only asserts start, because RUST_BACKTRACE can alter full output
-        assert!(deserialized.to_string().starts_with("test"));
-    }
-
-    /// Tests that the inner error context gets correctly propagated when copying an error.
-    #[test]
-    fn test_module_error_copy() {
-        let error = anyhow!("Inner message").context("Outer context".to_string());
-
-        let cloned_err = ModuleError::ModuleError(error).clone();
-
-        match cloned_err {
-            ModuleError::ModuleError(cloned_err) => {
-                let mut chained_clone = cloned_err.chain();
-
-                assert_eq!(
-                    chained_clone.len(),
-                    2,
-                    "The cloned error doesn't have the correct length"
-                );
-                assert_eq!(
-                    chained_clone.next().unwrap().to_string(),
-                    "Inner message",
-                    "The inner message has not been correctly cloned"
-                );
-                assert_eq!(
-                    chained_clone.next().unwrap().to_string(),
-                    "Outer context",
-                    "The outer context has not been correctly cloned"
-                );
-            }
+impl<T: ErrorDetail + Send + Sync + 'static> From<T> for ModuleError {
+    fn from(value: T) -> Self {
+        ModuleError {
+            inner: Arc::new(value),
         }
     }
 }

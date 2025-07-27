@@ -43,6 +43,8 @@ where
 
     type Config = ();
 
+    type Error = anyhow::Error;
+
     type CallMessage = ();
 
     type Event = ();

@@ -173,6 +173,8 @@ where
 
     type Config = EvmConfig;
 
+    type Error = anyhow::Error;
+
     type CallMessage = CallMessage;
 
     type Event = Event;

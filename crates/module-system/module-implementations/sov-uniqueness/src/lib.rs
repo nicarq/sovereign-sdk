@@ -85,6 +85,8 @@ impl<S: Spec> Module for Uniqueness<S> {
 
     type Config = ();
 
+    type Error = anyhow::Error;
+
     type CallMessage = NotInstantiable;
 
     type Event = ();

@@ -40,6 +40,7 @@ mod test_module {
     impl<S: Spec> Module for TestStruct<S> {
         type Spec = S;
         type Config = ();
+        type Error = anyhow::Error;
         type CallMessage = ();
         type Event = ();
 
@@ -123,6 +124,7 @@ mod second_test_module {
     impl<S: Spec> Module for SecondTestStruct<S> {
         type Spec = S;
         type Config = ();
+        type Error = anyhow::Error;
         type CallMessage = ();
         type Event = ();
 

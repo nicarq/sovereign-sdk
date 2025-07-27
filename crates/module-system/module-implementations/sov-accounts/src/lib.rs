@@ -52,6 +52,8 @@ impl<S: Spec> Module for Accounts<S> {
 
     type Config = AccountConfig<S>;
 
+    type Error = anyhow::Error;
+
     type CallMessage = call::CallMessage;
 
     type Event = ();

@@ -21,6 +21,7 @@ struct TestModule<S: Spec> {
 impl<S: Spec> Module for TestModule<S> {
     type Spec = S;
     type Config = ();
+    type Error = anyhow::Error;
     type CallMessage = ();
     type Event = ();
 

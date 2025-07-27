@@ -10363,6 +10363,7 @@ dependencies = [
  "proptest",
  "schemars",
  "serde",
+ "serde_json",
  "sov-bank",
  "sov-chain-state",
  "sov-modules-api",

@@ -31,6 +31,9 @@ pub trait Module: Clone {
     /// Configuration for the genesis method.
     type Config;
 
+    /// The error type that is returned by the module.
+    type Error;
+
     /// Module defined argument to the call method.
     type CallMessage: Debug
         + BorshSerialize
@@ -92,7 +95,7 @@ pub trait Module: Clone {
         _message: Self::CallMessage,
         _context: &Context<Self::Spec>,
         _state: &mut impl TxState<Self::Spec>,
-    ) -> anyhow::Result<()>;
+    ) -> Result<(), Self::Error>;
 
     /// Attempts to charge the provided amount of gas from the working set reverting the transaction if unsuccessful.
     ///

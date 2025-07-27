@@ -39,6 +39,11 @@ pub enum CallMessage {
         /// The number of iterations.
         iterations: u64,
     },
+    /// test
+    TestCustomError {
+        ///test
+        amount: u32,
+    },
 }
 
 impl<S: Spec> SyntheticLoad<S> {

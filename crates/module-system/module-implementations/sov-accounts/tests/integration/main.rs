@@ -1,5 +1,5 @@
 use sov_accounts::{Accounts, CallMessage, Response};
-use sov_modules_api::{Error, PrivateKey, PublicKey, Spec, TxEffect};
+use sov_modules_api::{PrivateKey, PublicKey, Spec, TxEffect};
 use sov_test_utils::runtime::genesis::optimistic::HighLevelOptimisticGenesisConfig;
 use sov_test_utils::runtime::TestRunner;
 use sov_test_utils::{
@@ -124,7 +124,7 @@ fn test_update_account_fails() {
         )),
         assert: Box::new(move |result, _state| {
             if let TxEffect::Reverted(contents) = result.tx_receipt {
-                let Error::ModuleError(err) = contents.reason;
+                let err = contents.reason;
                 assert_eq!(err.to_string(), "New CredentialId already exists");
             }
         }),
