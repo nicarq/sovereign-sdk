@@ -191,8 +191,8 @@ async fn seq_with_replicas() {
 
 #[tokio::test(flavor = "multi_thread")]
 async fn test_replica_resynced_from_scratch() {
-    // very ugly. currently copy-pastes code from create_test_rollups and new_test_rollup in order
-    // to access the launch_n_replicas interface. need to refactor
+    // Ugly: currently copy-pastes code from create_test_rollups and new_test_rollup in order
+    // to access the launch_n_replicas interface. Should probably be refactored
     let mut genesis_config =
         HighLevelOptimisticGenesisConfig::generate().add_accounts_with_default_balance(1);
     let admin = genesis_config.additional_accounts()[0].clone();
@@ -282,12 +282,13 @@ async fn test_replica_resynced_from_scratch() {
 
     let shared_da = builder.shared_da_for_replicas().await.unwrap();
 
+    // ACTUAL TEST BEGINS
     let test_rollups = builder.launch_n_replicas(1, shared_da.clone()).await.unwrap();
-
     let mut test_rollups = test_rollups.into_iter();
+
+    // Allow master to take over
     tokio::time::sleep(Duration::from_secs(1)).await;
 
-    // Identify initial master and replicas
     let (mut master, replicas) = identify_master_and_replicas(
         test_rollups.next().unwrap(),
         test_rollups.map(Some).collect(),
@@ -298,35 +299,33 @@ async fn test_replica_resynced_from_scratch() {
     let (master_with_state, state) = setup_test_rollup_with_initial_state(master, &admin).await;
     master = master_with_state;
 
+    // Sanity check once
     let actions = vec![TestingAction::AcceptTx, TestingAction::AcceptTx, TestingAction::NewDaSlot, TestingAction::Sleep { duration_ms: 100 }];
     let (master, replicas, state) =
         test_actions_against_replicas(&admin, (master, replicas, state), actions).await;
     println!("Basic actions succeeded. Now launching big DA block production...");
 
-    let slots = vec![TestingAction::AcceptTx, TestingAction::NewDaSlot, TestingAction::Sleep { duration_ms: 100 }].into_iter().cycle().take(120).collect();
+    // Run for 40 more blocks
+    let slots = vec![TestingAction::AcceptTx, TestingAction::AcceptTx, TestingAction::NewDaSlot, TestingAction::Sleep { duration_ms: 100 }].into_iter().cycle().take(160).collect();
     let (master, mut replicas, state) =
         test_actions_against_replicas(&admin, (master, replicas, state), slots).await;
 
     println!("Block production succeeded. Launching brand new replica...");
+    // Launch brand new replica
     let extra_replica = builder.launch_n_replicas(1, shared_da).await.unwrap().into_iter().next().unwrap();
     replicas.push(Some(extra_replica));
+    // Let it sync
+    tokio::time::sleep(Duration::from_secs(10)).await;
 
-    println!("Sleeping...");
-    tokio::time::sleep(Duration::from_secs(25)).await;
-
-    println!("Inserting actions!");
+    println!("Inserting extra test actions!");
+    // Verify rollup can still accept transactions, and state is consistent across replicas
     let actions = vec![TestingAction::AcceptTx, TestingAction::AcceptTx, TestingAction::NewDaSlot, TestingAction::Sleep { duration_ms: 100 }];
     let (master, replicas, _state) =
         test_actions_against_replicas(&admin, (master, replicas, state), actions).await;
-    println!("Basic actions succeeded. Now launching big DA block production...");
 
     println!("Shutting everything down.");
     for replica in replicas {
         replica.unwrap().shutdown().await.unwrap();
     }
     master.shutdown().await.unwrap();
-
-    println!("Shut down everything except extra replica");
-
-    // extra_replica.shutdown().await.unwrap();
 }
