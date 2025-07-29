@@ -7,9 +7,10 @@ use std::time::Duration;
 use anyhow::anyhow;
 use sov_blob_sender::BlobInternalId;
 use sov_blob_storage::SequenceNumber;
-use sov_modules_api::capabilities::{RollupHeight, BlobSelector};
+use sov_modules_api::capabilities::{BlobSelector, RollupHeight};
 use sov_modules_api::{
-    DaSyncState, FullyBakedTx, GasArray, GasSpec, KernelStateAccessor, Runtime, Spec, StateCheckpoint, StateUpdateInfo, VersionReader, VisibleSlotNumber
+    DaSyncState, FullyBakedTx, GasArray, GasSpec, KernelStateAccessor, Runtime, Spec,
+    StateCheckpoint, StateUpdateInfo, VersionReader, VisibleSlotNumber,
 };
 use sov_state::{NativeStorage, Storage};
 use tokio::sync::{mpsc, oneshot, watch};
@@ -59,7 +60,7 @@ type AcceptTxRet<S, Rt> =
 /// The `Inner` sends the latest processed slot number when it finishes the starting sync.
 pub enum HasFinishedStartup {
     No(oneshot::Sender<SequenceNumber>),
-    Yes
+    Yes,
 }
 
 /// A inner sequencer struct containing state that requires synchronized access.
@@ -1018,7 +1019,6 @@ where
         transaction_cache_write_handle: TxResultWriter<S, Rt>,
         info: StateUpdateInfo<S::Storage>,
         da_sync_state: Arc<DaSyncState>,
-        is_master: bool,
         reason: &'static str,
     ) {
         self.send(Message::WaitNodeResync {
@@ -1026,7 +1026,6 @@ where
             transaction_cache_write_handle,
             info,
             da_sync_state,
-            is_master,
             reason,
         })
         .await;
@@ -1251,7 +1250,6 @@ where
                             transaction_cache_write_handle,
                             info,
                             da_sync_state,
-                            is_master,
                             reason,
                         )
                         .await;
@@ -1340,10 +1338,13 @@ where
         let ((batches_to_replay, fetch_batches_to_replay_metrics), is_startup) = {
             (
                 inner.completed_batches_to_replay(next_sequence_number_according_to_node, true),
-                matches!(self.has_finished_startup, HasFinishedStartup::No(_)),
+                matches!(inner.has_finished_startup, HasFinishedStartup::No(_)),
             )
         };
-        let is_resync = matches!(self.is_ready, Err(SequencerNotReadyDetails::Syncing { .. }));
+        let is_resync = matches!(
+            inner.is_ready,
+            Err(SequencerNotReadyDetails::Syncing { .. })
+        );
 
         let time_spent_fetching_batches = fetch_batches_to_replay_metrics.duration;
         sov_metrics::track_metrics(|t| {
@@ -1570,7 +1571,19 @@ where
         // The executor is now caught up. Swap it in
         inner.executor.replace_state(*executor).await;
         inner.is_ready = Ok(());
-        inner.has_finished_startup = true;
+        if let HasFinishedStartup::No(notifier) =
+            std::mem::replace(&mut inner.has_finished_startup, HasFinishedStartup::Yes)
+        {
+            let mut runtime = Rt::default();
+            let mut checkpoint = inner
+                .executor
+                .checkpoint
+                .clone_with_empty_witness_dropping_temp_cache(); // this extra clone is a bit ugly
+            let mut state =
+                KernelStateAccessor::from_checkpoint(&runtime.kernel(), &mut checkpoint);
+            let seq = runtime.kernel().next_sequence_number(&mut state);
+            let _ = notifier.send(seq);
+        }
         inner.latest_info = info;
         let checkpoint = inner
             .executor
@@ -1683,7 +1696,6 @@ where
         transaction_cache_write_handle: TxResultWriter<S, Rt>,
         info: StateUpdateInfo<S::Storage>,
         da_sync_state: Arc<DaSyncState>,
-        is_master: bool,
         reason: &'static str,
     ) {
         let mut inner = self.get_inner_with_timing(reason).await;
@@ -1704,7 +1716,7 @@ where
                 .executor_events_sender
                 .flush_transactions_cache(info.next_tx_number)
                 .await;
-        } else if matches!(self.has_finished_startup, HasFinishedStartup::No(_)) {
+        } else if matches!(inner.has_finished_startup, HasFinishedStartup::No(_)) {
             inner
                 .executor_events_sender
                 .flush_transactions_cache(info.next_tx_number)
@@ -1756,7 +1768,6 @@ where
     async fn process_close_current_batch(&mut self, reason: &'static str) {
         let mut inner = self.get_inner_with_timing(reason).await;
         inner.close_current_batch().await;
-
     }
 }
 

@@ -55,7 +55,7 @@ use sov_rollup_interface::node::DaSyncState;
 use sov_rollup_interface::TxHash;
 use state_root_compute::StateRootBackgroundTaskState;
 use tokio::sync::mpsc::{self, Sender};
-use tokio::sync::{broadcast, oneshot, watch, Mutex};
+use tokio::sync::{broadcast, oneshot, watch};
 use tokio::task::JoinHandle;
 use tokio::time::sleep;
 use tracing::{debug, error, info, trace};
@@ -336,8 +336,7 @@ where
                 spawn_replica_sync_task(
                     seq.clone(),
                     shutdown_receiver.clone(),
-                    connection_string.clone(),
-                    replica_startup_sync_receiver
+                    replica_startup_sync_receiver,
                 )
                 .await,
             );
@@ -538,7 +537,6 @@ where
                     self.transaction_cache.write_handle(),
                     info,
                     self.da_sync_state.clone(),
-                    self.is_master().await,
                     "wait_for_node_resync",
                 )
                 .await;
@@ -761,7 +759,6 @@ where
                 info,
                 timer_start,
                 is_startup_or_resync,
-                seq.is_master().await,
                 time_spent_fetching_batches,
             )
             .await?;

@@ -13,8 +13,8 @@ use sov_modules_api::{FullyBakedTx, Runtime, Spec, TxHash, VisibleSlotNumber};
 use sov_rollup_interface::node::da::DaService;
 use sqlx::postgres::{PgListener, PgPoolOptions};
 use sqlx::{PgPool, Row};
-use tokio::sync::{oneshot, watch};
 use tokio::sync::oneshot::error::TryRecvError;
+use tokio::sync::{oneshot, watch};
 use tokio::task::JoinHandle;
 use tracing::{debug, error, info, trace, warn};
 
@@ -110,8 +110,7 @@ enum CompletedEvent {
 pub async fn spawn_replica_sync_task<S, Rt, Da>(
     sequencer: Arc<PreferredSequencer<S, Rt, Da>>,
     shutdown_receiver: watch::Receiver<()>,
-    connection_string: String,
-    startup_sync_receiver: oneshot::Receiver<SequenceNumber>
+    startup_sync_receiver: oneshot::Receiver<SequenceNumber>,
 ) -> JoinHandle<()>
 where
     S: Spec,
@@ -121,21 +120,8 @@ where
     tokio::spawn(replica_sync_task_inner(
         sequencer,
         shutdown_receiver,
-        startup_sync_receiver
+        startup_sync_receiver,
     ))
-    // tokio::spawn(async move {
-    //     if let Err(e) = ReplicationTask::connect_and_run(
-    //         sequencer.clone(),
-    //         &connection_string,
-    //         shutdown_receiver,
-    //         startup_sync_receiver,
-    //     )
-    //     .await
-    //     {
-    //         error!("Replication task failed: {e:?}");
-    //         exit_rollup(&sequencer.shutdown_sender).await;
-    //     }
-    // })
 }
 
 async fn replica_sync_task_inner<S, Rt, Da>(
@@ -260,7 +246,7 @@ where
                                 // Query the batch_close event with this sequence number to find the event_id
                                 // Set our latest_received_event_id to that event's id so we continue from there
                                 let event_id = query_event_id_for_batch_close(&query_pool, sequence_number).await?;
-                                *latest_received_event_id = Some(event_id);
+                                latest_received_event_id = Some(event_id);
                                 info!("Replica startup sync complete at sequence_number {}, event_id {}", sequence_number, event_id);
                             }
                             // We already received the sync earlier. Noop.
@@ -268,11 +254,11 @@ where
                         }
 
                         // Check for gaps and add backfill if needed
-                        if detect_gap(*latest_received_event_id, parsed_notification.event_id).is_some() {
+                        if detect_gap(latest_received_event_id, parsed_notification.event_id).is_some() {
                             let backfill_future = create_backfill_future(
                                 sequencer.clone(),
                                 query_pool,
-                                *latest_received_event_id,
+                                latest_received_event_id,
                                 parsed_notification.event_id,
                             );
                             pending_events.push_back(backfill_future);
@@ -280,7 +266,7 @@ where
                             continue;
                         }
 
-                        *latest_received_event_id = Some(parsed_notification.event_id);
+                        latest_received_event_id = Some(parsed_notification.event_id);
 
 
                         // Create future for current notification
@@ -538,7 +524,6 @@ async fn backfill_to_event_id<S: Spec, Rt: Runtime<S>, Da: DaService<Spec = S::D
         for row in events {
             let event_type_str: String = row.get("event_type");
             let sequence_number = row.get::<i64, _>("sequence_number") as u64;
-            let event_id = row.get::<i64, _>("event_id") as u64;
 
             let event_type: EventType = event_type_str
                 .parse()
@@ -562,7 +547,6 @@ async fn backfill_to_event_id<S: Spec, Rt: Runtime<S>, Da: DaService<Spec = S::D
                 EventType::BatchStart => {
                     let batch_data: Vec<u8> = row.get("data");
                     let batch_metadata = parse_serialized_batch(batch_data, sequence_number)?;
-                    println!("replica BACKFILLING batch start, event_id {event_id}, sequence number {sequence_number}");
 
                     do_batch_start(
                         sequencer.clone(),

@@ -9,7 +9,8 @@ use sov_sequencer::SequencerKindConfig;
 use sov_test_utils::runtime::genesis::optimistic::HighLevelOptimisticGenesisConfig;
 use sov_test_utils::test_rollup::{GenesisSource, RollupBuilder, TestRollup};
 use sov_test_utils::{
-    RtAgnosticBlueprint, TestSpec, TestUser, TEST_BLOB_PROCESSING_TIMEOUT, TEST_DEFAULT_USER_BALANCE, TEST_FINALIZATION_BLOCKS, TEST_MAX_BATCH_SIZE
+    RtAgnosticBlueprint, TestSpec, TestUser, TEST_BLOB_PROCESSING_TIMEOUT,
+    TEST_DEFAULT_USER_BALANCE, TEST_FINALIZATION_BLOCKS, TEST_MAX_BATCH_SIZE,
 };
 use sov_value_setter::ValueSetterConfig;
 
@@ -226,9 +227,9 @@ async fn test_replica_resynced_from_scratch() {
             },
             sequencers_to_register: [sequencer.da_address].as_ref().try_into().unwrap(),
         }]
-                .as_ref()
-                    .try_into()
-                    .unwrap(),
+        .as_ref()
+        .try_into()
+        .unwrap(),
     };
 
     let rt_genesis_config =
@@ -267,7 +268,13 @@ async fn test_replica_resynced_from_scratch() {
         }
         c.max_concurrent_blobs = 16;
     })
-    .set_da_config(|c| c.sender_address = genesis_params.runtime.sequencer_registry.sequencer_config.seq_da_address)
+    .set_da_config(|c| {
+        c.sender_address = genesis_params
+            .runtime
+            .sequencer_registry
+            .sequencer_config
+            .seq_da_address
+    })
     .with_preferred_seq_min_profit_per_tx(0)
     .with_preferred_seq_recovery_strategy(sov_sequencer::preferred::RecoveryStrategy::TryToSave);
 
@@ -283,7 +290,10 @@ async fn test_replica_resynced_from_scratch() {
     let shared_da = builder.shared_da_for_replicas().await.unwrap();
 
     // ACTUAL TEST BEGINS
-    let test_rollups = builder.launch_n_replicas(1, shared_da.clone()).await.unwrap();
+    let test_rollups = builder
+        .launch_n_replicas(1, shared_da.clone())
+        .await
+        .unwrap();
     let mut test_rollups = test_rollups.into_iter();
 
     // Allow master to take over
@@ -300,26 +310,51 @@ async fn test_replica_resynced_from_scratch() {
     master = master_with_state;
 
     // Sanity check once
-    let actions = vec![TestingAction::AcceptTx, TestingAction::AcceptTx, TestingAction::NewDaSlot, TestingAction::Sleep { duration_ms: 100 }];
+    let actions = vec![
+        TestingAction::AcceptTx,
+        TestingAction::AcceptTx,
+        TestingAction::NewDaSlot,
+        TestingAction::Sleep { duration_ms: 100 },
+    ];
     let (master, replicas, state) =
         test_actions_against_replicas(&admin, (master, replicas, state), actions).await;
     println!("Basic actions succeeded. Now launching big DA block production...");
 
     // Run for 40 more blocks
-    let slots = vec![TestingAction::AcceptTx, TestingAction::AcceptTx, TestingAction::NewDaSlot, TestingAction::Sleep { duration_ms: 100 }].into_iter().cycle().take(160).collect();
+    let slots = vec![
+        TestingAction::AcceptTx,
+        TestingAction::AcceptTx,
+        TestingAction::NewDaSlot,
+        TestingAction::Sleep { duration_ms: 100 },
+    ]
+    .into_iter()
+    .cycle()
+    .take(160)
+    .collect();
     let (master, mut replicas, state) =
         test_actions_against_replicas(&admin, (master, replicas, state), slots).await;
 
     println!("Block production succeeded. Launching brand new replica...");
     // Launch brand new replica
-    let extra_replica = builder.launch_n_replicas(1, shared_da).await.unwrap().into_iter().next().unwrap();
+    let extra_replica = builder
+        .launch_n_replicas(1, shared_da)
+        .await
+        .unwrap()
+        .into_iter()
+        .next()
+        .unwrap();
     replicas.push(Some(extra_replica));
     // Let it sync
     tokio::time::sleep(Duration::from_secs(10)).await;
 
     println!("Inserting extra test actions!");
     // Verify rollup can still accept transactions, and state is consistent across replicas
-    let actions = vec![TestingAction::AcceptTx, TestingAction::AcceptTx, TestingAction::NewDaSlot, TestingAction::Sleep { duration_ms: 100 }];
+    let actions = vec![
+        TestingAction::AcceptTx,
+        TestingAction::AcceptTx,
+        TestingAction::NewDaSlot,
+        TestingAction::Sleep { duration_ms: 100 },
+    ];
     let (master, replicas, _state) =
         test_actions_against_replicas(&admin, (master, replicas, state), actions).await;
 

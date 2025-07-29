@@ -219,7 +219,6 @@ impl<S: Spec, Rt: Runtime<S>> RollupBlockExecutor<S, Rt> {
             Ok((receipt, remaining_slot_gas, execution_time_micros, tx_changes)) => {
                 let accepted_tx = self.process_tx_receipt(&receipt);
                 if let Some(writer) = self.startup_transaction_cache_writer.as_mut() {
-                    println!("block_executor: inserting tx into cache during startup replay, number: {}, hash: {}", accepted_tx.confirmation.tx_number, accepted_tx.tx_hash);
                     writer.insert(accepted_tx.clone()).await;
                 }
                 Ok((
@@ -372,8 +371,6 @@ impl<S: Spec, Rt: Runtime<S>> RollupBlockExecutor<S, Rt> {
             %tx_hash,
             "Re-applying state changes for the soft-confirmed transaction"
         );
-
-        println!("  ->executor: replaying tx {}", tx_hash);
 
         match self.apply_tx_to_in_progress_batch(tx).await {
             Ok((output, _tx_changes)) => {

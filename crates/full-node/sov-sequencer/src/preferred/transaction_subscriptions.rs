@@ -43,7 +43,6 @@ type ArcInner<S, Rt> = Arc<tokio::sync::RwLock<TransactionCacheInner<S, Rt>>>;
 impl<S: Spec, Rt: Runtime<S>> TxResultWriter<S, Rt> {
     pub async fn insert(&self, tx: AcceptedTx<Confirmation<S, Rt>>) {
         let mut transaction_cache = self.inner.write().await;
-        println!("  cache-> inserting tx with number {}, hash {}. Next tx number should be {}", tx.confirmation.tx_number, tx.tx_hash, transaction_cache.next_tx_number);
         assert_eq!(
             tx.confirmation.tx_number, transaction_cache.next_tx_number,
             "Transactions must be inserted in order"
@@ -79,7 +78,6 @@ impl<S: Spec, Rt: Runtime<S>> TxResultWriter<S, Rt> {
             "Cleaning and overwriting transaction cache up to {}",
             tx_number
         );
-        println!(">cache: cleaning and overwriting, next_tx_number: {tx_number}");
         let mut transaction_cache = self.inner.write().await;
         transaction_cache.next_tx_number = tx_number;
         transaction_cache.cache.clear();
@@ -134,7 +132,6 @@ impl<S: Spec, Rt: Runtime<S>> TransactionCache<S, Rt> {
 
 impl<S: Spec, Rt: Runtime<S>> TransactionCache<S, Rt> {
     pub fn new(ledger_db: LedgerDb, next_tx_number: u64, broadcast_channel_size: usize) -> Self {
-        println!(">initializing TransactionCache, next_tx_number: {next_tx_number}");
         let (tx_response_sender, tx_response_receiver) = broadcast::channel(broadcast_channel_size);
         Self {
             inner: Arc::new(RwLock::new(TransactionCacheInner {
@@ -154,7 +151,6 @@ impl<S: Spec, Rt: Runtime<S>> TransactionCache<S, Rt> {
             "Cleaning and overwriting transaction cache up to {}",
             tx_number
         );
-        println!(">cache: cleaning and overwriting, next_tx_number: {tx_number}");
         let mut transaction_cache = self.inner.write().await;
         transaction_cache.next_tx_number = tx_number;
         transaction_cache.cache.clear();

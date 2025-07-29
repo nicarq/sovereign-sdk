@@ -34,7 +34,6 @@ where
         info: StateUpdateInfo<S::Storage>,
         timer_start: Instant,
         is_startup_or_resync: bool,
-        is_master: bool,
         mut time_spent_fetching_batches: std::time::Duration, // The time already spent fetching batches to replay
     ) -> anyhow::Result<()> {
         // On shutdown exit early. This prevents duplicate subscriptions to the DB events channel, which would cause spurious warnings.
@@ -77,7 +76,9 @@ where
             .in_scope(|| info.storage.get_root_hash(info.slot_number))?;
 
         if is_startup_or_resync {
-            self.transaction_cache.clean_and_overwrite_next_tx_number(info.next_tx_number).await;
+            self.transaction_cache
+                .clean_and_overwrite_next_tx_number(info.next_tx_number)
+                .await;
         }
 
         // Repeatedly fetch all completed batches from the database that haven't yet been played on this sequencer and replay them

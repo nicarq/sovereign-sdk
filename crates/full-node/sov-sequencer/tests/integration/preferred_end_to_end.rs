@@ -1912,11 +1912,25 @@ async fn test_no_crashes_on_resync_with_transactions() {
 
     let (test_rollup, state) = setup_test_rollup_with_initial_state(test_rollup, &admin).await;
 
-    let actions = vec![TestingAction::AcceptTx, TestingAction::AcceptTx, TestingAction::NewDaSlot, TestingAction::Sleep { duration_ms: 100 }];
+    let actions = vec![
+        TestingAction::AcceptTx,
+        TestingAction::AcceptTx,
+        TestingAction::NewDaSlot,
+        TestingAction::Sleep { duration_ms: 100 },
+    ];
     let (test_rollup, state) =
         run_actions_against_test_rollup(actions, test_rollup, &admin.clone(), state).await;
 
-    let actions = vec![TestingAction::AcceptTx, TestingAction::AcceptTx, TestingAction::NewDaSlot, TestingAction::Sleep { duration_ms: 100 }].into_iter().cycle().take(160).collect(); // repeat for 40 blocks
+    let actions = vec![
+        TestingAction::AcceptTx,
+        TestingAction::AcceptTx,
+        TestingAction::NewDaSlot,
+        TestingAction::Sleep { duration_ms: 100 },
+    ]
+    .into_iter()
+    .cycle()
+    .take(160)
+    .collect(); // repeat for 40 blocks
     let (test_rollup, state) =
         run_actions_against_test_rollup(actions, test_rollup, &admin.clone(), state).await;
 
@@ -1935,7 +1949,13 @@ async fn test_no_crashes_on_resync_with_transactions() {
     tokio::time::sleep(Duration::from_secs(5)).await;
 
     // Verify accepting actions works
-    let actions = vec![TestingAction::AcceptTx, TestingAction::AcceptTx, TestingAction::NewDaSlot, TestingAction::Sleep { duration_ms: 100 }, TestingAction::QuerySetValue];
+    let actions = vec![
+        TestingAction::AcceptTx,
+        TestingAction::AcceptTx,
+        TestingAction::NewDaSlot,
+        TestingAction::Sleep { duration_ms: 100 },
+        TestingAction::QuerySetValue,
+    ];
 
     let (test_rollup, _state) =
         run_actions_against_test_rollup(actions, test_rollup, &admin.clone(), state).await;
