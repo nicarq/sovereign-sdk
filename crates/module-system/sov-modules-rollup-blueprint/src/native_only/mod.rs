@@ -342,7 +342,7 @@ pub trait FullNodeBlueprint<M: ExecutionMode>: RollupBlueprint<M> {
                         Any revenue generated during a transaction processed via the preferred \
                         sequencer is subject to the revenue share agreement. You can read more \
                         about how to integrate the revenue share module properly here:  \
-                        https://github.com/Sovereign-Labs/sovereign-sdk-wip/tree/nightly/crates/module-system/module-implementations/sov-revenue-share
+                        https://github.com/Sovereign-Labs/sovereign-sdk/tree/nightly/crates/module-system/module-implementations/sov-revenue-share
                         \n\n"
                     );
                 }
