@@ -5,7 +5,7 @@ use schemars::JsonSchema;
 use serde::{Deserialize, Serialize};
 use sov_bank::TokenId;
 use sov_modules_api::macros::UniversalWallet;
-use sov_modules_api::{Amount, HexHash, Spec, VersionReader, VisibleSlotNumber};
+use sov_modules_api::{Amount, HexHash, Spec};
 
 use crate::Ism;
 
@@ -200,140 +200,7 @@ impl TokenKind {
     }
 }
 
-/// Warp route identifier i.e. its hyperlane address.
-pub type WarpRouteId = HexHash;
-
-/// A rate limiter implementing "token bucket" algorithm.
-#[derive(
-    borsh::BorshDeserialize,
-    borsh::BorshSerialize,
-    Serialize,
-    Deserialize,
-    Debug,
-    PartialEq,
-    Copy,
-    Clone,
-    Eq,
-)]
-pub struct RateLimiter {
-    /// Upper limit of transferrable tokens for the route.
-    max_transferrable_tokens: Amount,
-    /// Current transferrable tokens limit for the route.
-    current_transferrable_tokens: Amount,
-    /// Limit replenishment per slot for the route.
-    limit_replenishment_per_slot: Amount,
-    /// A last slot at which route limits were replenished.
-    last_seen_visible_slot: VisibleSlotNumber,
-}
-
-impl RateLimiter {
-    /// Creates a new "token bucket" rate limiter with given max limit and per slot replenishment.
-    ///
-    /// Initial limit will be set to a value of single replenishment and gradually
-    /// raise at each slot until it reaches total limit. Each transfer will lower the current
-    /// limit.
-    ///
-    /// The implementation slightly divereges from a solidity one. Ethereum implementation
-    /// discretizes replenishment using blocks timestamps, in seconds, and always replenishes
-    /// a route limits fully within 24 hours. Since each rollup can choose different DA, and they
-    /// can have different or even variable block times, this implementation discretizes
-    /// replenishment using slot numbers, and requires configuring a fixed replenishment value per
-    /// slot.
-    // NOTE: relevant ethereum impl
-    //  common: <https://github.com/hyperlane-xyz/hyperlane-monorepo/blob/a47deffbc1aee90df9d940a28c790b12802b5c4b/solidity/contracts/libs/RateLimited.sol#L26>
-    //  inbound: <https://github.com/hyperlane-xyz/hyperlane-monorepo/blob/a47deffbc1aee90df9d940a28c790b12802b5c4b/solidity/contracts/isms/warp-route/RateLimitedIsm.sol#L64>
-    //  outbound: <https://github.com/hyperlane-xyz/hyperlane-monorepo/blob/a47deffbc1aee90df9d940a28c790b12802b5c4b/solidity/contracts/hooks/warp-route/RateLimitedHook.sol#L29>
-    pub fn new<VR: VersionReader>(
-        transferrable_tokens_limit: Amount,
-        limit_replenishment_per_slot: Amount,
-        version_reader: &VR,
-    ) -> Self {
-        Self {
-            max_transferrable_tokens: transferrable_tokens_limit,
-            current_transferrable_tokens: limit_replenishment_per_slot,
-            limit_replenishment_per_slot,
-            last_seen_visible_slot: version_reader.current_visible_slot_number(),
-        }
-    }
-
-    /// Updates current limit and seen slot number.
-    fn replenish(&mut self, visible_slot: VisibleSlotNumber) {
-        self.current_transferrable_tokens = self.current_limit_with_replenishment(visible_slot);
-        self.last_seen_visible_slot = visible_slot;
-    }
-
-    /// Updates the limits based on current visible slot number and the transferred amount.
-    ///
-    /// Returns error if transfer exceeds current limit.
-    pub fn on_transfer(
-        &mut self,
-        transferred: Amount,
-        visible_slot: VisibleSlotNumber,
-    ) -> anyhow::Result<()> {
-        self.replenish(visible_slot);
-
-        // check and substract the transfer
-        self.current_transferrable_tokens = self
-            .current_transferrable_tokens
-            .checked_sub(transferred)
-            .ok_or_else(|| {
-                anyhow::anyhow!(
-                    "Transfer of {} exceeds current limit {}",
-                    transferred,
-                    self.current_transferrable_tokens
-                )
-            })?;
-
-        Ok(())
-    }
-
-    /// Get the current limit of the warp route, taking into account slots delta since last
-    /// replenishment.
-    pub fn current_limit_with_replenishment(&self, visible_slot: VisibleSlotNumber) -> Amount {
-        // if route was already updated this slot or is full exit early
-        if self.last_seen_visible_slot >= visible_slot
-            || self.current_transferrable_tokens == self.max_transferrable_tokens
-        {
-            self.current_transferrable_tokens
-        } else {
-            let slots_since_last_update = visible_slot.delta(*self.last_seen_visible_slot);
-            let replenish_amount = self
-                .limit_replenishment_per_slot
-                .saturating_mul(slots_since_last_update.into());
-
-            self.max_transferrable_tokens.min(
-                self.current_transferrable_tokens
-                    .saturating_add(replenish_amount),
-            )
-        }
-    }
-
-    /// Get current limit replenishment per slot.
-    pub fn limit_replenishment_per_slot(&self) -> Amount {
-        self.limit_replenishment_per_slot
-    }
-
-    /// Replenishes current limit and updates replenishment per slot.
-    pub fn update_limit_replenishment_per_slot(
-        &mut self,
-        new_replenishment: Amount,
-        visible_slot: VisibleSlotNumber,
-    ) {
-        self.replenish(visible_slot);
-        self.limit_replenishment_per_slot = new_replenishment;
-    }
-
-    /// Get current limit replenishment per slot.
-    pub fn max_limit(&self) -> Amount {
-        self.max_transferrable_tokens
-    }
-
-    /// Updates the upper limit of transferrable tokens, truncating current limit if necessary..
-    pub fn update_max_limit(&mut self, new_limit: Amount) {
-        self.max_transferrable_tokens = new_limit;
-        self.current_transferrable_tokens = self.current_transferrable_tokens.min(new_limit);
-    }
-}
+pub(crate) type WarpRouteId = HexHash;
 
 /// The authority that can modify the route.
 #[derive(
@@ -371,10 +238,6 @@ pub struct WarpRouteInstance<S: Spec> {
     pub ism: Ism,
     /// The destination domains that are enrolled in this route.
     pub enrolled_destinations: Vec<u32>,
-    /// Inbound transfers rate limiter.
-    pub inbound_rate_limiter: RateLimiter,
-    /// Outbound transfers rate limiter.
-    pub outbound_rate_limiter: RateLimiter,
 }
 
 #[derive(

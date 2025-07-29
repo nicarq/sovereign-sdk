@@ -8,7 +8,10 @@ use sov_blob_sender::BlobInternalId;
 use sov_blob_storage::SequenceNumber;
 use sov_modules_api::{FullyBakedTx, TxHash, VisibleSlotNumber};
 
-use super::{DbSnapshotData, PreferredSequencerDbBackend, PreferredSequencerReadBlob, StoredBlob};
+use super::{
+    DatabaseWriteOutcome, DbSnapshotData, PreferredSequencerDbBackend, PreferredSequencerReadBlob,
+    StoredBlob,
+};
 use crate::preferred::db::{BatchToStore, InProgressBatch};
 
 #[derive(Debug)]
@@ -46,7 +49,7 @@ impl PreferredSequencerDbBackend for RocksDbBackend {
         blob_id: BlobInternalId,
         visible_slot_number_after_increase: VisibleSlotNumber,
         visible_slots_to_advance: NonZero<u8>,
-    ) -> anyhow::Result<()> {
+    ) -> anyhow::Result<DatabaseWriteOutcome<()>> {
         self.db
             .put_async::<tables::InProgressBatch>(
                 &(),
@@ -61,7 +64,7 @@ impl PreferredSequencerDbBackend for RocksDbBackend {
             )
             .await?;
 
-        Ok(())
+        Ok(DatabaseWriteOutcome::Success(()))
     }
 
     #[tracing::instrument(skip_all, level = "trace")]
@@ -71,7 +74,7 @@ impl PreferredSequencerDbBackend for RocksDbBackend {
         tx_idx_within_batch: u64,
         tx: FullyBakedTx,
         hash: TxHash,
-    ) -> anyhow::Result<()> {
+    ) -> anyhow::Result<DatabaseWriteOutcome<()>> {
         self.db
             .put_async::<tables::BatchContents>(
                 &(sequence_number, tx_idx_within_batch),
@@ -79,11 +82,33 @@ impl PreferredSequencerDbBackend for RocksDbBackend {
             )
             .await?;
 
-        Ok(())
+        Ok(DatabaseWriteOutcome::Success(()))
+    }
+
+    async fn batch_add_txs(
+        &mut self,
+        sequence_number_of_in_progress_batch: SequenceNumber,
+        mut tx_idx_within_batch: u64,
+        txs: &[(FullyBakedTx, TxHash)],
+    ) -> anyhow::Result<DatabaseWriteOutcome<()>> {
+        for (tx, hash) in txs {
+            self.add_tx(
+                sequence_number_of_in_progress_batch,
+                tx_idx_within_batch,
+                tx.clone(),
+                *hash,
+            )
+            .await?;
+            tx_idx_within_batch += 1;
+        }
+        Ok(DatabaseWriteOutcome::Success(()))
     }
 
     #[tracing::instrument(skip_all, level = "trace")]
-    async fn end_rollup_block(&mut self, stored_batch: BatchToStore) -> anyhow::Result<()> {
+    async fn end_rollup_block(
+        &mut self,
+        stored_batch: BatchToStore,
+    ) -> anyhow::Result<DatabaseWriteOutcome<()>> {
         let sequence_number = stored_batch.sequence_number;
         let stored_blob: StoredBlob = stored_batch.into();
         let mut s = SchemaBatch::new();
@@ -91,7 +116,7 @@ impl PreferredSequencerDbBackend for RocksDbBackend {
         s.put::<tables::CompletedBlobs>(&sequence_number, &stored_blob)?;
         self.db.write_schemas_async(&s).await?;
 
-        Ok(())
+        Ok(DatabaseWriteOutcome::Success(()))
     }
 
     #[tracing::instrument(skip_all, level = "trace")]
@@ -137,14 +162,14 @@ impl PreferredSequencerDbBackend for RocksDbBackend {
         sequence_number: SequenceNumber,
         blob_id: BlobInternalId,
         data: Arc<[u8]>,
-    ) -> anyhow::Result<()> {
+    ) -> anyhow::Result<DatabaseWriteOutcome<()>> {
         self.db
             .put_async::<tables::CompletedBlobs>(
                 &sequence_number,
                 &StoredBlob::Proof { data, blob_id },
             )
             .await?;
-        Ok(())
+        Ok(DatabaseWriteOutcome::Success(()))
     }
 
     async fn current_data(&self) -> anyhow::Result<DbSnapshotData> {

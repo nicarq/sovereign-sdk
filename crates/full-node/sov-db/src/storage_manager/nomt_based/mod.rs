@@ -127,8 +127,8 @@ where
         );
         let db_group = DbGroup::new(config)?;
 
-        db_group.verify_and_fix_commited_root_hashes()?;
         db_group.update_ledger_finalized_height()?;
+        db_group.verify_commited_root_hashes()?;
 
         Ok(Self {
             chain_forks: Default::default(),

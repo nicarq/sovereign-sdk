@@ -47,22 +47,6 @@ pub struct TestNomtStorage {
 }
 
 #[cfg(test)]
-impl TestNomtStorage {
-    #[allow(missing_docs)]
-    pub fn begin_sessions(
-        &self,
-    ) -> (
-        nomt::Session<nomt::hasher::BinaryHasher<H>>,
-        nomt::Session<nomt::hasher::BinaryHasher<H>>,
-    ) {
-        let user_session = self.state_session_builder.begin_user_session().unwrap();
-        let kernel_session = self.state_session_builder.begin_kernel_session().unwrap();
-
-        (user_session, kernel_session)
-    }
-}
-
-#[cfg(test)]
 impl crate::storage_manager::InitializableNativeNomtStorage<H, SlotHash> for TestNomtStorage {
     fn new(
         state_session_builder: crate::state_db_nomt::NomtSessionBuilder<H, SlotHash>,

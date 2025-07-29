@@ -126,7 +126,6 @@ prettytable-rs = "0.10"
 criterion = "0.5.1"
 
 [build-dependencies]
-anyhow = { workspace = true }
 serde_json = { version = "1.0", default-features = false, features = ["alloc"] }
 borsh = { workspace = true }
 sov-universal-wallet = { workspace = true, features = ["serde"] }
@@ -138,7 +137,6 @@ sov-address = { workspace = true, features = ["evm"] }
 sov-state = { workspace = true, features = ["native"] }
 sov-modules-macros = { workspace = true, features = ["arbitrary"] }
 sov-zkvm-utils = { workspace = true }
-sov-build = { workspace = true }
 
 [features]
 default = []

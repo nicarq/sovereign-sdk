@@ -22,20 +22,13 @@ thiserror = { workspace = true }
 
 sov-modules-api = { workspace = true }
 sov-bank = { workspace = true }
-sov-sequencer-registry = { workspace = true }
 
 [dev-dependencies]
 sov-modules-stf-blueprint = { workspace = true }
-sov-rollup-interface = { workspace = true }
 sov-revenue-share = { path = ".", features = ["native"] }
 sov-test-utils = { workspace = true }
 sov-bank = { workspace = true, features = ["native"] }
 strum = { workspace = true }
-serde_json = { workspace = true }
-sov-mock-da = { workspace = true }
-sov-mock-zkvm = { workspace = true }
-sha2 = { workspace = true }
-sov-address = { workspace = true, features = ["evm"] }
 
 [features]
 default = []
@@ -44,9 +37,4 @@ native = [
 	"sov-modules-api/native",
 	"sov-modules-stf-blueprint/native",
 	"sov-revenue-share/native",
-	"sov-address/native",
-	"sov-mock-da/native",
-	"sov-mock-zkvm/native",
-	"sov-rollup-interface/native",
-	"sov-sequencer-registry/native"
 ]

@@ -28,20 +28,6 @@ impl CryptoSpec for MockZkvmCryptoSpec {
     type PublicKey = Ed25519PublicKey;
     type Hasher = sha2::Sha256;
     type Signature = Ed25519Signature;
-
-    fn sovereign_admin_pubkey() -> Self::PublicKey {
-        let admin_pubkey_bytes: [u8; 32] = [
-            0xf1, 0xac, 0x96, 0xb6, 0xad, 0x3c, 0xd6, 0xbd, 0xda, 0xf2, 0xc2, 0x3f, 0x08, 0x9d,
-            0xe7, 0x3a, 0x68, 0x16, 0xf8, 0x92, 0xc1, 0xaf, 0x34, 0x5d, 0xf7, 0x0f, 0x9a, 0x57,
-            0x3a, 0x86, 0xba, 0xcb,
-        ];
-
-        // This will panic if the bytes are invalid, which is fine for a hardcoded constant
-        let pub_key = ed25519_dalek::VerifyingKey::from_bytes(&admin_pubkey_bytes)
-            .expect("Invalid admin public key bytes");
-
-        Ed25519PublicKey { pub_key }
-    }
 }
 
 /// A mock zk virtual machine.
@@ -136,7 +122,6 @@ impl sov_rollup_interface::zk::ZkVerifier for MockZkVerifier {
 
 #[cfg(test)]
 mod tests {
-    use sov_rollup_interface::crypto::PublicKey;
     use sov_rollup_interface::zk::{CodeCommitment, ZkVerifier, ZkvmHost};
 
     use super::*;
@@ -144,16 +129,6 @@ mod tests {
     #[derive(Serialize, Deserialize, Debug, PartialEq, Eq)]
     struct TestPublicData {
         hint: String,
-    }
-
-    #[test]
-    fn test_sovereign_admin_pubkey() {
-        let pub_key = MockZkvmCryptoSpec::sovereign_admin_pubkey();
-        let credential_id = pub_key.credential_id();
-        assert_eq!(
-            credential_id.to_string(),
-            "0xf1ac96b6ad3cd6bddaf2c23f089de73a6816f892c1af345df70f9a573a86bacb"
-        );
     }
 
     #[test]

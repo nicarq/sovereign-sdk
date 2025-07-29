@@ -441,10 +441,6 @@ async fn test_warp_transfer_back_and_forth_with_evm_counterparty(
         },
         ism: Ism::AlwaysTrust,
         remote_routers: SafeVec::new(),
-        inbound_transferrable_tokens_limit: Amount::MAX,
-        inbound_limit_replenishment_per_slot: Amount::MAX,
-        outbound_transferrable_tokens_limit: Amount::MAX,
-        outbound_limit_replenishment_per_slot: Amount::MAX,
     });
     let register_tx = encode_call(relayer.private_key(), &register_call);
     submit_tx(&rollup.api_client, register_tx).await;

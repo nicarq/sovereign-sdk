@@ -1,23 +1,23 @@
 [licenses]
 version = 2
 allow = [
-  "Apache-2.0",
-  "MIT",
-  "MIT-0",
-  "NCSA",
-  "Unlicense",
-  "Unicode-DFS-2016",
-  "Unicode-3.0",
-  "MPL-2.0",
-  "ISC",
-  "CC0-1.0",
-  "BSD-2-Clause",
-  "BSD-3-Clause",
-  "OpenSSL",
-  "Apache-2.0 WITH LLVM-exception",
-  "LicenseRef-Sovereign-Labs-Community-Software-License",
-  "Zlib",
-  "BSL-1.0",                                              # Relevant discussion: <https://github.com/Sovereign-Labs/sovereign-sdk-wip/pull/985#issuecomment-2242712349>.
+    "Apache-2.0",
+    "MIT",
+    "MIT-0",
+    "NCSA",
+    "Unlicense",
+    "Unicode-DFS-2016",
+    "Unicode-3.0",
+    "MPL-2.0",
+    "ISC",
+    "CC0-1.0",
+    "BSD-2-Clause",
+    "BSD-3-Clause",
+    "OpenSSL",
+    "Apache-2.0 WITH LLVM-exception",
+    "LicenseRef-Sovereign-Labs-Community-Software-License",
+    "Zlib",
+    "BSL-1.0", # Relevant discussion: <https://github.com/Sovereign-Labs/sovereign-sdk-wip/pull/985#issuecomment-2242712349>.
 ]
 
 [[licenses.clarify]]
@@ -365,10 +365,6 @@ name = "sov-zkvm-utils"
 expression = "LicenseRef-Sovereign-Labs-Community-Software-License"
 license-files = []
 
-[[licenses.clarify]]
-name = "sov-build"
-expression = "LicenseRef-Sovereign-Labs-Community-Software-License"
-license-files = []
 
 [[licenses.exceptions]]
 allow = ["LGPL-3.0"]

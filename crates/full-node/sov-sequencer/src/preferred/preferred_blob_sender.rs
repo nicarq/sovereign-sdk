@@ -13,11 +13,15 @@ use crate::common::TxStatusBlobSenderHooks;
 #[derive(derive_more::Deref, derive_more::From)]
 pub struct PreferredBlobSender<Da: DaService> {
     inner: BlobSender<Da, TxStatusBlobSenderHooks<Da::Spec>, LedgerDb>,
+    /// If the sequencer is a replica, blob sending is a no-op.
     #[deref(ignore)]
-    is_replica: bool,
+    is_master: bool,
 }
 
 impl<Da: DaService> PreferredBlobSender<Da> {
+    pub fn set_is_master(&mut self, is_master: bool) {
+        self.is_master = is_master;
+    }
     pub async fn publish_proof(
         &mut self,
         proof_data: Arc<[u8]>,
@@ -52,7 +56,7 @@ impl<Da: DaService> PreferredBlobSender<Da> {
         &mut self,
         completed_blobs: Vec<PreferredSequencerReadBlob>,
     ) -> anyhow::Result<()> {
-        if self.is_replica {
+        if !self.is_master {
             return Ok(());
         }
 

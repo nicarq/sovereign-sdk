@@ -363,6 +363,41 @@ paths:
           $ref: "#/components/responses/PaginatedLedgerEvents"
         "404":
           $ref: "#/components/responses/ApiErrorResponse"
+  /sequencer/node-id:
+    get:
+      summary: Get the sequencer's node ID
+      description: Returns the unique node ID (UUID v7) of this sequencer instance
+      operationId: node_id
+      tags:
+        - Sequencer
+      responses:
+        "200":
+          description: Node ID
+          content:
+            application/json:
+              schema:
+                type: string
+                format: uuid
+                description: UUID v7 node identifier
+        "500":
+          $ref: "#/components/responses/ApiErrorResponse"
+  /sequencer/is-master:
+    get:
+      summary: Check if sequencer is in master mode
+      description: Returns true if the sequencer is currently in master mode (can accept transactions), false if in replica mode (read-only)
+      operationId: is_master
+      tags:
+        - Sequencer
+      responses:
+        "200":
+          description: Master status
+          content:
+            application/json:
+              schema:
+                type: boolean
+                description: True if sequencer is master, false if replica
+        "500":
+          $ref: "#/components/responses/ApiErrorResponse"
   /rollup/base-fee-per-gas/latest:
     get:
       summary: Retrieve the latest base fee per gas

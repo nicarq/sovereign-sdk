@@ -11,7 +11,6 @@ use serde::{Deserialize, Serialize};
 #[cfg(feature = "native")]
 use crate::hooks::FinalizeHook;
 use crate::hooks::{BlockHooks, TxHooks};
-use crate::transaction::TransactionCallable;
 use crate::{DispatchCall, Genesis, RuntimeEventProcessor, Spec};
 
 /// Flag indicating what mode the rollup is operating in.
@@ -180,7 +179,7 @@ impl Default for NodeEndpoints {
 }
 
 /// Helper function to get [`sov_universal_wallet::schema::Schema`] for the [`Runtime`]
-pub fn get_runtime_schema<S: Spec, R: TransactionCallable + DispatchCall + 'static>(
+pub fn get_runtime_schema<S: Spec, R: Runtime<S>>(
 ) -> anyhow::Result<sov_universal_wallet::schema::Schema> {
     let schema = sov_universal_wallet::schema::Schema::of_rollup_types_with_chain_data::<
         crate::transaction::Transaction<R, S>,

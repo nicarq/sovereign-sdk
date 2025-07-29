@@ -11,9 +11,8 @@ use sov_modules_api::digest::Digest;
 use sov_modules_api::macros::UniversalWallet;
 use sov_modules_api::{
     Amount, Context, CryptoSpec, EventEmitter, GasMeter, HexHash, HexString, Module, ModuleId,
-    ModuleInfo, ModuleRestApi, SafeVec, Spec, StateAccessor, StateMap, StateReader, TxState,
+    ModuleInfo, ModuleRestApi, SafeVec, Spec, StateMap, TxState,
 };
-use sov_state::User;
 
 use crate::crypto::charge_gas_for_hashing;
 use crate::ism::Ism;
@@ -66,11 +65,6 @@ pub struct Warp<S: Spec> {
 #[schemars(bound = "S: Spec", rename = "CallMessage")]
 pub enum CallMessage<S: Spec> {
     /// Register a route with the given token source and ISM.
-    ///
-    /// Warp routes should be rate-limited for security purposes. Its main purpose is to prevent draining a warp
-    /// route in case an exploit is discovered or validators are malicious. Hyperlane uses "token bucket"
-    /// algorithm for rate limitting. If rate limitting is not desired, the parameters that control
-    /// it can be set to [`Amount::MAX`].
     Register {
         /// The authority that can modify the route, if any.
         admin: Admin<S>,
@@ -80,28 +74,6 @@ pub enum CallMessage<S: Spec> {
         ism: Ism,
         /// Remote routers to enroll on route registration.
         remote_routers: SafeVec<(Domain, HexHash), 64>,
-        /// Defines how many tokens can be transferred to the route without any refills.
-        ///
-        /// No more than this amount can be transferred in a single slot. Each transfer decreases
-        /// current limit value until 0, at which point all new transfers are rejected.
-        /// The limit recovers at each visible slot by a configured amount.
-        inbound_transferrable_tokens_limit: Amount,
-        /// Defines how many tokens are added to the inbound transferrable limit at each visible slot.
-        ///
-        /// Usually this should be set to a value which allows full limit recovery each day,
-        /// so `transferrable_tokens_limit / DA_SLOTS_PER_DAY`.
-        inbound_limit_replenishment_per_slot: Amount,
-        /// Defines how many tokens can be transferred from the route without any refills.
-        ///
-        /// No more than this amount can be transferred in a single slot. Each transfer decreases
-        /// current limit value until 0, at which point all new transfers are rejected.
-        /// The limit recovers at each visible slot by a configured amount.
-        outbound_transferrable_tokens_limit: Amount,
-        /// Defines how many tokens are added to the outbound transferrable limit at each visible slot.
-        ///
-        /// Usually this should be set to a value which allows full limit recovery each day,
-        /// so `transferrable_tokens_limit / DA_SLOTS_PER_DAY`.
-        outbound_limit_replenishment_per_slot: Amount,
     },
     /// Update an existing route with new admin or ISM.
     Update {
@@ -111,14 +83,6 @@ pub enum CallMessage<S: Spec> {
         admin: Option<Admin<S>>,
         /// New ISM for this route.
         ism: Option<Ism>,
-        /// Defines how many tokens can be transferred to the route without any refills.
-        inbound_transferrable_tokens_limit: Option<Amount>,
-        /// Defines how many tokens are added to the inbound transferrable limit at each visible slot.
-        inbound_limit_replenishment_per_slot: Option<Amount>,
-        /// Defines how many tokens can be transferred from the route without any refills.
-        outbound_transferrable_tokens_limit: Option<Amount>,
-        /// Defines how many tokens are added to the outbound transferrable limit at each visible slot.
-        outbound_limit_replenishment_per_slot: Option<Amount>,
     },
     /// Add a counterparty router on another chain. This router is trusted. A malicious remote router can steal funds.
     /// Each warp route can have at most one remote router for a given destination domain.
@@ -178,41 +142,15 @@ pub enum Event<S: Spec> {
         ism: Ism,
         /// The authority that can modify the route, if any.
         admin: Admin<S>,
-        /// Inbound transferrable tokens limit for this route.
-        inbound_transferrable_tokens_limit: Amount,
-        /// Inbound limit recovery per slot for this route.
-        inbound_limit_replenishment_per_slot: Amount,
-        /// Outbound transferrable tokens limit for this route.
-        outbound_transferrable_tokens_limit: Amount,
-        /// Outbound limit recovery per slot for this route.
-        outbound_limit_replenishment_per_slot: Amount,
     },
     /// A route was updated.
     RouteUpdated {
-        /// The ID of the updated route.
+        /// The ID of the new route.
         route_id: WarpRouteId,
         /// New ISM for this route.
         updated_ism: Option<Ism>,
         /// New authority that can modify the route, if any.
         updated_admin: Option<Admin<S>>,
-    },
-    /// Route inbound rate limiting configuration was updated.
-    RouteInboundLimitsUpdated {
-        /// The ID of the updated route.
-        route_id: WarpRouteId,
-        /// New transferrable tokens limit for this route.
-        updated_transferrable_tokens_limit: Option<Amount>,
-        /// New limit recovery per slot for this route.
-        updated_limit_replenishment_per_slot: Option<Amount>,
-    },
-    /// Route outbound rate limiting configuration was updated.
-    RouteOutboundLimitsUpdated {
-        /// The ID of the updated route.
-        route_id: WarpRouteId,
-        /// New transferrable tokens limit for this route.
-        updated_transferrable_tokens_limit: Option<Amount>,
-        /// New limit recovery per slot for this route.
-        updated_limit_replenishment_per_slot: Option<Amount>,
     },
     /// A remote router was enrolled.
     RouterEnrolled {
@@ -275,44 +213,15 @@ where
                 token_source,
                 ism,
                 remote_routers,
-                inbound_transferrable_tokens_limit,
-                inbound_limit_replenishment_per_slot,
-                outbound_transferrable_tokens_limit,
-                outbound_limit_replenishment_per_slot,
             } => {
-                self.register(
-                    admin,
-                    token_source,
-                    ism,
-                    remote_routers,
-                    inbound_transferrable_tokens_limit,
-                    inbound_limit_replenishment_per_slot,
-                    outbound_transferrable_tokens_limit,
-                    outbound_limit_replenishment_per_slot,
-                    context,
-                    state,
-                )?;
+                self.register(admin, token_source, ism, remote_routers, context, state)?;
             }
             CallMessage::Update {
                 warp_route,
                 admin,
                 ism,
-                inbound_transferrable_tokens_limit,
-                inbound_limit_replenishment_per_slot,
-                outbound_transferrable_tokens_limit,
-                outbound_limit_replenishment_per_slot,
             } => {
-                self.update(
-                    warp_route,
-                    admin,
-                    ism,
-                    inbound_transferrable_tokens_limit,
-                    inbound_limit_replenishment_per_slot,
-                    outbound_transferrable_tokens_limit,
-                    outbound_limit_replenishment_per_slot,
-                    context,
-                    state,
-                )?;
+                self.update(warp_route, admin, ism, context, state)?;
             }
             CallMessage::EnrollRemoteRouter {
                 warp_route,
@@ -391,17 +300,12 @@ where
     /// A warp route is a set of contracts on different chains representing a single underlying token such as ETH or SOL.
     /// There may be many warp routes wrapping the same underlying asset, but each route
     /// only trusts other contracts that are enrolled by the route's admin.
-    #[allow(clippy::too_many_arguments)]
     fn register(
         &mut self,
         admin: Admin<S>,
         token_source: TokenKind,
         ism: Ism,
         remote_routers: SafeVec<(Domain, HexHash), 64>,
-        inbound_transferrable_tokens_limit: Amount,
-        inbound_limit_replenishment_per_slot: Amount,
-        outbound_transferrable_tokens_limit: Amount,
-        outbound_limit_replenishment_per_slot: Amount,
         context: &Context<S>,
         state: &mut impl TxState<S>,
     ) -> anyhow::Result<()> {
@@ -445,16 +349,6 @@ where
             admin: admin.clone(),
             ism: ism.clone(),
             enrolled_destinations: vec![],
-            inbound_rate_limiter: RateLimiter::new(
-                inbound_transferrable_tokens_limit,
-                inbound_limit_replenishment_per_slot,
-                state,
-            ),
-            outbound_rate_limiter: RateLimiter::new(
-                outbound_transferrable_tokens_limit,
-                outbound_limit_replenishment_per_slot,
-                state,
-            ),
         };
 
         self.emit_event(
@@ -464,10 +358,6 @@ where
                 token_source: stored_token_kind,
                 ism,
                 admin,
-                inbound_transferrable_tokens_limit,
-                inbound_limit_replenishment_per_slot,
-                outbound_transferrable_tokens_limit,
-                outbound_limit_replenishment_per_slot,
             },
         );
 
@@ -490,16 +380,11 @@ where
     ///
     /// Can be used to transfer / drop ownership of a route or to change the ISM (e.g. changing
     /// a list of trusted validators)
-    #[allow(clippy::too_many_arguments)]
     fn update(
         &mut self,
         route_id: WarpRouteId,
         admin: Option<Admin<S>>,
         ism: Option<Ism>,
-        inbound_transferrable_tokens_limit: Option<Amount>,
-        inbound_limit_replenishment_per_slot: Option<Amount>,
-        outbound_transferrable_tokens_limit: Option<Amount>,
-        outbound_limit_replenishment_per_slot: Option<Amount>,
         context: &Context<S>,
         state: &mut impl TxState<S>,
     ) -> anyhow::Result<()> {
@@ -511,15 +396,9 @@ where
                 anyhow::anyhow!("Attepmted to change nonexistent warp route '{route_id}'")
             })?;
 
-        let admin_or_ism_updated = admin.is_some() || ism.is_some();
-        let inbound_rate_limit_updated = inbound_transferrable_tokens_limit.is_some()
-            || inbound_limit_replenishment_per_slot.is_some();
-        let outbound_rate_limit_updated = outbound_transferrable_tokens_limit.is_some()
-            || outbound_limit_replenishment_per_slot.is_some();
-
         anyhow::ensure!(
-            admin_or_ism_updated || inbound_rate_limit_updated || outbound_rate_limit_updated,
-            "Update should contain new admin, ism, or rate limit settings"
+            admin.is_some() || ism.is_some(),
+            "Update should contain new admin or ism"
         );
 
         // Check if the request is properly authorized
@@ -534,79 +413,23 @@ where
             ),
         }
 
-        let mut events = Vec::with_capacity(
-            admin_or_ism_updated as usize
-                + inbound_rate_limit_updated as usize
-                + outbound_rate_limit_updated as usize,
-        );
+        // Update the route
+        if let Some(admin) = admin.clone() {
+            route.admin = admin;
+        }
+        if let Some(ism) = ism.clone() {
+            route.ism = ism;
+        }
+        route.save(state)?;
 
-        // Update admin and/or ism
-        if admin_or_ism_updated {
-            if let Some(admin) = admin.clone() {
-                route.admin = admin;
-            }
-            if let Some(ism) = ism.clone() {
-                route.ism = ism;
-            }
-
-            events.push(Event::RouteUpdated {
+        self.emit_event(
+            state,
+            Event::RouteUpdated {
                 route_id,
                 updated_admin: admin,
                 updated_ism: ism,
-            });
-        }
-
-        // Update rate limiting
-        if inbound_rate_limit_updated {
-            if let Some(transferrable_tokens_limit) = inbound_transferrable_tokens_limit {
-                route
-                    .inbound_rate_limiter
-                    .update_max_limit(transferrable_tokens_limit);
-            }
-            if let Some(limit_replenishment_per_slot) = inbound_limit_replenishment_per_slot {
-                let visible_slot = state.current_visible_slot_number();
-                route
-                    .inbound_rate_limiter
-                    .update_limit_replenishment_per_slot(
-                        limit_replenishment_per_slot,
-                        visible_slot,
-                    );
-            }
-
-            events.push(Event::RouteInboundLimitsUpdated {
-                route_id,
-                updated_transferrable_tokens_limit: inbound_transferrable_tokens_limit,
-                updated_limit_replenishment_per_slot: inbound_limit_replenishment_per_slot,
-            });
-        }
-        if outbound_rate_limit_updated {
-            if let Some(transferrable_tokens_limit) = outbound_transferrable_tokens_limit {
-                route
-                    .outbound_rate_limiter
-                    .update_max_limit(transferrable_tokens_limit);
-            }
-            if let Some(limit_replenishment_per_slot) = outbound_limit_replenishment_per_slot {
-                let visible_slot = state.current_visible_slot_number();
-                route
-                    .outbound_rate_limiter
-                    .update_limit_replenishment_per_slot(
-                        limit_replenishment_per_slot,
-                        visible_slot,
-                    );
-            }
-
-            events.push(Event::RouteOutboundLimitsUpdated {
-                route_id,
-                updated_transferrable_tokens_limit: outbound_transferrable_tokens_limit,
-                updated_limit_replenishment_per_slot: outbound_limit_replenishment_per_slot,
-            });
-        }
-
-        // save the new state and emit events.
-        route.save(state)?;
-        for event in events {
-            self.emit_event(state, event);
-        }
+            },
+        );
 
         Ok(())
     }
@@ -780,18 +603,10 @@ where
         context: &Context<S>,
         state: &mut impl TxState<S>,
     ) -> anyhow::Result<()> {
-        let mut route = self
+        let route = self
             .warp_routes
-            .borrow_mut(&warp_route, state)?
+            .get(&warp_route, state)?
             .ok_or_else(|| anyhow::anyhow!("Warp route {} not found", warp_route))?;
-        let token_source = route.token_source.clone();
-
-        // Check and update transferrable limit
-        route
-            .outbound_rate_limiter
-            .on_transfer(amount, state.current_visible_slot_number())?;
-        route.save(state)?;
-
         let remote = self
             .routers
             .get(
@@ -811,13 +626,13 @@ where
 
         let route_token_holder: DerivedHolder = warp_route.0.into();
         // Do the appropriate burn or transfer for the token source
-        match token_source {
+        match &route.token_source {
             StoredTokenKind::Synthetic { local_token_id, .. } => {
                 // If the local token is synthetic, burn the local token
                 self.bank.burn(
                     Coins {
                         amount,
-                        token_id: local_token_id,
+                        token_id: *local_token_id,
                     },
                     context.sender(),
                     state,
@@ -829,7 +644,7 @@ where
                     route_token_holder.to_payable(),
                     Coins {
                         amount,
-                        token_id: token,
+                        token_id: *token,
                     },
                     context,
                     state,
@@ -849,8 +664,8 @@ where
             }
         };
 
-        let body = Self::pack_transfer_body(recipient, amount, &token_source)?;
-        let remote_amount = HexString(token_source.outbound_amount(amount)?);
+        let body = Self::pack_transfer_body(recipient, amount, &route.token_source)?;
+        let remote_amount = HexString(route.token_source.outbound_amount(amount)?);
         self.emit_event(
             state,
             Event::TokenTransferredRemote {
@@ -900,15 +715,6 @@ where
         // We do not process metadata, so it is disregarded.
         Ok(TransferMessage { recipient, amount })
     }
-
-    /// Get the instance of a warp route with given id.
-    pub fn get_route<Accessor: StateAccessor>(
-        &self,
-        route_id: WarpRouteId,
-        state: &mut Accessor,
-    ) -> Result<Option<WarpRouteInstance<S>>, <Accessor as StateReader<User>>::Error> {
-        self.warp_routes.get(&route_id, state)
-    }
 }
 
 // This type is taken from: https://docs.hyperlane.xyz/docs/alt-vm-implementations/implementation-guide#transfer-message
@@ -941,7 +747,7 @@ where
         state: &mut impl TxState<S>,
     ) -> anyhow::Result<()> {
         // Get the route instance
-        let mut route = self
+        let route = self
             .warp_routes
             .get(route_id, state)?
             .ok_or_else(|| anyhow::anyhow!("Warp route {} not found", route_id))?;
@@ -972,12 +778,6 @@ where
             recipient: token_recipient_hex,
             amount,
         } = Self::unpack_transfer_body(body.as_ref(), &route.token_source)?;
-
-        // Check and update transferrable limit
-        route
-            .inbound_rate_limiter
-            .on_transfer(amount, state.current_visible_slot_number())?;
-        self.warp_routes.set(route_id, &route, state)?;
 
         let token_recipient = S::Address::from_sender(token_recipient_hex)?;
         let route_token_holder: DerivedHolder = route_id.0.into();

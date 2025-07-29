@@ -92,20 +92,6 @@ impl CryptoSpec for Risc0CryptoSpec {
     type PublicKey = Risc0PublicKey;
     type Hasher = sha2::Sha256;
     type Signature = Risc0Signature;
-
-    fn sovereign_admin_pubkey() -> Self::PublicKey {
-        let admin_pubkey_bytes: [u8; 32] = [
-            0xf1, 0xac, 0x96, 0xb6, 0xad, 0x3c, 0xd6, 0xbd, 0xda, 0xf2, 0xc2, 0x3f, 0x08, 0x9d,
-            0xe7, 0x3a, 0x68, 0x16, 0xf8, 0x92, 0xc1, 0xaf, 0x34, 0x5d, 0xf7, 0x0f, 0x9a, 0x57,
-            0x3a, 0x86, 0xba, 0xcb,
-        ];
-
-        // This will panic if the bytes are invalid, which is fine for a hardcoded constant
-        let pub_key = ed25519_dalek::VerifyingKey::from_bytes(&admin_pubkey_bytes)
-            .expect("Invalid admin public key bytes");
-
-        Risc0PublicKey { pub_key }
-    }
 }
 
 /// A verifier for Risc0 proofs.
@@ -160,18 +146,6 @@ impl ZkVerifier for Risc0Verifier {
         // Implement this method once risc0 supports recursion: issue #633
         todo!("Implement once risc0 supports recursion: https://github.com/Sovereign-Labs/sovereign-sdk/issues/633")
     }
-}
-
-#[test]
-fn test_sovereign_admin_pubkey() {
-    use sov_rollup_interface::crypto::PublicKey;
-
-    let pub_key = Risc0CryptoSpec::sovereign_admin_pubkey();
-    let credential_id = pub_key.credential_id();
-    assert_eq!(
-        credential_id.to_string(),
-        "0xf1ac96b6ad3cd6bddaf2c23f089de73a6816f892c1af345df70f9a573a86bacb"
-    );
 }
 
 #[test]

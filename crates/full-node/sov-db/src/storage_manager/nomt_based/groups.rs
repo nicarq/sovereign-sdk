@@ -157,7 +157,7 @@ where
         }
     }
 
-    fn are_root_hashes_match(&self) -> anyhow::Result<bool> {
+    pub(crate) fn verify_commited_root_hashes(&self) -> anyhow::Result<()> {
         let historical_state_delta_reader =
             DeltaReader::new(self.historical_state.clone(), Vec::new());
         let historical_state_reader =
@@ -169,43 +169,31 @@ where
             None => {
                 let is_kernel_empty = nomt_root_hashes.kernel.is_empty();
                 let is_user_empty = nomt_root_hashes.user.is_empty();
-                tracing::trace!(
-                    ?is_kernel_empty,
-                    ?is_user_empty,
-                    "Historical root hash is empty, user and kernel must be too"
-                );
-                Ok(is_kernel_empty && is_user_empty)
+                if !is_kernel_empty || !is_user_empty {
+                    return Err(anyhow::anyhow!(
+                        "Historical state is empty, but nomt state is not: is kernel empty={} is user empty={}",
+                        is_kernel_empty,
+                        is_user_empty,
+                    ));
+                }
             }
             Some(latest_version) => {
                 let Some(state_root_rocksdb) =
                     historical_state_reader.get_serialized_root_hash(latest_version)?
                 else {
-                    anyhow::bail!(
-                        "Missing root hash for the latest version {}",
-                        latest_version
-                    );
+                    anyhow::bail!("Missing root hash for version {}", latest_version);
                 };
-                tracing::trace!(
-                    histrocial_root_hash = %hex::encode(&state_root_rocksdb),
-                    nomt_state_roots = ?nomt_root_hashes,
-                    %latest_version,
-                    "Historical root hash is not empty");
-                Ok(nomt_root_hashes.included_in_raw(&state_root_rocksdb))
-            }
-        }
-    }
 
-    pub(crate) fn verify_and_fix_commited_root_hashes(&self) -> anyhow::Result<()> {
-        if !self.are_root_hashes_match()? {
-            tracing::warn!("Historical state root hashes are not equal to NOMT state root hashes, attempt to fix it");
-            self.state.full_rollback()?;
-            if !self.are_root_hashes_match()? {
-                return Err(anyhow::anyhow!("Fix didn't help, historical state root hashes are not equal to NOMT state root hashes. Manual intervention is required."));
+                if !nomt_root_hashes.included_in_raw(&state_root_rocksdb) {
+                    anyhow::bail!(
+                        "Nomt state root hashes {:?} is not included in historical state {}",
+                        nomt_root_hashes,
+                        hex::encode(state_root_rocksdb)
+                    );
+                }
             }
-            tracing::info!(
-                "Historical state root hashes are equal to NOMT state root hashes, fix applied"
-            );
         }
+
         Ok(())
     }
 }

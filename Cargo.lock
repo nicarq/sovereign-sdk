@@ -10324,6 +10324,7 @@ dependencies = [
  "tokio",
  "tokio-tungstenite 0.23.1",
  "tracing",
+ "uuid 1.10.0",
 ]
 
 [[package]]
@@ -10472,17 +10473,6 @@ dependencies = [
  "strum",
  "tempfile",
  "tracing",
-]
-
-[[package]]
-name = "sov-build"
-version = "0.3.0"
-dependencies = [
- "anyhow",
- "serde",
- "serde_json",
- "sov-modules-api",
- "sov-universal-wallet",
 ]
 
 [[package]]
@@ -10674,7 +10664,6 @@ dependencies = [
  "sov-api-spec",
  "sov-bank",
  "sov-blob-storage",
- "sov-build",
  "sov-celestia-adapter",
  "sov-chain-state",
  "sov-cli",
@@ -11302,17 +11291,10 @@ dependencies = [
  "borsh",
  "schemars",
  "serde",
- "serde_json",
- "sha2 0.10.8",
- "sov-address",
  "sov-bank",
- "sov-mock-da",
- "sov-mock-zkvm",
  "sov-modules-api",
  "sov-modules-stf-blueprint",
  "sov-revenue-share",
- "sov-rollup-interface",
- "sov-sequencer-registry",
  "sov-test-utils",
  "strum",
  "thiserror 1.0.64",
@@ -12438,6 +12420,7 @@ dependencies = [
  "tokio-stream",
  "tracing",
  "url",
+ "uuid 1.10.0",
  "webpki-roots",
 ]
 
@@ -12520,6 +12503,7 @@ dependencies = [
  "stringprep",
  "thiserror 2.0.11",
  "tracing",
+ "uuid 1.10.0",
  "whoami",
 ]
 
@@ -12558,6 +12542,7 @@ dependencies = [
  "stringprep",
  "thiserror 2.0.11",
  "tracing",
+ "uuid 1.10.0",
  "whoami",
 ]
 
@@ -12583,6 +12568,7 @@ dependencies = [
  "sqlx-core",
  "tracing",
  "url",
+ "uuid 1.10.0",
 ]
 
 [[package]]
@@ -14053,6 +14039,7 @@ checksum = "81dfa00651efa65069b0b6b651f4aaa31ba9e3c3ce0137aaad053604ee7e0314"
 dependencies = [
  "arbitrary",
  "getrandom 0.2.15",
+ "serde",
 ]
 
 [[package]]

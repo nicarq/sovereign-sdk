@@ -3,15 +3,15 @@
 
 mod call;
 mod error;
+mod genesis;
 
 pub use call::CallMessage;
 pub use error::RevenueShareError;
+pub use genesis::GenesisConfig;
 use sov_bank::utils::IntoPayable;
 use sov_bank::{Amount, Coins, TokenId};
 use sov_modules_api::prelude::*;
-use sov_modules_api::{
-    Context, CryptoSpec, Module, ModuleId, ModuleInfo, ModuleRestApi, PublicKey, Spec, StateValue,
-};
+use sov_modules_api::{Module, ModuleId, ModuleInfo, ModuleRestApi, Spec, StateValue};
 
 /// The maximum revenue share percentage in basis points (1000 = 10%)
 const MAX_REVENUE_SHARE_PERCENTAGE_IN_BASIS_POINTS: u16 = 1000;
@@ -31,35 +31,34 @@ pub struct RevenueShare<S: Spec> {
     #[state]
     pub revenue_share_percentage_bps: StateValue<u16>,
 
-    /// Override for the sovereign admin address (in case of key compromise)
+    /// The sovereign admin address who can manage the module
     #[state]
-    pub sovereign_admin_override: StateValue<S::Address>,
+    pub sovereign_admin: StateValue<S::Address>,
 
     /// Reference to the bank module for token transfers
     #[module]
     pub bank: sov_bank::Bank<S>,
-
-    /// Reference to the sequencer registry module
-    #[module]
-    pub sequencer_registry: sov_sequencer_registry::SequencerRegistry<S>,
 }
 
 impl<S: Spec> Module for RevenueShare<S> {
     type Spec = S;
-    type Config = ();
+    type Config = GenesisConfig<S>;
     type CallMessage = CallMessage<S>;
     type Event = ();
 
     fn genesis(
         &mut self,
         _genesis_rollup_header: &<<Self::Spec as Spec>::Da as sov_modules_api::DaSpec>::BlockHeader,
-        _config: &Self::Config,
+        config: &Self::Config,
         state: &mut impl sov_modules_api::GenesisState<S>,
     ) -> anyhow::Result<()> {
         let _ = self.is_active.set(&false, state);
         let _ = self
             .revenue_share_percentage_bps
             .set(&MAX_REVENUE_SHARE_PERCENTAGE_IN_BASIS_POINTS, state); // 10% = 1000 basis points
+        let _ = self
+            .sovereign_admin
+            .set(&config.sovereign_admin.clone(), state);
 
         Ok(())
     }
@@ -94,47 +93,17 @@ impl<S: Spec> Module for RevenueShare<S> {
 }
 
 impl<S: Spec> RevenueShare<S> {
-    /// Checks if the current transaction was processed by the "soft-confirming" /
-    /// ultra-low latency preferred sequencer. If so, the revenue generated via this
-    /// transaction is part of the Revenue Share terms of the Sovereign
-    /// Permissionless Commercial License.
-    pub fn is_preferred_sequencer(
-        &self,
-        context: &Context<S>,
-        state: &mut impl sov_modules_api::TxState<S>,
-    ) -> bool {
-        let preferred_sequencer = self
-            .sequencer_registry
-            .get_preferred_sequencer(state)
-            .ok()
-            .flatten();
-
-        if let Some((_, preferred_sequencer_address)) = preferred_sequencer {
-            context.sequencer() == &preferred_sequencer_address
-        } else {
-            // If no preferred sequencer is set, then no sequencer is preferred.
-            false
-        }
-    }
-
     /// Verifies that the caller is the sovereign admin
     fn check_if_sender_is_sov_admin(
         &self,
-        context: &Context<S>,
+        context: &sov_modules_api::Context<S>,
         state: &mut impl sov_modules_api::TxState<S>,
     ) -> anyhow::Result<()> {
-        // Check if there's an override address first (e.g., due to key compromise)
-        let admin_address = match self.sovereign_admin_override.get(state)? {
-            Some(override_address) => override_address,
-            None => {
-                // No override, use the hardcoded admin public key from CryptoSpec
-                let admin_pubkey = S::CryptoSpec::sovereign_admin_pubkey();
-                // Convert public key to address via credential_id
-                S::Address::from(admin_pubkey.credential_id())
-            }
-        };
-
-        if context.sender() != &admin_address {
+        let admin = self
+            .sovereign_admin
+            .get(state)?
+            .ok_or(RevenueShareError::AdminNotSet)?;
+        if context.sender() != &admin {
             return Err(RevenueShareError::NotAuthorized.into());
         }
         Ok(())
@@ -268,7 +237,7 @@ impl<S: Spec> RevenueShare<S> {
     ) -> anyhow::Result<()> {
         self.check_if_sender_is_sov_admin(context, state)?;
 
-        self.sovereign_admin_override.set(&new_admin, state)?;
+        self.sovereign_admin.set(&new_admin, state)?;
         Ok(())
     }
 

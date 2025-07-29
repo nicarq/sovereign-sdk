@@ -57,6 +57,7 @@ async fn create_test_rollup() -> (TestRollup<TestBlueprint>, TestUser<TestSpec>)
                 .seq_da_address,
             genesis_params,
             0,
+            0,
             true,
             TEST_MAX_BATCH_SIZE,
             BlockProducingConfig::Periodic { block_time_ms: 300 },
@@ -66,7 +67,6 @@ async fn create_test_rollup() -> (TestRollup<TestBlueprint>, TestUser<TestSpec>)
             1,
             MAX_BATCH_EXECUTION_TIME_MILLIS,
             None,
-            0,
         )
         .await
         .map(|v| v.into_iter().next().unwrap())
@@ -110,6 +110,8 @@ async fn test_discard_oversized_blobs() {
 
 #[tokio::test(flavor = "multi_thread")]
 async fn test_blobs_are_send_after_rollup_resync() {
+    // We're testing resyncing here, we don't want to go into recovery mode
+    std::env::set_var("SOV_TEST_CONST_OVERRIDE_DEFERRED_SLOTS_COUNT", "5000");
     let (test_rollup, _) = create_test_rollup().await;
     let da = test_rollup.da_service.clone();
     let mut header_subscrition = da.subscribe_finalized_header().await.unwrap();
@@ -121,9 +123,10 @@ async fn test_blobs_are_send_after_rollup_resync() {
     }
 
     let builder = test_rollup.shutdown().await.unwrap();
+    tokio::time::sleep(Duration::from_millis(1000)).await;
 
     // Generate a block while Rollup is offline to trigger resync logic.
-    for _ in 0..20 {
+    for _ in 0..200 {
         da.produce_block_now().await.unwrap();
         header_subscrition.next().await.unwrap().unwrap();
     }

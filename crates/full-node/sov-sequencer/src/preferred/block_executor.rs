@@ -366,24 +366,28 @@ impl<S: Spec, Rt: Runtime<S>> RollupBlockExecutor<S, Rt> {
     /// A helper function for replaying a transaction that has already been soft-confirmed, logging any errors and exiting.
     /// This differs from `apply_tx_to_in_progress_batch` in that it doesn't return a receipt and
     /// shuts down the rollup on error.
-    pub(crate) async fn replay_tx(&mut self, tx_hash: TxHash, tx: &FullyBakedTx) -> u64 {
+    pub(crate) async fn replay_tx(
+        &mut self,
+        tx_hash: TxHash,
+        tx: &FullyBakedTx,
+    ) -> (AcceptedTxWithBudgetInfo<S, Rt>, TxChangeSet) {
         trace!(
             %tx_hash,
             "Re-applying state changes for the soft-confirmed transaction"
         );
 
         match self.apply_tx_to_in_progress_batch(tx).await {
-            Ok((output, _tx_changes)) => {
-                if tx_hash != output.accepted_tx.tx_hash {
+            Ok(res) => {
+                if tx_hash != res.0.accepted_tx.tx_hash {
                     tracing::error!(
                         expected_hash = %tx_hash,
-                        executor_output_hash = %output.accepted_tx.tx_hash,
+                        executor_output_hash = %res.0.accepted_tx.tx_hash,
                         "The executor returned a different tx hash than expected"
                     );
                     exit_rollup(&self.shutdown_sender).await;
                     unreachable!()
                 }
-                output.execution_time_micros
+                res
             }
             Err(err) => {
                 tracing::error!(

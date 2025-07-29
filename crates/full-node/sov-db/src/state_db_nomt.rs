@@ -148,12 +148,6 @@ impl<H: digest::Digest<OutputSize = digest::typenum::U32> + Send + Sync> NomtSta
         self.commit(overlay)
     }
 
-    pub(crate) fn full_rollback(&self) -> anyhow::Result<()> {
-        self.user.rollback(1)?;
-        self.kernel.rollback(1)?;
-        Ok(())
-    }
-
     pub(crate) fn get_root_hashes(&self) -> StateRootHashes {
         StateRootHashes {
             user: self.user.root(),

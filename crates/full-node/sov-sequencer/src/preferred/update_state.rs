@@ -4,11 +4,12 @@ use sov_modules_api::{Runtime, Spec};
 use sov_rollup_interface::node::da::DaService;
 use sov_state::{NativeStorage, Storage};
 
-use crate::metrics::PreferredSequencerUpdateStateMetrics;
+use crate::common::Sequencer;
+use crate::metrics::{PreferredSequencerPruneMetrics, PreferredSequencerUpdateStateMetrics};
 use crate::preferred::{
     get_next_sequence_number_according_to_node, DbEvent, FetchBatches, Flow,
-    PreferredBatchToReplay, PreferredSequencer, ProcessFinalCatchupData, RollupBlockExecutor,
-    RollupBlockExecutorConfig, StateUpdateInfo,
+    PreferredBatchToReplay, PreferredSequencer, RollupBlockExecutor, RollupBlockExecutorConfig,
+    StateUpdateInfo,
 };
 
 impl<S, Rt, Da> PreferredSequencer<S, Rt, Da>
@@ -48,8 +49,7 @@ where
         let mut transactions_count = 0;
         let mut next_sequence_number =
             get_next_sequence_number_according_to_node(&info, &mut Rt::default());
-        // Total time to update the state for `replay_soft_confirmations_on_top_of_node_stat`e, including time spent in the `Message` channel.
-        let mut total_message_processing_duration = std::time::Duration::ZERO;
+        let mut total_lock_duration = std::time::Duration::ZERO;
 
         // During startup, we need to repopulate the transaction cache with any transactions from the soft-confirmed batches
         // Outside of this edge case, we don't want replay to affect the transaction cache, so we don't pass a writer.
@@ -77,21 +77,18 @@ where
 
         // Repeatedly fetch all completed batches from the database that haven't yet been played on this sequencer and replay them
         let (in_progress_batch, mut db_event_subscription) = loop {
-            let (
-                FetchBatches {
-                    metrics: fetch_batches_to_replay_metrics,
-                    flow,
-                },
-                message_processing_duration,
-            ) = self
-                .synchronized_state_updator
-                .fetch_completed_batches_msg(
-                    next_sequence_number,
-                    "update_state::fetch_completed_batches_iteration",
-                )
+            let mut inner = self
+                .lock_inner("update_state::fetch_completed_batches_iteration")
                 .await;
 
-            total_message_processing_duration += message_processing_duration;
+            let FetchBatches {
+                metrics: fetch_batches_to_replay_metrics,
+                lock_start,
+                flow,
+            } = inner.process_fetch_completed_batches(next_sequence_number);
+
+            drop(inner); // Drop quickly so we don't block the sequencer
+            total_lock_duration += lock_start.elapsed();
 
             let completed_batches = match flow {
                 Flow::Break {
@@ -175,48 +172,60 @@ where
             .await?;
         }
 
-        let (maybe_data, message_processing_duration) = self
-            .synchronized_state_updator
-            .final_catchup_msg(
-                self.api_ledger_db.clone(),
-                self.transaction_cache.write_handle(),
+        let mut inner = self.lock_inner("update_state::do_final_catchup").await;
+        let inner_lock_start_time = inner
+            .process_final_catchup(
+                &self.api_ledger_db,
+                &self.transaction_cache,
                 info,
                 db_event_subscription,
                 executor,
-                node_state_root.clone(),
-                ProcessFinalCatchupData {
-                    batches_count,
-                    transactions_count,
-                    batch_is_in_progress,
-                },
-                "update_state::do_final_catchup",
+                &mut batches_count,
+                &mut transactions_count,
+                &node_state_root,
+                &mut batch_is_in_progress,
             )
-            .await;
+            .await?;
+        drop(inner); // Release the lock and allow transactions to progress while we handle metrics
 
-        let data = maybe_data?;
-
-        total_message_processing_duration += message_processing_duration;
-
+        total_lock_duration += inner_lock_start_time.elapsed();
         let metrics = PreferredSequencerUpdateStateMetrics {
             duration: timer_start.elapsed(),
-            total_message_processing_duration,
-            batches_count: data.batches_count,
-            transactions_count: data
-                .transactions_count
+            lock_duration: total_lock_duration,
+            batches_count,
+            transactions_count: transactions_count
                 .try_into()
                 .expect("transactions in a single batch cannot possibly exceed u64::MAX"),
-            in_progress_batch: data.batch_is_in_progress,
+            in_progress_batch: batch_is_in_progress,
             time_spent_fetching_batches,
         };
 
         sov_metrics::track_metrics(|t| {
             t.submit(metrics);
         });
-
         if !self.shutdown_receiver.has_changed().unwrap_or(true) {
-            self.synchronized_state_updator
-                .prune_sequencer_db_msg("update_state::prune_sequencer_db")
+            // Get back in line for the lock, and trigger batch production if it's convenient.
+            // Since pruning might be expensive and we've already held the lock for a while, we
+            // prefer to drop the lock above and re-acquire it here to help keep p99 stable.
+            let start_prune = std::time::Instant::now();
+            let mut inner = self.lock_inner("update_state::prune_sequencer_db").await;
+            let time_to_lock = inner
+                .process_prune_sequencer_db(
+                    self.is_master().await,
+                    start_prune,
+                    self.stop_at_rollup_height,
+                )
                 .await;
+            drop(inner);
+            let prune_duration = start_prune.elapsed();
+            let lock_duration = prune_duration - time_to_lock;
+            let metrics = PreferredSequencerPruneMetrics {
+                duration_ms: prune_duration.as_millis() as u64,
+                lock_duration_ms: lock_duration.as_millis() as u64,
+            };
+            sov_metrics::track_metrics(|t| {
+                t.submit(metrics);
+            });
         }
 
         Ok(())
@@ -234,7 +243,7 @@ pub(crate) async fn do_next_event<S: Spec, Rt: Runtime<S>>(
     batch_is_in_progress: &mut bool,
 ) -> anyhow::Result<()> {
     match event {
-        DbEvent::TxAccepted(tx, hash) => {
+        DbEvent::TxAccepted(tx, hash, _) => {
             executor.replay_tx(hash, &tx).await;
             *transactions_count += 1;
             *batch_is_in_progress = true;

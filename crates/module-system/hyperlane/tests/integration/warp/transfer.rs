@@ -10,7 +10,7 @@ use sov_hyperlane_integration::{
 };
 use sov_modules_api::macros::config_value;
 use sov_modules_api::prelude::UnwrapInfallible;
-use sov_modules_api::{HexHash, HexString, SafeVec, Spec, TxEffect, VersionReader};
+use sov_modules_api::{HexHash, HexString, SafeVec, Spec, TxEffect};
 use sov_test_utils::runtime::TestRunner;
 use sov_test_utils::{AsUser, TestUser, TransactionTestCase};
 
@@ -514,10 +514,6 @@ fn test_inbound_transfer_after_ism_update() {
                 relayer: admin.address().to_sender(),
             }),
             admin: None,
-            inbound_transferrable_tokens_limit: None,
-            inbound_limit_replenishment_per_slot: None,
-            outbound_transferrable_tokens_limit: None,
-            outbound_limit_replenishment_per_slot: None,
         }),
         assert: Box::new(move |result, _| {
             assert!(
@@ -550,201 +546,6 @@ fn test_inbound_transfer_after_ism_update() {
         Amount(100),
         config_gas_token_id(),
     );
-}
-
-#[test]
-fn test_route_outbound_rate_limitting() {
-    let (mut runner, admin, _other, relayer) = setup();
-
-    register_relayer_with_dummy_igp(&mut runner, &relayer, CONFIGURED_DOMAIN);
-
-    let warp_route_id = register_basic_warp_route_and_enroll_router_with_rate_limiter(
-        &mut runner,
-        &admin,
-        Amount(10000),
-        Amount(2000),
-    );
-
-    let assert_current_limit = |runner: &mut TestRunner<TestRuntime<S>, S>, current_limit| {
-        runner.query_state(|state| {
-            let warp = Warp::<S>::default();
-            let route = warp
-                .get_route(warp_route_id, state)
-                .unwrap_infallible()
-                .unwrap();
-
-            let visible_slot = state.current_visible_slot_number();
-
-            assert_eq!(
-                route
-                    .outbound_rate_limiter
-                    .current_limit_with_replenishment(visible_slot),
-                current_limit,
-            );
-        });
-    };
-
-    // Route is created in slot 2 and then in slot 3 the router is enrolled, which replenishes
-    // limit once, and then second time during the transaction.
-    assert_current_limit(&mut runner, Amount(4000));
-    do_outbound_transfer_failure(
-        &mut runner,
-        &admin,
-        warp_route_id,
-        Amount(6001),
-        relayer.address(),
-        "6001 exceeds current limit 6000",
-    );
-
-    // The slot advances again so the new limit is 8000.
-    do_outbound_transfer(
-        &mut runner,
-        &admin,
-        warp_route_id,
-        Amount(8000),
-        relayer.address(),
-        encode_amount(Amount(8000)),
-    );
-
-    // Now it should be completely drained.
-    assert_current_limit(&mut runner, Amount(0));
-
-    // In 5 slots, we should be back to maximum
-    runner.advance_slots(5);
-    assert_current_limit(&mut runner, Amount(10000));
-
-    // and it shouldn't increase more.
-    runner.advance_slots(1);
-    assert_current_limit(&mut runner, Amount(10000));
-    do_outbound_transfer_failure(
-        &mut runner,
-        &admin,
-        warp_route_id,
-        Amount(10001),
-        relayer.address(),
-        "10001 exceeds current limit 10000",
-    );
-    do_outbound_transfer(
-        &mut runner,
-        &admin,
-        warp_route_id,
-        Amount(10000),
-        relayer.address(),
-        encode_amount(Amount(10000)),
-    );
-}
-
-#[test]
-fn test_route_inbound_rate_limitting() {
-    let (mut runner, admin, _other, relayer) = setup();
-
-    register_relayer_with_dummy_igp(&mut runner, &relayer, CONFIGURED_DOMAIN);
-
-    let warp_route_id = register_basic_warp_route_and_enroll_router_with_rate_limiter(
-        &mut runner,
-        &admin,
-        Amount(10000),
-        Amount(2000),
-    );
-
-    let assert_current_limit = |runner: &mut TestRunner<TestRuntime<S>, S>, current_limit| {
-        runner.query_state(|state| {
-            let warp = Warp::<S>::default();
-            let route = warp
-                .get_route(warp_route_id, state)
-                .unwrap_infallible()
-                .unwrap();
-
-            let visible_slot = state.current_visible_slot_number();
-
-            assert_eq!(
-                route
-                    .inbound_rate_limiter
-                    .current_limit_with_replenishment(visible_slot),
-                current_limit,
-            );
-        });
-    };
-
-    // Route is created in slot 2 and then in slot 3 the router is enrolled, which replenishes
-    // limit once.
-    assert_current_limit(&mut runner, Amount(4000));
-    // Tokens need to be locked in a route for inbound transfers to succeed, so wait until we are
-    // at full limit and feed the route.
-    runner.advance_slots(3);
-    assert_current_limit(&mut runner, Amount(10000));
-    // Feed the route
-    do_outbound_transfer(
-        &mut runner,
-        &admin,
-        warp_route_id,
-        Amount(10000),
-        relayer.address(),
-        encode_amount(Amount(10000)),
-    );
-    // amount check runs for inbound transfers, which should be untouched
-    assert_current_limit(&mut runner, Amount(10000));
-    // feed the route once again
-    runner.advance_slots(5);
-    do_outbound_transfer(
-        &mut runner,
-        &admin,
-        warp_route_id,
-        Amount(10000),
-        relayer.address(),
-        encode_amount(Amount(10000)),
-    );
-
-    // inbound limit should still be untouched
-    assert_current_limit(&mut runner, Amount(10000));
-    do_inbound_transfer_failure(
-        &mut runner,
-        &admin,
-        CONFIGURED_DOMAIN,
-        CONFIGURED_REMOTE_ROUTER_ADDRESS,
-        warp_route_id,
-        relayer.address().to_sender(),
-        Amount(10001),
-        "10001 exceeds current limit 10000",
-    );
-
-    // Drain the route
-    do_inbound_transfer_success(
-        &mut runner,
-        &admin,
-        CONFIGURED_DOMAIN,
-        CONFIGURED_REMOTE_ROUTER_ADDRESS,
-        warp_route_id,
-        relayer.address().to_sender(),
-        Amount(10000),
-        config_gas_token_id(),
-    );
-    assert_current_limit(&mut runner, Amount(0));
-
-    // We only replenished once, so this should fail
-    do_inbound_transfer_failure(
-        &mut runner,
-        &admin,
-        CONFIGURED_DOMAIN,
-        CONFIGURED_REMOTE_ROUTER_ADDRESS,
-        warp_route_id,
-        relayer.address().to_sender(),
-        Amount(2001),
-        "2001 exceeds current limit 2000",
-    );
-
-    // Now we replenished again, we can drain again
-    do_inbound_transfer_success(
-        &mut runner,
-        &admin,
-        CONFIGURED_DOMAIN,
-        CONFIGURED_REMOTE_ROUTER_ADDRESS,
-        warp_route_id,
-        relayer.address().to_sender(),
-        Amount(4000),
-        config_gas_token_id(),
-    );
-    assert_current_limit(&mut runner, Amount(0));
 }
 
 #[test]
@@ -847,10 +648,6 @@ fn register_synthetic_route(
             token_source,
             ism,
             remote_routers: SafeVec::new(),
-            inbound_transferrable_tokens_limit: Amount::MAX,
-            inbound_limit_replenishment_per_slot: Amount::MAX,
-            outbound_transferrable_tokens_limit: Amount::MAX,
-            outbound_limit_replenishment_per_slot: Amount::MAX,
         }),
         assert: Box::new(move |result, _| {
             assert!(

@@ -165,6 +165,12 @@ pub(crate) enum TestingAction {
     /// included in the next batch (it won't, as it's invalid).
     #[weight(2)]
     TryAcceptBadTx { invalid_reason: InvalidGeneration },
+    /// A client submits a valid transaction but still expects it to fail with a specific reason
+    /// due to the sequencer being unable to process it at this time.
+    /// Note that it's the test's responsibility to ensure the sequencer is in the correct state to
+    /// not accept the transaction; the TestingAction cannot set it up.
+    #[weight(0)]
+    ExpectFailTx { fail_reason: FailureReason },
     /// A client queries the nonce for a given address.
     ///
     /// This is an easy and effective way for us to check that all pending
@@ -194,6 +200,12 @@ pub(crate) enum TestingAction {
 pub(crate) enum InvalidGeneration {
     DuplicateTransaction,
     TooOld,
+}
+
+/// Expected failure reason for transaction rejection.
+#[derive(Debug, Clone, Arbitrary)]
+pub(crate) enum FailureReason {
+    ReplicaMode,
 }
 
 #[allow(clippy::too_many_arguments)]
@@ -233,6 +245,7 @@ async fn create_test_rollup(
                 .sequencer_config
                 .seq_da_address,
             genesis_params,
+            TEST_FINALIZATION_BLOCKS,
             minimum_profit_per_tx,
             true,
             max_batch_size,
@@ -242,7 +255,6 @@ async fn create_test_rollup(
             1,
             max_batch_execution_time_millis,
             None,
-            TEST_FINALIZATION_BLOCKS,
         )
         .await
         .map(|v| v.into_iter().next().unwrap()),
@@ -384,6 +396,7 @@ async fn sequencer_filled_up_block() {
             .sequencer_config
             .seq_da_address,
         genesis_params,
+        TEST_FINALIZATION_BLOCKS,
         0,
         true,
         TEST_MAX_BATCH_SIZE,
@@ -393,7 +406,6 @@ async fn sequencer_filled_up_block() {
         1,
         MAX_BATCH_EXECUTION_TIME_MILLIS,
         None,
-        TEST_FINALIZATION_BLOCKS,
     )
     .await
     else {
@@ -581,7 +593,7 @@ async fn flaky_seq_behind_deferred_slots_count_simple_lagging() {
 
     // Give time for the sequencer to catch up its visible state number
     tracing::info!("Producing DA blocks to let the sequencer resync.");
-    for _ in 0..10 {
+    for _ in 0..20 {
         let _ = da_layer.produce_block().await;
         sleep(Duration::from_millis(100)).await; // Notifications don't work during recovery.
     }
@@ -696,6 +708,18 @@ async fn seq_behind_deferred_slots_count_with_shutdown() {
     // possible node lag and b) a 90% threshold.
     da_service.produce_n_blocks_now(30).await.unwrap();
 
+    // If we stop and restart the rollup too soon, the old run's node_id will still be registered
+    // as master, so the newly started run (with a newly generated node_id) will not be able to
+    // immediately become master. This will cause the sequencer to crash because replicas don't
+    // support recovery.
+    // In the real world that's fine because you the crash doesn't cause any extra issues; you can
+    // restart again and by then it'll probably succeed, assuming 500ms since the last heartbeat
+    // have passed. And that's assuming your monitoring is fast enough to restart immediately.
+    // Here we just need the explicit wait because it makes the test flaky.
+    // (Also in the real world the conditions to trigger it are exceedingly unlikely to happen -
+    // this test just produces a large amount of DA blocks nearly instantaneously.)
+    tokio::time::sleep(Duration::from_millis(500)).await;
+
     // Restart the rollup
     tracing::info!("Restarting rollup after exceeding deferred_slots_count");
     let test_rollup = builder.start().await.unwrap();
@@ -727,7 +751,7 @@ async fn seq_behind_deferred_slots_count_with_shutdown() {
 
     // Give time for the sequencer to catch up its visible state number
     tracing::info!("Producing DA blocks to let the sequencer resync.");
-    for _ in 0..10 {
+    for _ in 0..20 {
         test_rollup.da_service.produce_block_now().await.unwrap();
         sleep(Duration::from_millis(50)).await;
     }
@@ -837,6 +861,7 @@ async fn seq_out_of_gas_for_pre_checks() {
             .sequencer_config
             .seq_da_address,
         genesis_params,
+        TEST_FINALIZATION_BLOCKS,
         0,
         true,
         TEST_MAX_BATCH_SIZE,
@@ -846,7 +871,6 @@ async fn seq_out_of_gas_for_pre_checks() {
         1,
         MAX_BATCH_EXECUTION_TIME_MILLIS,
         None,
-        TEST_FINALIZATION_BLOCKS,
     )
     .await
     else {
@@ -1352,6 +1376,7 @@ async fn flaky_test_state_root_computation_when_blobs_are_delayed() {
             .sequencer_config
             .seq_da_address,
         genesis_params,
+        TEST_FINALIZATION_BLOCKS,
         0,
         true,
         TEST_MAX_BATCH_SIZE,
@@ -1363,7 +1388,6 @@ async fn flaky_test_state_root_computation_when_blobs_are_delayed() {
         1,
         MAX_BATCH_EXECUTION_TIME_MILLIS,
         None,
-        TEST_FINALIZATION_BLOCKS,
     )
     .await
     else {
@@ -1750,13 +1774,12 @@ async fn query_historical_values() {
             "Panicked during assertions"
         );
     };
-    do_manual_block_production_test(tx_builder, assertions, 22222).await;
+    do_manual_block_production_test(tx_builder, assertions).await;
 }
 
 async fn do_manual_block_production_test<Fut: Future<Output = ()>>(
     tx_builder: impl Fn(Ed25519PrivateKey) -> RawTx,
     assertions: impl FnOnce(TestRollup<TestBlueprint>) -> Fut,
-    port: u16,
 ) {
     const FINALIZATION_BLOCKS: u32 = 0;
     let genesis_config =
@@ -1779,36 +1802,32 @@ async fn do_manual_block_production_test<Fut: Future<Output = ()>>(
 
     let dir = Arc::new(tempfile::tempdir().unwrap());
 
-    let da_layer = Arc::new(tokio::sync::RwLock::new(
-        StorableMockDaLayer::new_in_memory(FINALIZATION_BLOCKS)
-            .await
-            .unwrap(),
-    ));
-    let test_rollup = {
-        let sequencer_addr = genesis_params
+    let Some(test_rollups) = new_test_rollup::<TestRuntime<TestSpec>>(
+        dir.clone(),
+        genesis_params
             .runtime
             .sequencer_registry
             .sequencer_config
-            .seq_da_address;
-
-        RollupBuilder::<TestBlueprint>::new(
-            GenesisSource::CustomParams(genesis_params),
-            BlockProducingConfig::Manual, // Use manual block production to be sure that the changes are happening in the sequencer only, not the node.
-            FINALIZATION_BLOCKS,
-        )
-        .set_config(|c| {
-            c.rollup_prover_config = None;
-            c.storage = dir;
-            c.axum_port = port;
-        })
-        .set_da_config(|c| {
-            c.sender_address = sequencer_addr;
-            c.da_layer = Some(da_layer.clone());
-        })
-        .start()
-        .await
-        .unwrap()
+            .seq_da_address,
+        genesis_params,
+        FINALIZATION_BLOCKS,
+        0,
+        true,
+        TEST_MAX_BATCH_SIZE,
+        BlockProducingConfig::Manual,
+        None,
+        TEST_BLOB_PROCESSING_TIMEOUT,
+        1,
+        MAX_BATCH_EXECUTION_TIME_MILLIS,
+        None,
+    )
+    .await
+    else {
+        // Docker issues, don't fail the test and just return early.
+        return;
     };
+    let test_rollup = test_rollups.into_iter().next().unwrap();
+
     let mut da_layer = DaLayerWithSubscription::new(&test_rollup).await;
     // Produce some empty blocks to make sure we have a finalized slot.
     da_layer.produce_and_wait_for_n_slots(5).await;
@@ -2084,7 +2103,7 @@ async fn flaky_txs_that_enter_before_downtime_are_dropped() {
 #[tokio::test(flavor = "multi_thread")]
 async fn replay_uses_correct_visible_slot_number() {
     let tx_builder = |key| tx_assert_visible_slot_number(&key, 0, 2);
-    do_manual_block_production_test(tx_builder, |_| async {}, 22223).await;
+    do_manual_block_production_test(tx_builder, |_| async {}).await;
 }
 
 /// This test checks that the visible hash of the rollup block is the same in the node and the sequencer.
@@ -2280,6 +2299,7 @@ async fn heavy_blob_submission_long_delay() {
             .sequencer_config
             .seq_da_address,
         genesis_params,
+        TEST_FINALIZATION_BLOCKS,
         0,
         true,
         max_batch_size,
@@ -2289,7 +2309,6 @@ async fn heavy_blob_submission_long_delay() {
         1,
         400, // Set the batch time limit to twice the block time
         None,
-        TEST_FINALIZATION_BLOCKS,
     )
     .await
     else {
@@ -2751,6 +2770,7 @@ async fn preferred_sequencer_is_resistant_to_miscellaneous_edge_cases(actions: V
             .sequencer_config
             .seq_da_address,
         genesis_params,
+        TEST_FINALIZATION_BLOCKS,
         0,
         false,
         TEST_MAX_BATCH_SIZE,
@@ -2760,7 +2780,6 @@ async fn preferred_sequencer_is_resistant_to_miscellaneous_edge_cases(actions: V
         1,
         MAX_BATCH_EXECUTION_TIME_MILLIS,
         None,
-        TEST_FINALIZATION_BLOCKS,
     )
     .await
     else {
@@ -2874,9 +2893,11 @@ pub(crate) async fn run_action_against_test_rollup(
         TestingAction::Restart => {
             // This is a more complex action, as the sequencer cannot accept transactions on
             // startup until a StateUpdateInfo from the node has been processed.
+            // It also needs to "fail over" from the previous run's NodeID to be able to act as a
+            // master sequencer and accept transactions.
             let test_rollup = test_rollup.restart().await?;
             test_rollup.da_service.produce_block_now().await.unwrap();
-            sleep(Duration::from_millis(500)).await;
+            sleep(Duration::from_millis(750)).await;
             return Ok(test_rollup);
         }
         TestingAction::TryAcceptBadTx { invalid_reason } => {
@@ -2901,6 +2922,39 @@ pub(crate) async fn run_action_against_test_rollup(
                 })
                 .await
                 .is_err());
+        }
+        TestingAction::ExpectFailTx { fail_reason } => {
+            let tx = tx_set_value(
+                key,
+                test_state.next_generation,
+                test_state.current_value + 1,
+            );
+
+            let result = test_rollup
+                .api_client
+                .accept_tx(&api_types::AcceptTxBody {
+                    body: BASE64_STANDARD.encode(&tx),
+                })
+                .await;
+
+            anyhow::ensure!(
+                result.is_err(),
+                "Expected transaction to fail but it succeeded"
+            );
+
+            let error = result.unwrap_err();
+            match fail_reason {
+                FailureReason::ReplicaMode => {
+                    // Check that the error indicates replica mode
+                    let error_string = error.to_string();
+                    anyhow::ensure!(
+                        error_string
+                            .contains("Sequencer is replica and cannot accept transactions"),
+                        "Expected replica mode error but got: {}",
+                        error_string
+                    );
+                }
+            }
         }
         TestingAction::AcceptTx => {
             let tx = tx_set_value(

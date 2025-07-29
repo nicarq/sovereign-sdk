@@ -3,9 +3,7 @@ use std::sync::Arc;
 
 use sov_blob_sender::BlobInternalId;
 use sov_blob_storage::SequenceNumber;
-use sov_modules_api::{
-    FullyBakedTx, Runtime, Spec, StateCheckpoint, TxChangeSet, TxHash, VisibleSlotNumber,
-};
+use sov_modules_api::{Runtime, Spec, StateCheckpoint, TxChangeSet, VisibleSlotNumber};
 use tokio::sync::mpsc::error::TrySendError;
 use tokio::sync::{mpsc, oneshot, watch};
 
@@ -77,7 +75,7 @@ impl<S: Spec, Rt: Runtime<S>> ExecutorEventsSender<S, Rt> {
         accepted_tx: AcceptedTx<Confirmation<S, Rt>>,
         tx_changes: TxChangeSet,
         sequence_number: SequenceNumber,
-    ) -> oneshot::Receiver<AcceptedTx<Confirmation<S, Rt>>> {
+    ) -> oneshot::Receiver<Option<AcceptedTx<Confirmation<S, Rt>>>> {
         let tx_idx_within_batch = self
             .cache
             .in_progress_batch_opt()
@@ -85,7 +83,7 @@ impl<S: Spec, Rt: Runtime<S>> ExecutorEventsSender<S, Rt> {
             .unwrap_or(0) as u64;
 
         self.cache
-            .insert_tx(accepted_tx.tx.clone(), accepted_tx.tx_hash)
+            .insert_tx(accepted_tx.tx.clone(), accepted_tx.tx_hash, sequence_number)
             .await;
 
         let (sender, receiver) = oneshot::channel();
@@ -223,12 +221,28 @@ impl<S: Spec, Rt: Runtime<S>> ExecutorEventsSender<S, Rt> {
         .await;
     }
 
-    pub(crate) async fn insert_tx_without_confirmation(
-        &mut self,
-        tx: FullyBakedTx,
-        tx_hash: TxHash,
+    pub(crate) async fn set_is_master(
+        &self,
+        is_master: bool,
+        next_sequence_number_according_to_node: SequenceNumber,
     ) {
-        self.cache.insert_tx(tx, tx_hash).await;
+        let blobs_to_flush = if is_master {
+            // When a replica takes over from master, it re-sends all pending blobs, in case the
+            // master crashed before being able to land them on DA.
+            self.cache.all_completed_blobs_greater_than_or_equal_to(
+                next_sequence_number_according_to_node,
+            )
+        } else {
+            // When transitioning to a replica, the former master doesn't re-publish anything -
+            // it's the new master's responsibility now.
+            vec![]
+        };
+
+        self.send(ExecutorEvent::UpdateMasterStatus {
+            is_master,
+            blobs_to_flush,
+        })
+        .await;
     }
 
     pub(crate) async fn update_state_for_recovery(&mut self, checkpoint: StateCheckpoint<S>) {
@@ -317,6 +331,11 @@ where
     /// Publish a proof blob.
     PublishProofBlob(BlobInternalId, Arc<[u8]>, SequenceNumber),
     /// Insert an accepted transaction into the database and send out the confirmation
+    /// Update the master status for both blob sender and database
+    UpdateMasterStatus {
+        is_master: bool,
+        blobs_to_flush: Vec<PreferredSequencerReadBlob>,
+    },
     AcceptedTx(AcceptedTxEventContents<S, Rt>),
     /// Update the API state to the given checkpoint without closing the current batch etc. Used during recovery
     ForceUpdateApiState(StateCheckpoint<S>),
@@ -343,7 +362,7 @@ where
 pub(crate) struct AcceptedTxEventContents<S: Spec, Rt: Runtime<S>> {
     pub accepted_tx: AcceptedTx<Confirmation<S, Rt>>,
     pub tx_changes: TxChangeSet,
-    pub oneshot_sender: oneshot::Sender<AcceptedTx<Confirmation<S, Rt>>>,
+    pub oneshot_sender: oneshot::Sender<Option<AcceptedTx<Confirmation<S, Rt>>>>,
     pub sequence_number: SequenceNumber,
     pub tx_idx_within_batch: u64,
 }

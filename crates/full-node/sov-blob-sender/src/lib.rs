@@ -314,10 +314,7 @@ where
                 let res = future_or_shutdown(fut, &shutdown_receiver).await;
 
                 match res {
-                    FutureOrShutdownOutput::Output(()) => {}
-                    FutureOrShutdownOutput::Shutdown => {
-                        info!("BlobSender: Shutting down task for {blob_id}");
-                    }
+                    FutureOrShutdownOutput::Output(()) | FutureOrShutdownOutput::Shutdown => {}
                 }
                 state.dec_nb_of_concurrent_blob_submissions();
             }

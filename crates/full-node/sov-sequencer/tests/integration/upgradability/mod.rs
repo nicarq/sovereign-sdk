@@ -211,13 +211,22 @@ async fn rollup_operates_only_on_finalized_blocks_if_stop_at_height_set(finaliza
 
     let mut current_height = get_height(&client).await.unwrap();
     let mut slot_subscription = test_rollup.client.client.subscribe_slots().await.unwrap();
-    while current_height.get() < stop_at_height.get() + finalization_blocks as u64 {
+    while current_height.get() < stop_at_height.get() {
         test_rollup.da_service.produce_block_now().await.unwrap();
         slot_subscription.next().await;
         // We need to wait a bit so the new block is visible to the sequencer.
         tokio::time::sleep(Duration::from_millis(500)).await;
         assert_rollup_processes_only_finalized_blocks(&client).await;
         current_height = get_height(&client).await.unwrap();
+    }
+
+    for _ in 0..finalization_blocks {
+        test_rollup.da_service.produce_block_now().await.unwrap();
+        slot_subscription.next().await;
+        tokio::time::sleep(Duration::from_millis(300)).await;
+        assert_rollup_processes_only_finalized_blocks(&client).await;
+        // Assert sequencer remains at the stop height
+        assert_eq!(get_height(&client).await.unwrap(), stop_at_height);
     }
 
     test_rollup.da_service.produce_block_now().await.unwrap();
@@ -384,6 +393,7 @@ async fn create_test_rollup(
                 .sequencer_config
                 .seq_da_address,
             genesis_params,
+            finalization_blocks,
             minimum_profit_per_tx,
             true,
             max_batch_size,
@@ -393,7 +403,6 @@ async fn create_test_rollup(
             1,
             MAX_BATCH_EXECUTION_TIME_MILLIS,
             stop_at_rollup_height,
-            finalization_blocks,
         )
         .await
         .map(|v| v.into_iter().next().unwrap()),

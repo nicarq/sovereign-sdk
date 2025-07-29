@@ -83,35 +83,6 @@ impl<S: Spec, Rt: Runtime<S>> TxResultWriter<S, Rt> {
         transaction_cache.cache.clear();
         transaction_cache.tx_hash_index.clear();
     }
-
-    pub async fn prune(&self, next_tx_number: u64) {
-        tracing::trace!(pruned_up_to = %next_tx_number, "Pruning transaction cache");
-        let mut transaction_cache = self.inner.write().await;
-        let TransactionCacheInner {
-            cache,
-            tx_hash_index,
-            event_numbers_index,
-            ..
-        } = &mut *transaction_cache;
-        let mut event_number_to_prune = None;
-        // Split off returns everything greater than or equal to the key, so call it and then do a swap so that the items we *don't* want to prune are in the new cache
-        // and the items we do want to prune are left behind in the struct.
-        let mut to_retain = cache.split_off(&next_tx_number);
-        std::mem::swap(&mut to_retain, cache);
-        let to_drop = to_retain; // Rename the variables to reflect the swap
-
-        // Iterate over the items we want to drop and remove them from the tx_hash_index and event_numbers_index
-        for tx in to_drop.values() {
-            tx_hash_index.remove(&tx.tx_hash);
-            if let Some(event_number) = tx.confirmation.events.last().map(|e| e.number) {
-                event_number_to_prune = Some(event_number);
-            }
-        }
-        if let Some(event_number) = event_number_to_prune {
-            let mut to_retain = event_numbers_index.split_off(&(event_number + 1)); // Retain everything after the last event number to prune
-            std::mem::swap(&mut to_retain, event_numbers_index);
-        }
-    }
 }
 
 #[derive(Debug)]
@@ -288,6 +259,35 @@ impl<S: Spec, Rt: Runtime<S>> TransactionCache<S, Rt> {
             pending_get_next_chunk: None,
         };
         Ok(Box::pin(stream))
+    }
+
+    pub async fn prune(&self, next_tx_number: u64) {
+        tracing::trace!(pruned_up_to = %next_tx_number, "Pruning transaction cache");
+        let mut transaction_cache = self.inner.write().await;
+        let TransactionCacheInner {
+            cache,
+            tx_hash_index,
+            event_numbers_index,
+            ..
+        } = &mut *transaction_cache;
+        let mut event_number_to_prune = None;
+        // Split off returns everything greater than or equal to the key, so call it and then do a swap so that the items we *don't* want to prune are in the new cache
+        // and the items we do want to prune are left behind in the struct.
+        let mut to_retain = cache.split_off(&next_tx_number);
+        std::mem::swap(&mut to_retain, cache);
+        let to_drop = to_retain; // Rename the variables to reflect the swap
+
+        // Iterate over the items we want to drop and remove them from the tx_hash_index and event_numbers_index
+        for tx in to_drop.values() {
+            tx_hash_index.remove(&tx.tx_hash);
+            if let Some(event_number) = tx.confirmation.events.last().map(|e| e.number) {
+                event_number_to_prune = Some(event_number);
+            }
+        }
+        if let Some(event_number) = event_number_to_prune {
+            let mut to_retain = event_numbers_index.split_off(&(event_number + 1)); // Retain everything after the last event number to prune
+            std::mem::swap(&mut to_retain, event_numbers_index);
+        }
     }
 }
 
@@ -641,7 +641,7 @@ mod tests {
         // Prune the cache to remove the first 105 txs. This forces the stream to fall back to the DB for those txs
         // Note that the range of txs in the cache will still overlap with the DB after pruning. That's intentional to test the
         // handling of that edge case.
-        cache.write_handle().prune(105).await;
+        cache.prune(105).await;
 
         let mut stream = cache
             .subscribe_starting_from_tx_number(Some(0))

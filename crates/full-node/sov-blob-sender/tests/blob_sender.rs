@@ -3,8 +3,7 @@ use std::time::Duration;
 
 use async_trait::async_trait;
 use sov_blob_sender::{
-    BlobExecutionStatus, BlobInternalId, BlobSelectorStatus, BlobSender, BlobSenderHooks,
-    FinalizationManager,
+    BlobInternalId, BlobSelectorStatus, BlobSender, BlobSenderHooks, FinalizationManager,
 };
 use sov_mock_da::storable::layer::StorableMockDaLayer;
 use sov_mock_da::storable::service::StorableMockDaService;
@@ -15,13 +14,12 @@ use sov_rollup_interface::da::BlobReaderTrait;
 use sov_rollup_interface::node::da::DaService;
 use sov_test_utils::logging::LogCollector;
 use tempfile::TempDir;
-use tokio::sync::{broadcast, watch, RwLock};
+use tokio::sync::{watch, RwLock};
 use tokio::task::JoinHandle;
 use tokio::time::sleep;
 use tracing::Level;
 use tracing_subscriber::prelude::*;
 use tracing_subscriber::registry;
-
 struct TestHooks {}
 
 #[async_trait]
@@ -95,7 +93,6 @@ async fn blob_sender_posts_data_to_da() -> anyhow::Result<()> {
         &storage_dir,
         da.clone(),
         shutdown_sender,
-        None,
     )
     .await;
 
@@ -135,51 +132,6 @@ async fn blob_sender_posts_data_to_da() -> anyhow::Result<()> {
 }
 
 #[tokio::test(flavor = "multi_thread")]
-async fn blob_sender_shutdown_task() -> anyhow::Result<()> {
-    let collector = LogCollector::new(Level::INFO);
-    let subscriber = registry().with(collector.clone());
-    subscriber.init();
-
-    let da_dir = tempfile::tempdir().unwrap();
-    let (shutdown_sender, _shutdown_receiver) = watch::channel(());
-    let da = create_da(&da_dir).await;
-    let storage_dir = tempfile::tempdir().unwrap();
-
-    let (status_sender, mut status_reciever) = broadcast::channel(100);
-
-    let (mut blob_sender, handle) = create_blob_sender(
-        Duration::from_secs(20),
-        &storage_dir,
-        da.clone(),
-        shutdown_sender.clone(),
-        Some(status_sender),
-    )
-    .await;
-
-    let _ = {
-        let blob_id = 11u8;
-        let data = Arc::new([blob_id, 2, 3, 4, 5]);
-        blob_sender
-            .publish_batch_blob(data.clone(), blob_id as BlobInternalId)
-            .await?;
-        data
-    };
-
-    // Wait for the blob task to start.
-    status_reciever.recv().await.unwrap();
-    shutdown_sender.send(()).unwrap();
-    handle.await.unwrap();
-
-    let mut records = collector.records();
-    let (_, log) = records.pop().unwrap();
-
-    // The blob task was canceled
-    assert!(log.contains("BlobSender: Shutting down task for"));
-
-    Ok(())
-}
-
-#[tokio::test(flavor = "multi_thread")]
 async fn blob_sender_resubmits_blobs_in_progress_after_restart() -> anyhow::Result<()> {
     let da_dir = tempfile::tempdir().unwrap();
     let (shutdown_sender, _shutdown_receiver) = watch::channel(());
@@ -193,7 +145,6 @@ async fn blob_sender_resubmits_blobs_in_progress_after_restart() -> anyhow::Resu
             &storage_dir,
             da.clone(),
             shutdown_sender.clone(),
-            None,
         )
         .await;
 
@@ -216,7 +167,6 @@ async fn blob_sender_resubmits_blobs_in_progress_after_restart() -> anyhow::Resu
             &storage_dir,
             da.clone(),
             shutdown_sender.clone(),
-            None,
         )
         .await;
 
@@ -259,7 +209,6 @@ async fn blob_sender_exit_if_blob_not_processed() -> anyhow::Result<()> {
         &storage_dir,
         da.clone(),
         shutdown_sender.clone(),
-        None,
     )
     .await;
 
@@ -305,7 +254,6 @@ async fn create_blob_sender(
     storage_dir: &TempDir,
     da: StorableMockDaService,
     shutdown_sender: watch::Sender<()>,
-    blob_status_sender: Option<broadcast::Sender<BlobExecutionStatus<MockDaSpec>>>,
 ) -> (
     BlobSender<StorableMockDaService, TestHooks, TestFinalizationManager<StorableMockDaService>>,
     JoinHandle<()>,
@@ -324,7 +272,7 @@ async fn create_blob_sender(
         hooks,
         shutdown_sender,
         blob_processing_timeout,
-        blob_status_sender,
+        None,
         Duration::from_millis(1000),
         Default::default(),
     )

@@ -50,10 +50,6 @@ pub trait CryptoSpec: PartialEq + Debug + Clone + Send + Sync + 'static {
     type Signature: Signature<PublicKey = Self::PublicKey>
         + serde::Serialize
         + for<'a> serde::Deserialize<'a>;
-
-    /// Get the Sovereign Labs admin public key for this crypto implementation.
-    /// This is used in modules like revenue share for admin operations.
-    fn sovereign_admin_pubkey() -> Self::PublicKey;
 }
 
 /// A complete Zkvm implementation.

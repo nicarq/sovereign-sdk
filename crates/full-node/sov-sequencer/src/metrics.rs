@@ -23,7 +23,7 @@ pub fn track_in_progress_batch_size(num_txs: u64) {
 #[derive(Debug)]
 pub struct PreferredSequencerUpdateStateMetrics {
     pub duration: std::time::Duration,
-    pub total_message_processing_duration: std::time::Duration,
+    pub lock_duration: std::time::Duration,
     pub batches_count: u64,
     pub transactions_count: u64,
     pub in_progress_batch: bool,
@@ -38,10 +38,10 @@ impl Metric for PreferredSequencerUpdateStateMetrics {
     fn serialize_for_telegraf(&self, buffer: &mut Vec<u8>) -> std::io::Result<()> {
         write!(
             buffer,
-            "{} duration_ms={},total_message_processing_duration_ms={},fetch_batches_duration_us={},batches_count={},transactions_count={},in_progress_batch={}",
+            "{} duration_ms={},lock_duration_ms={},fetch_batches_duration_us={},batches_count={},transactions_count={},in_progress_batch={}",
             self.measurement_name(),
             self.duration.as_millis(),
-            self.total_message_processing_duration.as_millis(),
+            self.lock_duration.as_millis(),
             self.time_spent_fetching_batches.as_micros(),
             self.batches_count,
             self.transactions_count,
@@ -53,7 +53,7 @@ impl Metric for PreferredSequencerUpdateStateMetrics {
 #[derive(Debug)]
 pub struct PreferredSequencerLockMetrics {
     pub duration: std::time::Duration,
-    pub reason: &'static str,
+    pub lock_reason: &'static str,
 }
 
 impl Metric for PreferredSequencerLockMetrics {
@@ -64,9 +64,9 @@ impl Metric for PreferredSequencerLockMetrics {
     fn serialize_for_telegraf(&self, buffer: &mut Vec<u8>) -> std::io::Result<()> {
         write!(
             buffer,
-            "{},reason={} duration_us={}",
+            "{},lock_reason={} duration_us={}",
             self.measurement_name(),
-            self.reason,
+            self.lock_reason,
             self.duration.as_micros(),
         )
     }
@@ -147,6 +147,7 @@ impl Metric for PreferredSequencerFetchBatchesToReplayMetrics {
 #[derive(Debug)]
 pub struct PreferredSequencerPruneMetrics {
     pub duration_ms: u64,
+    pub lock_duration_ms: u64,
 }
 
 impl Metric for PreferredSequencerPruneMetrics {
@@ -157,9 +158,10 @@ impl Metric for PreferredSequencerPruneMetrics {
     fn serialize_for_telegraf(&self, buffer: &mut Vec<u8>) -> std::io::Result<()> {
         write!(
             buffer,
-            "{} duration_ms={}",
+            "{} duration_ms={},lock_duration_ms={}",
             self.measurement_name(),
             self.duration_ms,
+            self.lock_duration_ms
         )
     }
 }

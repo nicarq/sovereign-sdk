@@ -94,37 +94,13 @@ pub fn enroll_router(
     });
 }
 
-pub fn register_basic_warp_route_and_enroll_router_with_rate_limiter(
-    runner: &mut TestRunner<RT, S>,
-    user: &TestUser<S>,
-    transferrable_tokens_limit: Amount,
-    limit_replenishment_per_slot: Amount,
-) -> WarpRouteId {
-    let warp_route_id = register_warp_route_with_ism_and_token_source_and_rate_limiter(
-        runner,
-        user,
-        Ism::AlwaysTrust,
-        TokenKind::Native,
-        transferrable_tokens_limit,
-        limit_replenishment_per_slot,
-    );
-    enroll_router(runner, user, warp_route_id);
-    warp_route_id
-}
-
 pub fn register_basic_warp_route_and_enroll_router_with_ism(
     runner: &mut TestRunner<RT, S>,
     user: &TestUser<S>,
     ism: Ism,
 ) -> WarpRouteId {
-    let warp_route_id = register_warp_route_with_ism_and_token_source_and_rate_limiter(
-        runner,
-        user,
-        ism,
-        TokenKind::Native,
-        Amount::MAX,
-        Amount::MAX,
-    );
+    let warp_route_id =
+        register_warp_route_with_ism_and_token_source(runner, user, ism, TokenKind::Native);
     enroll_router(runner, user, warp_route_id);
     warp_route_id
 }
@@ -134,24 +110,6 @@ pub fn register_warp_route_with_ism_and_token_source(
     user: &TestUser<S>,
     ism: Ism,
     token_source: TokenKind,
-) -> WarpRouteId {
-    register_warp_route_with_ism_and_token_source_and_rate_limiter(
-        runner,
-        user,
-        ism,
-        token_source,
-        Amount::MAX,
-        Amount::MAX,
-    )
-}
-
-pub fn register_warp_route_with_ism_and_token_source_and_rate_limiter(
-    runner: &mut TestRunner<RT, S>,
-    user: &TestUser<S>,
-    ism: Ism,
-    token_source: TokenKind,
-    transferrable_tokens_limit: Amount,
-    limit_replenishment_per_slot: Amount,
 ) -> WarpRouteId {
     // The borrow checker doesn't know that the closure runs before the end of execute transaction, so it complains about lifetimes
     // if we don't Arc the warp route id
@@ -163,10 +121,6 @@ pub fn register_warp_route_with_ism_and_token_source_and_rate_limiter(
             token_source,
             ism,
             remote_routers: SafeVec::new(),
-            inbound_transferrable_tokens_limit: transferrable_tokens_limit,
-            inbound_limit_replenishment_per_slot: limit_replenishment_per_slot,
-            outbound_transferrable_tokens_limit: transferrable_tokens_limit,
-            outbound_limit_replenishment_per_slot: limit_replenishment_per_slot,
         }),
         assert: Box::new(move |result, _| {
             assert!(

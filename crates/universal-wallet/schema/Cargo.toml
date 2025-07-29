@@ -20,7 +20,7 @@ serde_json = { workspace = true, optional = true }
 serde = { workspace = true, optional = true }
 # Re-exporting the macro
 sov-universal-wallet-macros = { workspace = true, optional = true }
-schemars = { workspace = true, optional = true }                    # for SafeString
+schemars = { workspace = true, optional = true } # for SafeString
 
 [dev-dependencies]
 borsh = { workspace = true }
@@ -32,14 +32,13 @@ serde_with = { workspace = true }
 serde = { workspace = true }
 
 [features]
-test-vectors = []
 macros = ["sov-universal-wallet-macros"]
 serde = [
-  "dep:serde",
-  "schemars",
-  "serde_json",
-  "sov-universal-wallet/serde",
-  "nmt-rs/serde",
-  "arrayvec?/serde",
-  "hex/serde",
+	"dep:serde",
+	"schemars",
+	"serde_json",
+	"sov-universal-wallet/serde",
+	"nmt-rs/serde",
+	"arrayvec?/serde",
+	"hex/serde"
 ]

@@ -8,7 +8,7 @@ use tracing::{error, warn};
 
 use super::executor_events::ExecutorEvent;
 use crate::metrics::PreferredSequencerExecutorEventMetrics;
-use crate::preferred::db::BatchToStore;
+use crate::preferred::db::{BatchToStore, DatabaseWriteOutcome};
 use crate::preferred::executor_events::AcceptedTxEventContents;
 use crate::preferred::transaction_subscriptions::TxResultWriter;
 use crate::preferred::{
@@ -60,7 +60,11 @@ where
         batch: PreferredSequencerReadBatch,
         info_to_store: BatchToStore,
     ) -> anyhow::Result<()> {
-        self.db.terminate_batch(info_to_store).await?;
+        let DatabaseWriteOutcome::Success(()) = self.db.terminate_batch(info_to_store).await?
+        else {
+            // We're no longer master, nothing more to do
+            return Ok(());
+        };
         self.update_api_state(checkpoint);
 
         // Publish the batch.
@@ -118,7 +122,8 @@ where
                         tracing::debug!(tx_hash = %tx.accepted_tx.tx_hash, "Transaction was accepted by the sequencer");
                     }
                 }
-                self.db
+                match self
+                    .db
                     .bulk_insert_txs(
                         txs_to_insert
                             .iter()
@@ -132,15 +137,23 @@ where
                         sequence_number,
                         tx_idx_within_batch,
                     )
-                    .await?;
-
-                for contents in txs_to_insert {
-                    self.transaction_cache
-                        .insert(contents.accepted_tx.clone())
-                        .await;
-                    // If the receiver is no longer listening, just don't send the confirmation.
-                    let _ = contents.oneshot_sender.send(contents.accepted_tx);
-                    self.update_api_state_with_changes(contents.tx_changes);
+                    .await?
+                {
+                    DatabaseWriteOutcome::Success(()) => {
+                        for contents in txs_to_insert {
+                            self.transaction_cache
+                                .insert(contents.accepted_tx.clone())
+                                .await;
+                            // If the receiver is no longer listening, just don't send the confirmation.
+                            let _ = contents.oneshot_sender.send(Some(contents.accepted_tx));
+                            self.update_api_state_with_changes(contents.tx_changes);
+                        }
+                    }
+                    DatabaseWriteOutcome::AbortedBecauseReplica => {
+                        for contents in txs_to_insert {
+                            let _ = contents.oneshot_sender.send(None);
+                        }
+                    }
                 }
             }
             ExecutorEvent::CloseBatch(batch, checkpoint) => {
@@ -201,6 +214,14 @@ where
             }
             ExecutorEvent::PruneDb(sequence_number) => {
                 self.db.prune(sequence_number).await?;
+            }
+            ExecutorEvent::UpdateMasterStatus {
+                is_master,
+                blobs_to_flush,
+            } => {
+                self.db.set_is_master(is_master);
+                self.blob_sender.set_is_master(is_master);
+                self.blob_sender.publish_blobs(blobs_to_flush).await?;
             }
             ExecutorEvent::UpdateStateForRecovery(checkpoint) => {
                 self.update_api_state(checkpoint);

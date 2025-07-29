@@ -90,9 +90,6 @@ impl RollupDbConfig {
 
     pub(crate) fn get_user_options(&self) -> Options {
         let mut opts = nomt_default_options();
-        // Enabling rollback for user space too, to be able to sync with the historical state.
-        opts.rollback(true);
-        opts.max_rollback_log_len(1);
         opts.commit_concurrency(
             self.user_commit_concurrency
                 .expect("`user_commit_concurrency` must be set"),

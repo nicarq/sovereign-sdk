@@ -1,23 +1,16 @@
 use schemars::JsonSchema;
-use sov_address::EthereumAddress;
 use sov_bank::{Amount, Bank, IntoPayable, TokenId};
-use sov_mock_da::{MockAddress, MockDaSpec};
-use sov_mock_zkvm::MockZkvm;
-use sov_modules_api::configurable_spec::ConfigurableSpec;
-use sov_modules_api::execution_mode::Native;
 use sov_modules_api::macros::{serialize, UniversalWallet};
-use sov_modules_api::{Context, CryptoSpec, Module, ModuleInfo, Spec};
-use sov_revenue_share::{CallMessage as RevenueShareCallMessage, RevenueShare};
+use sov_modules_api::{Module, ModuleInfo, Spec};
+use sov_revenue_share::{
+    CallMessage as RevenueShareCallMessage, GenesisConfig as RevenueShareGenesisConfig,
+    RevenueShare,
+};
 use sov_test_utils::runtime::genesis::optimistic::HighLevelOptimisticGenesisConfig;
 use sov_test_utils::runtime::TestRunner;
 use sov_test_utils::{generate_optimistic_runtime, AsUser, TestUser, TransactionTestCase};
 
-use crate::test_helpers::TestCryptoSpec;
-
-type TestSpec =
-    ConfigurableSpec<MockDaSpec, MockZkvm, MockZkvm, EthereumAddress, Native, TestCryptoSpec>;
-
-type S = TestSpec;
+type S = sov_test_utils::TestSpec;
 
 // Generate a runtime that includes revenue share module and the test helper
 generate_optimistic_runtime!(
@@ -51,7 +44,6 @@ pub enum TestHelperCallMessage<S: Spec> {
         total_revenue: Amount,
         from: S::Address,
     },
-    CheckIsPreferredSequencer,
 }
 
 impl<S: Spec> Module for TestHelper<S> {
@@ -63,7 +55,7 @@ impl<S: Spec> Module for TestHelper<S> {
     fn call(
         &mut self,
         msg: Self::CallMessage,
-        context: &sov_modules_api::Context<S>,
+        _context: &sov_modules_api::Context<S>,
         state: &mut impl sov_modules_api::TxState<S>,
     ) -> anyhow::Result<()> {
         match msg {
@@ -84,14 +76,6 @@ impl<S: Spec> Module for TestHelper<S> {
                 total_revenue,
                 state,
             ),
-            TestHelperCallMessage::CheckIsPreferredSequencer => {
-                let is_preferred = self.revenue_share.is_preferred_sequencer(context, state);
-                if is_preferred {
-                    Ok(())
-                } else {
-                    anyhow::bail!("Not preferred sequencer")
-                }
-            }
         }
     }
 }
@@ -105,32 +89,29 @@ struct TestSetup {
 
 fn setup() -> (TestSetup, TestRunner<RT, S>) {
     // Generate genesis config with accounts
-    let mut genesis_config =
-        HighLevelOptimisticGenesisConfig::generate().add_accounts_with_default_balance(2);
+    let genesis_config =
+        HighLevelOptimisticGenesisConfig::generate().add_accounts_with_default_balance(3);
 
-    let regular_user = genesis_config
+    let admin_user = genesis_config
         .additional_accounts()
         .first()
         .unwrap()
         .clone();
-    let operator_user = genesis_config.additional_accounts().get(1).unwrap().clone();
-
-    let priv_key = serde_json::from_str::<<TestCryptoSpec as CryptoSpec>::PrivateKey>(
-        r#""0d87c12ea7c12024b3f70a26d735874608f17c8bce2b48e6fe87389310191264""#,
-    )
-    .unwrap();
-    let admin_user = TestUser::<TestSpec>::new(priv_key, sov_test_utils::TEST_DEFAULT_USER_BALANCE);
-
-    genesis_config
-        .additional_accounts_mut()
-        .push(admin_user.clone());
+    let regular_user = genesis_config.additional_accounts().get(1).unwrap().clone();
+    let operator_user = genesis_config.additional_accounts().get(2).unwrap().clone();
 
     let token_id = sov_bank::config_gas_token_id();
 
     // Build the runtime-specific genesis config with revenue share config
     let minimal_config: sov_test_utils::runtime::genesis::optimistic::MinimalOptimisticGenesisConfig<S> = genesis_config.into();
 
-    let genesis_config = GenesisConfig::from_minimal_config(minimal_config, (), ());
+    let genesis_config = GenesisConfig::from_minimal_config(
+        minimal_config,
+        RevenueShareGenesisConfig {
+            sovereign_admin: admin_user.address(),
+        },
+        (),
+    );
     let runner = TestRunner::new_with_genesis(genesis_config.into_genesis_params(), RT::default());
 
     let test_setup = TestSetup {
@@ -317,7 +298,7 @@ fn test_update_sovereign_admin() {
         let admin = runner
             .runtime()
             .revenue_share_module
-            .sovereign_admin_override
+            .sovereign_admin
             .get(state)
             .unwrap()
             .unwrap();
@@ -611,49 +592,5 @@ fn test_withdraw_rewards() {
                 .unwrap();
             assert_eq!(actual_operator_balance, expected_operator_balance);
         }),
-    });
-}
-
-#[test]
-fn test_is_preferred_sequencer() {
-    use std::str::FromStr;
-
-    use sov_modules_api::transaction::Credentials;
-
-    let (setup, mut runner) = setup();
-
-    // Default sequencer should be the preferred sequencer in test setup
-    runner.execute_transaction(TransactionTestCase {
-        input: setup
-            .regular_user
-            .create_plain_message::<RT, TestHelper<S>>(
-                TestHelperCallMessage::CheckIsPreferredSequencer,
-            ),
-        assert: Box::new(|result, _state| {
-            // Should succeed because default test runner uses preferred sequencer
-            assert!(result.tx_receipt.is_successful());
-        }),
-    });
-
-    // Test with a random address that's neither preferred nor registered
-    runner.query_state(|state| {
-        let revenue_share = RevenueShare::<S>::default();
-
-        // Create a mock address that is not the preferred sequencer
-        let random_address =
-            EthereumAddress::from_str("0x71334bf1710D12c9f689cC819476fA589F08C64C").unwrap();
-        let random_da_address = MockAddress::from([99; 32]);
-        let ctx = Context::<S>::new(
-            random_address,
-            Credentials::default(),
-            random_address,
-            random_da_address,
-        );
-
-        let is_preferred = revenue_share.is_preferred_sequencer(&ctx, state);
-        assert!(
-            !is_preferred,
-            "Random address should not be preferred sequencer"
-        );
     });
 }

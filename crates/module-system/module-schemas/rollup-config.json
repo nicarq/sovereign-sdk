@@ -337,17 +337,19 @@
           "format": "uint",
           "minimum": 0.0
         },
+        "failover_threshold_millis": {
+          "description": "Time in milliseconds after which a replica will attempt to become the master if no heartbeat is observed. No effect if postgres_connection_string is not set.",
+          "default": 500,
+          "type": "integer",
+          "format": "uint64",
+          "minimum": 0.0
+        },
         "ideal_lag_behind_finalized_slot": {
           "description": "The ideal lag behind the finalized slot number.",
           "default": 10,
           "type": "integer",
           "format": "uint64",
           "minimum": 0.0
-        },
-        "is_replica": {
-          "description": "When enabled, the sequencer runs in replica mode and cannot accept transactions. It will sync from the master sequencer's database but remain read-only.",
-          "default": false,
-          "type": "boolean"
         },
         "minimum_profit_per_tx": {
           "description": "The minimum fee that the preferred sequencer is willing to accept, denominated in rollup tokens. Defaults to zero. Sequencers should set this to a non-zero value if they wish to cover their DA costs.",

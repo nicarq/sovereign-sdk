@@ -9,12 +9,18 @@ use sov_blob_storage::SequenceNumber;
 use sov_modules_api::{FullyBakedTx, TxHash};
 use sqlx::postgres::{PgPool, PgPoolOptions};
 use sqlx::{PgConnection, Postgres};
+use uuid::Uuid;
 
-use super::{DbSnapshotData, PreferredSequencerDbBackend, PreferredSequencerReadBlob, StoredBlob};
+use super::{
+    DatabaseWriteOutcome, DbSnapshotData, PreferredSequencerDbBackend, PreferredSequencerReadBlob,
+    StoredBlob,
+};
 use crate::preferred::db::{BatchToStore, InProgressBatch};
 
 pub struct PostgresBackend {
     pool: PgPool,
+    /// Node ID for master verification during write operations
+    node_id: Uuid,
     backoff_policy: ExponentialBuilder,
 }
 
@@ -46,7 +52,7 @@ macro_rules! run_with_retries {
 }
 
 impl PostgresBackend {
-    pub async fn connect(connection_string: &str) -> anyhow::Result<Self> {
+    pub async fn connect(connection_string: &str, node_id: Uuid) -> anyhow::Result<Self> {
         // This backoff policy should usually terminate in a second.
         // Running the numbers... We do 8 retries, doubling the sleep each time that yields 256ms max delay and an average delay of ~50ms
         // So total runtime is ~400 ms of sleeping. If we also account for 50ms latency on each roundtrip, we get about 800ms total time
@@ -71,6 +77,7 @@ impl PostgresBackend {
 
         Ok(Self {
             pool,
+            node_id,
             backoff_policy,
         })
     }
@@ -219,7 +226,7 @@ impl PreferredSequencerDbBackend for PostgresBackend {
         blob_id: BlobInternalId,
         visible_slot_number_after_increase: sov_modules_api::VisibleSlotNumber,
         visible_slots_to_advance: NonZero<u8>,
-    ) -> anyhow::Result<()> {
+    ) -> anyhow::Result<DatabaseWriteOutcome<()>> {
         let blob_data = borsh::to_vec(&StoredBlob::Batch {
             blob_id,
             visible_slot_number_after_increase,
@@ -227,22 +234,33 @@ impl PreferredSequencerDbBackend for PostgresBackend {
         })?;
 
         // Compound CTE statement to avoid multiple roundtrips
-        run_with_retries!(
+        let result = run_with_retries!(
             &self.backoff_policy,
             sqlx::query(
-                "WITH batch_insert AS (
-                    INSERT INTO in_progress_batch (sequence_number, borsh_value) VALUES ($1, $2)
+                "WITH master_check AS (
+                    SELECT 1 FROM sequencer_leader 
+                    WHERE singleton = 1 AND node_id = $3
+                ),
+                batch_insert AS (
+                    INSERT INTO in_progress_batch (sequence_number, borsh_value) 
+                    SELECT $1, $2 FROM master_check
                 )
-             INSERT INTO events (sequence_number, event_type, index_in_batch, hash, data) 
-             SELECT $1, 'batch_start', NULL, NULL, $2",
+                INSERT INTO events (sequence_number, event_type, index_in_batch, hash, data) 
+                SELECT $1, 'batch_start', NULL, NULL, $2 FROM master_check",
             )
             .bind(i64::try_from(sequence_number)?)
             .bind::<&[u8]>(blob_data.as_ref())
+            .bind(self.node_id)
             .execute(&self.pool),
             "postgres_db_backend_begin_rollup_block"
         )?;
 
-        Ok(())
+        if result.rows_affected() == 0 {
+            // Master check failed, no effect
+            return Ok(DatabaseWriteOutcome::AbortedBecauseReplica);
+        }
+
+        Ok(DatabaseWriteOutcome::Success(()))
     }
 
     async fn batch_add_txs(
@@ -250,7 +268,7 @@ impl PreferredSequencerDbBackend for PostgresBackend {
         sequence_number: SequenceNumber,
         tx_idx_within_batch: u64,
         txs: &[(FullyBakedTx, TxHash)],
-    ) -> anyhow::Result<()> {
+    ) -> anyhow::Result<DatabaseWriteOutcome<()>> {
         let start = i64::try_from(tx_idx_within_batch)?;
         let end = start + txs.len() as i64;
         let sequence_number = vec![i64::try_from(sequence_number)?; txs.len()];
@@ -258,21 +276,33 @@ impl PreferredSequencerDbBackend for PostgresBackend {
         let tx_indexes = (start..end).collect::<Vec<_>>();
         let hashes = txs.iter().map(|(_, hash)| hash.0).collect::<Vec<_>>();
         let txs = txs.iter().map(|(tx, _)| &tx.data).collect::<Vec<_>>();
-        run_with_retries!(
+        let result = run_with_retries!(
             &self.backoff_policy,
             sqlx::query::<Postgres>(
-                "INSERT INTO events (sequence_number, event_type, index_in_batch, hash, data)
-                SELECT * FROM UNNEST($1::bigint[], $2::event_type[], $3::bigint[], $4::bytea[], $5::bytea[])"
+                "WITH master_check AS (
+                    SELECT 1 FROM sequencer_leader 
+                    WHERE singleton = 1 AND node_id = $6
+                )
+                INSERT INTO events (sequence_number, event_type, index_in_batch, hash, data)
+                SELECT * FROM UNNEST($1::bigint[], $2::event_type[], $3::bigint[], $4::bytea[], $5::bytea[])
+                WHERE EXISTS (SELECT 1 FROM master_check)"
             )
             .bind(&sequence_number[..])
             .bind(&event_types[..])
             .bind(&tx_indexes[..])
             .bind(&hashes[..])
             .bind(&txs[..])
+            .bind(self.node_id)
             .execute(&self.pool),
             "postgres_db_backend_add_tx"
         )?;
-        Ok(())
+
+        if result.rows_affected() == 0 {
+            // Master check failed, no effect
+            return Ok(DatabaseWriteOutcome::AbortedBecauseReplica);
+        }
+
+        Ok(DatabaseWriteOutcome::Success(()))
     }
 
     async fn add_tx(
@@ -281,24 +311,36 @@ impl PreferredSequencerDbBackend for PostgresBackend {
         tx_index_within_batch: u64,
         tx: FullyBakedTx,
         hash: TxHash,
-    ) -> anyhow::Result<()> {
-        run_with_retries!(
+    ) -> anyhow::Result<DatabaseWriteOutcome<()>> {
+        let result = run_with_retries!(
             &self.backoff_policy,
             sqlx::query::<Postgres>(
-                "INSERT INTO events (sequence_number, event_type, index_in_batch, hash, data) VALUES ($1, 'transaction', $2, $3, $4)",
+                "INSERT INTO events (sequence_number, event_type, index_in_batch, hash, data) 
+                SELECT $1, 'transaction', $2, $3, $4 
+                FROM sequencer_leader 
+                WHERE singleton = 1 AND node_id = $5",
             )
             .bind(i64::try_from(sequence_number)?)
             .bind(i64::try_from(tx_index_within_batch)?)
             .bind::<&[u8]>(hash.as_ref())
             .bind(&tx.data)
+            .bind(self.node_id)
             .execute(&self.pool),
             "postgres_db_backend_add_tx"
         )?;
 
-        Ok(())
+        if result.rows_affected() == 0 {
+            // Master check failed, no effect
+            return Ok(DatabaseWriteOutcome::AbortedBecauseReplica);
+        }
+
+        Ok(DatabaseWriteOutcome::Success(()))
     }
 
-    async fn end_rollup_block(&mut self, cached: BatchToStore) -> anyhow::Result<()> {
+    async fn end_rollup_block(
+        &mut self,
+        cached: BatchToStore,
+    ) -> anyhow::Result<DatabaseWriteOutcome<()>> {
         let sequence_number = cached.sequence_number;
         let stored_blob: StoredBlob = cached.into();
         let blob_data = borsh::to_vec(&stored_blob)?;
@@ -306,26 +348,43 @@ impl PreferredSequencerDbBackend for PostgresBackend {
         // Compound CTE statement to avoid multiple roundtrips
         let result = run_with_retries!(
             &self.backoff_policy,
-            sqlx::query(
-                "WITH batch_delete AS (
+            sqlx::query_as::<Postgres, (bool, i64)>(
+                "WITH master_check AS (
+                    SELECT CASE WHEN node_id = $3 THEN true ELSE false END as is_master
+                    FROM sequencer_leader WHERE singleton = 1
+                ),
+                batch_delete AS (
                     DELETE FROM in_progress_batch
-                RETURNING 1
-            )
-            INSERT INTO events (sequence_number, event_type, index_in_batch, hash, data) 
-            SELECT $1, 'batch_end', NULL, NULL, $2
-            FROM batch_delete",
+                    WHERE (SELECT is_master FROM master_check) = true
+                    RETURNING 1
+                ),
+                event_insert AS (
+                    INSERT INTO events (sequence_number, event_type, index_in_batch, hash, data) 
+                    SELECT $1, 'batch_end', NULL, NULL, $2
+                    FROM batch_delete
+                    RETURNING 1
+                )
+                SELECT 
+                (SELECT is_master FROM master_check) as master_status,
+                (SELECT COUNT(*) FROM event_insert) as operations_completed",
             )
             .bind(i64::try_from(sequence_number)?)
             .bind::<&[u8]>(blob_data.as_ref())
-            .execute(&self.pool),
+            .bind(self.node_id)
+            .fetch_one(&self.pool),
             "postgres_db_backend_end_rollup_block"
         )?;
 
-        if result.rows_affected() == 0 {
-            return Err(anyhow::anyhow!("No in-progress batch found to end"));
-        }
+        let (is_master, operations_completed) = result;
 
-        Ok(())
+        match (is_master, operations_completed) {
+            (false, _) => Ok(DatabaseWriteOutcome::AbortedBecauseReplica),
+            (true, 0) => Err(anyhow::anyhow!(
+                "No in-progress batch found to end - data inconsistency"
+            )),
+            (true, 1) => Ok(DatabaseWriteOutcome::Success(())),
+            (true, n) => Err(anyhow::anyhow!("Unexpected operations count: {}", n)),
+        }
     }
 
     async fn prune(&mut self, up_to_including: SequenceNumber) -> anyhow::Result<()> {
@@ -333,12 +392,19 @@ impl PreferredSequencerDbBackend for PostgresBackend {
         run_with_retries!(
             &self.backoff_policy,
             sqlx::query(
-                "WITH blobs_deleted AS (
-                    DELETE FROM proof_blobs WHERE sequence_number <= $1
-             )
-             DELETE FROM events WHERE sequence_number <= $1",
+                "WITH master_check AS (
+                    SELECT 1 FROM sequencer_leader 
+                    WHERE singleton = 1 AND node_id = $2
+                ),
+                blobs_deleted AS (
+                    DELETE FROM proof_blobs 
+                    WHERE sequence_number <= $1 AND EXISTS (SELECT 1 FROM master_check)
+                )
+                DELETE FROM events 
+                WHERE sequence_number <= $1 AND EXISTS (SELECT 1 FROM master_check)",
             )
             .bind(i64::try_from(up_to_including)?)
+            .bind(self.node_id)
             .execute(&self.pool),
             "postgres_db_backend_prune"
         )?;
@@ -356,26 +422,37 @@ impl PreferredSequencerDbBackend for PostgresBackend {
         sequence_number: SequenceNumber,
         blob_id: BlobInternalId,
         data: Arc<[u8]>,
-    ) -> anyhow::Result<()> {
+    ) -> anyhow::Result<DatabaseWriteOutcome<()>> {
         let blob_data = borsh::to_vec(&StoredBlob::Proof { data, blob_id })?;
 
         // Compound CTE statement to avoid multiple roundtrips
-        run_with_retries!(
+        let result = run_with_retries!(
             &self.backoff_policy,
             sqlx::query(
-                "WITH blob_insert AS (
-                    INSERT INTO proof_blobs (sequence_number, borsh_value) VALUES ($1, $2)
-             )
-             INSERT INTO events (sequence_number, event_type, index_in_batch, hash, data) 
-             SELECT $1, 'new_proof', NULL, NULL, NULL",
+                "WITH master_check AS (
+                    SELECT 1 FROM sequencer_leader 
+                    WHERE singleton = 1 AND node_id = $3
+                ),
+                blob_insert AS (
+                    INSERT INTO proof_blobs (sequence_number, borsh_value) 
+                    SELECT $1, $2 FROM master_check
+                )
+                INSERT INTO events (sequence_number, event_type, index_in_batch, hash, data) 
+                SELECT $1, 'new_proof', NULL, NULL, NULL FROM master_check",
             )
             .bind(i64::try_from(sequence_number)?)
             .bind::<&[u8]>(blob_data.as_ref())
+            .bind(self.node_id)
             .execute(&self.pool),
             "postgres_db_backend_add_proof_blob"
         )?;
 
-        Ok(())
+        if result.rows_affected() == 0 {
+            // Master check failed, no effect
+            return Ok(DatabaseWriteOutcome::AbortedBecauseReplica);
+        }
+
+        Ok(DatabaseWriteOutcome::Success(()))
     }
 
     async fn current_data(&self) -> anyhow::Result<DbSnapshotData> {

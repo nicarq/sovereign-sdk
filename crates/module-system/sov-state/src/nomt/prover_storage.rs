@@ -114,8 +114,7 @@ where
     /// Strict mode implies that `latest_version()` is the **total latest** version,
     /// not the latest known to this storage.
     fn should_check_dbs_sync(&self, version_to_use: SlotNumber) -> bool {
-        cfg!(debug_assertions) &&
-            self.is_strict_mode
+        self.is_strict_mode
             // latest version can be equal to genesis in 2 cases: pre-genesis and at genesis.
             // Since genesis is a special case and not covered by normal stf transition,
             // we exclude this case for simpler testing.

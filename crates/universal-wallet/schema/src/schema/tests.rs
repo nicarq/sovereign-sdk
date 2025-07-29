@@ -19,39 +19,11 @@ mod sov_rollup_interface {
     pub use sov_universal_wallet;
 }
 
-#[derive(Debug, Serialize)]
-struct TestVector {
-    /// The JSON object to be serialized to borsh
-    input: String,
-    /// The resulting borsh encoding as a hex string
-    output: String,
-    /// The universal wallet schema as a JSON string
-    schema: String,
-}
-
 // TODO: there's probably a better way than nested macros
 macro_rules! encode_decode_tests_simple {
     ($schema:ident, $item:ident, $expected_display:literal) => {
         let borsh_ser = borsh::to_vec(&$item).unwrap();
         let json = serde_json::to_string(&$item).unwrap();
-
-        if cfg!(feature = "test-vectors") {
-            let dir = std::env::var("SOV_UNIVERSAL_WALLET_TEST_VECTORS_DIR")
-                .unwrap_or_else(|_| "test-vectors".to_string());
-            std::fs::create_dir_all(&dir).unwrap();
-
-            let th = std::thread::current();
-            let test_name = th.name().unwrap();
-            let vector = TestVector {
-                input: json.clone(),
-                output: hex::encode(&borsh_ser),
-                schema: serde_json::to_string(&$schema).unwrap(),
-            };
-
-            let file = format!("{dir}/{test_name}.json");
-            std::fs::write(file, serde_json::to_string_pretty(&vector).unwrap()).unwrap();
-        }
-
         // println!("{}", json);
         assert_eq!($schema.display(0, &borsh_ser).unwrap(), $expected_display);
         assert_eq!($schema.json_to_borsh(0, &json).unwrap(), borsh_ser);
