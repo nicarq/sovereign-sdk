@@ -55,7 +55,7 @@ use sov_rollup_interface::node::DaSyncState;
 use sov_rollup_interface::TxHash;
 use state_root_compute::StateRootBackgroundTaskState;
 use tokio::sync::mpsc::{self, Sender};
-use tokio::sync::{broadcast, watch};
+use tokio::sync::{broadcast, oneshot, watch, Mutex};
 use tokio::task::JoinHandle;
 use tokio::time::sleep;
 use tracing::{debug, error, info, trace};
@@ -198,7 +198,7 @@ where
             } else {
                 Box::new(RocksDbBackend::new(storage_path).await?)
             };
-        let (db, latest_db_event_id, next_sequence_number, db_cache) =
+        let (db, _latest_db_event_id, next_sequence_number, db_cache) =
             PreferredSequencerDb::<S, Rt>::new(
                 db_backend,
                 shutdown_sender.clone(),
@@ -275,6 +275,8 @@ where
             startup_transaction_cache_writer: None, // The main executor must *not* write to the tx cache. That's handled by the side effects task
         };
 
+        let (replica_startup_sync_notifer, replica_startup_sync_receiver) = oneshot::channel();
+
         let tx_queue_id = Arc::new(AtomicU64::new(0));
         let (synchronized_state, synchronized_state_updator) = create(
             latest_state_update.clone(),
@@ -287,6 +289,7 @@ where
             executor_events_sender,
             next_sequence_number,
             in_flight_blobs,
+            replica_startup_sync_notifer,
             stop_at_rollup_height,
         );
 
@@ -333,8 +336,8 @@ where
                 spawn_replica_sync_task(
                     seq.clone(),
                     shutdown_receiver.clone(),
-                    latest_state_update.clone(),
-                    latest_db_event_id,
+                    connection_string.clone(),
+                    replica_startup_sync_receiver
                 )
                 .await,
             );
@@ -535,6 +538,7 @@ where
                     self.transaction_cache.write_handle(),
                     info,
                     self.da_sync_state.clone(),
+                    self.is_master().await,
                     "wait_for_node_resync",
                 )
                 .await;
@@ -667,6 +671,10 @@ pub(crate) enum PreferredSeqOperation {
     // This is by far the most common scenario, i.e. a nominal
     // `update_state` call during sequencer execution with no unusual
     // conditions.
+    // (is_startup_or_resync, time_spent_fetching_batches)
+    // * is_startup_or_resync: true if the node just started, or just finished resyncing. This is
+    //   needed to update caches (i.e. the transaction_cache).
+    // * time_spent_fetching_batches: for metrics.
     ReplaySoftConfirmationsOnTopOfNodeState(bool, Duration),
 }
 
@@ -746,13 +754,14 @@ where
         }
 
         PreferredSeqOperation::ReplaySoftConfirmationsOnTopOfNodeState(
-            is_startup,
+            is_startup_or_resync,
             time_spent_fetching_batches,
         ) => {
             seq.replay_soft_confirmations_on_top_of_node_state(
                 info,
                 timer_start,
-                is_startup,
+                is_startup_or_resync,
+                seq.is_master().await,
                 time_spent_fetching_batches,
             )
             .await?;

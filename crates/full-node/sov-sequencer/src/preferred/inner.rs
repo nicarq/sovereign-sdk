@@ -7,10 +7,9 @@ use std::time::Duration;
 use anyhow::anyhow;
 use sov_blob_sender::BlobInternalId;
 use sov_blob_storage::SequenceNumber;
-use sov_modules_api::capabilities::RollupHeight;
+use sov_modules_api::capabilities::{RollupHeight, BlobSelector};
 use sov_modules_api::{
-    DaSyncState, FullyBakedTx, GasArray, GasSpec, Runtime, Spec, StateCheckpoint, StateUpdateInfo,
-    VersionReader, VisibleSlotNumber,
+    DaSyncState, FullyBakedTx, GasArray, GasSpec, KernelStateAccessor, Runtime, Spec, StateCheckpoint, StateUpdateInfo, VersionReader, VisibleSlotNumber
 };
 use sov_state::{NativeStorage, Storage};
 use tokio::sync::{mpsc, oneshot, watch};
@@ -57,6 +56,12 @@ const CHANNEL_SIZE: usize = 128;
 type AcceptTxRet<S, Rt> =
     Result<oneshot::Receiver<AcceptedTx<Confirmation<S, Rt>>>, AcceptTxError<S>>;
 
+/// The `Inner` sends the latest processed slot number when it finishes the starting sync.
+pub enum HasFinishedStartup {
+    No(oneshot::Sender<SequenceNumber>),
+    Yes
+}
+
 /// A inner sequencer struct containing state that requires synchronized access.
 /// This struct accepts/rejects transactions, then hands them to the side effects task
 /// to be persisted.
@@ -76,7 +81,7 @@ where
     in_flight_blobs: Arc<AtomicUsize>,
     executor_events_sender: ExecutorEventsSender<S, Rt>,
     sequence_number_of_next_blob: SequenceNumber,
-    /// A boolean that indicates whether the sequencer has finished its startup phase.
+    /// Indicates whether the sequencer has finished its startup phase.
     /// We need this rather than relying on `SequencerNotReadyDetails::Startup` because that state
     /// can be overwritten when the node is resyncing.
     has_finished_startup: bool,
@@ -774,6 +779,7 @@ pub(crate) fn create<S, Rt>(
     executor_events_sender: ExecutorEventsSender<S, Rt>,
     sequence_number_of_next_blob: SequenceNumber,
     in_flight_blobs: Arc<AtomicUsize>,
+    startup_notifier: oneshot::Sender<SequenceNumber>,
     stop_at_rollup_height: Option<RollupHeight>,
 ) -> (
     SynchronizedSequencerState<S, Rt>,
@@ -803,7 +809,7 @@ where
         executor_events_sender,
         sequence_number_of_next_blob,
         in_flight_blobs,
-        has_finished_startup: false,
+        has_finished_startup: HasFinishedStartup::No(startup_notifier),
         metrics: Vec::with_capacity(128),
         is_ready,
         stop_at_rollup_height,
@@ -1012,6 +1018,7 @@ where
         transaction_cache_write_handle: TxResultWriter<S, Rt>,
         info: StateUpdateInfo<S::Storage>,
         da_sync_state: Arc<DaSyncState>,
+        is_master: bool,
         reason: &'static str,
     ) {
         self.send(Message::WaitNodeResync {
@@ -1019,6 +1026,7 @@ where
             transaction_cache_write_handle,
             info,
             da_sync_state,
+            is_master,
             reason,
         })
         .await;
@@ -1243,6 +1251,7 @@ where
                             transaction_cache_write_handle,
                             info,
                             da_sync_state,
+                            is_master,
                             reason,
                         )
                         .await;
@@ -1331,9 +1340,11 @@ where
         let ((batches_to_replay, fetch_batches_to_replay_metrics), is_startup) = {
             (
                 inner.completed_batches_to_replay(next_sequence_number_according_to_node, true),
-                !inner.has_finished_startup,
+                matches!(self.has_finished_startup, HasFinishedStartup::No(_)),
             )
         };
+        let is_resync = matches!(self.is_ready, Err(SequencerNotReadyDetails::Syncing { .. }));
+
         let time_spent_fetching_batches = fetch_batches_to_replay_metrics.duration;
         sov_metrics::track_metrics(|t| {
             t.submit(fetch_batches_to_replay_metrics);
@@ -1400,7 +1411,7 @@ where
             }
             (false, false, false, _) => {
                 PreferredSeqOperation::ReplaySoftConfirmationsOnTopOfNodeState(
-                    is_startup,
+                    is_startup || is_resync,
                     time_spent_fetching_batches,
                 )
             }
@@ -1672,6 +1683,7 @@ where
         transaction_cache_write_handle: TxResultWriter<S, Rt>,
         info: StateUpdateInfo<S::Storage>,
         da_sync_state: Arc<DaSyncState>,
+        is_master: bool,
         reason: &'static str,
     ) {
         let mut inner = self.get_inner_with_timing(reason).await;
@@ -1692,7 +1704,7 @@ where
                 .executor_events_sender
                 .flush_transactions_cache(info.next_tx_number)
                 .await;
-        } else if !inner.has_finished_startup {
+        } else if matches!(self.has_finished_startup, HasFinishedStartup::No(_)) {
             inner
                 .executor_events_sender
                 .flush_transactions_cache(info.next_tx_number)
@@ -1744,6 +1756,7 @@ where
     async fn process_close_current_batch(&mut self, reason: &'static str) {
         let mut inner = self.get_inner_with_timing(reason).await;
         inner.close_current_batch().await;
+
     }
 }
 
