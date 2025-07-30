@@ -317,7 +317,6 @@ async fn test_replica_resynced_from_scratch() {
     let (master, replicas, state) =
         test_actions_against_replicas(&admin, (master, replicas, state), actions).await;
 
-    println!("\nTEST: running for 40 blocks\n");
     // Run for 40 more blocks
     let slots = vec![
         TestingAction::AcceptTx,
@@ -332,7 +331,6 @@ async fn test_replica_resynced_from_scratch() {
     let (master, mut replicas, state) =
         test_actions_against_replicas(&admin, (master, replicas, state), slots).await;
 
-    println!("\nTEST: launching new replica\n");
     // Launch brand new replica
     let extra_replica = builder
         .launch_n_replicas(1, shared_da, false)
@@ -343,10 +341,8 @@ async fn test_replica_resynced_from_scratch() {
         .unwrap();
     replicas.push(Some(extra_replica));
     // Let it sync
-    println!("\nTEST: sleeping to sync replica...\n");
-    tokio::time::sleep(Duration::from_secs(10)).await;
+    tokio::time::sleep(Duration::from_secs(5)).await;
 
-    println!("\nTEST: sleep done, creating two new transactions and a new DA slot\n");
     // Verify rollup can still accept transactions, and state is consistent across replicas
     let actions = vec![
         TestingAction::AcceptTx,
@@ -357,7 +353,6 @@ async fn test_replica_resynced_from_scratch() {
     let (master, replicas, _state) =
         test_actions_against_replicas(&admin, (master, replicas, state), actions).await;
 
-    println!("\nTEST: shutting down\n");
     for replica in replicas {
         replica.unwrap().shutdown().await.unwrap();
     }

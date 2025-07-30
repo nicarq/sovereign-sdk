@@ -7,10 +7,10 @@ use std::time::Duration;
 use anyhow::anyhow;
 use sov_blob_sender::BlobInternalId;
 use sov_blob_storage::SequenceNumber;
-use sov_modules_api::capabilities::{BlobSelector, RollupHeight};
+use sov_modules_api::capabilities::RollupHeight;
 use sov_modules_api::{
-    DaSyncState, FullyBakedTx, GasArray, GasSpec, KernelStateAccessor, Runtime, Spec,
-    StateCheckpoint, StateUpdateInfo, VersionReader, VisibleSlotNumber,
+    DaSyncState, FullyBakedTx, GasArray, GasSpec, Runtime, Spec, StateCheckpoint, StateUpdateInfo,
+    VersionReader, VisibleSlotNumber,
 };
 use sov_state::{NativeStorage, Storage};
 use tokio::sync::{mpsc, oneshot, watch};
@@ -57,12 +57,6 @@ const CHANNEL_SIZE: usize = 128;
 type AcceptTxRet<S, Rt> =
     Result<oneshot::Receiver<AcceptedTx<Confirmation<S, Rt>>>, AcceptTxError<S>>;
 
-/// The `Inner` sends the latest processed slot number when it finishes the starting sync.
-pub enum HasFinishedStartup {
-    No(watch::Sender<SequenceNumber>),
-    Yes,
-}
-
 /// A inner sequencer struct containing state that requires synchronized access.
 /// This struct accepts/rejects transactions, then hands them to the side effects task
 /// to be persisted.
@@ -86,6 +80,9 @@ where
     /// We need this rather than relying on `SequencerNotReadyDetails::Startup` because that state
     /// can be overwritten when the node is resyncing.
     has_finished_startup: bool,
+    /// Channel that sends a notification every time the executor is replaced after batch replay
+    /// finishes (at the end of update_state).
+    replay_notifier: watch::Sender<Option<SequenceNumber>>,
     metrics: Vec<PreferredSequencerChannelMetrics>,
     // Shared between sequencer and Inner.
     tx_queue_id: Arc<AtomicU64>,
@@ -780,7 +777,7 @@ pub(crate) fn create<S, Rt>(
     executor_events_sender: ExecutorEventsSender<S, Rt>,
     sequence_number_of_next_blob: SequenceNumber,
     in_flight_blobs: Arc<AtomicUsize>,
-    startup_notifier: oneshot::Sender<SequenceNumber>,
+    replay_notifier: watch::Sender<Option<SequenceNumber>>,
     stop_at_rollup_height: Option<RollupHeight>,
 ) -> (
     SynchronizedSequencerState<S, Rt>,
@@ -810,7 +807,8 @@ where
         executor_events_sender,
         sequence_number_of_next_blob,
         in_flight_blobs,
-        has_finished_startup: HasFinishedStartup::No(startup_notifier),
+        has_finished_startup: false,
+        replay_notifier,
         metrics: Vec::with_capacity(128),
         is_ready,
         stop_at_rollup_height,
@@ -1338,7 +1336,7 @@ where
         let ((batches_to_replay, fetch_batches_to_replay_metrics), is_startup) = {
             (
                 inner.completed_batches_to_replay(next_sequence_number_according_to_node, true),
-                matches!(inner.has_finished_startup, HasFinishedStartup::No(_)),
+                !inner.has_finished_startup,
             )
         };
         let is_resync = matches!(
@@ -1361,12 +1359,6 @@ where
         // `update_state`. That's no good.
         let current_visible_slot_number =
             current_visible_slot_number_according_to_node::<S, Rt>(info);
-
-        if inner.config.sequencer_kind_config.is_replica {
-            println!(" ----> replica update_state: current_visible_slot_number according to node: {current_visible_slot_number}; next sequence nmber according to node: {next_sequence_number_according_to_node}, our next sequence number: {next_sequence_number}. Replaying {} batches", batches_to_replay.len());
-        } else {
-            println!(" ->>>> master update_state: current_visible_slot_number_according_to_node: {current_visible_slot_number}; next sequence nmber according to node: {next_sequence_number_according_to_node}, our next sequence number: {next_sequence_number}");
-        }
 
         let condition_too_close_to_deferred_slots_count_for_comfort =
             info.slot_number.delta(current_visible_slot_number)
@@ -1396,7 +1388,6 @@ where
                     target_da_height: da_sync_state.target_da_height.load(Ordering::Relaxed),
                     synced_da_height: da_sync_state.synced_da_height.load(Ordering::Relaxed),
                 });
-                println!("    replica update_state: returning WaitForNodeResyncToTip, detected newer sequence number");
                 PreferredSeqOperation::WaitForNodeResyncToTip
             }
             (_, _, true, _) => {
@@ -1419,7 +1410,6 @@ where
                 PreferredSeqOperation::RecoverAndCatchUp
             }
             (false, false, false, _) => {
-                println!("    replica update_state: returning ReplaySoftConfirmationsOnTopOfNodeState, is_startup: {is_startup}, is_resync: {is_resync}");
                 PreferredSeqOperation::ReplaySoftConfirmationsOnTopOfNodeState(
                     is_startup || is_resync,
                     time_spent_fetching_batches,
@@ -1580,20 +1570,11 @@ where
         // The executor is now caught up. Swap it in
         inner.executor.replace_state(*executor).await;
         inner.is_ready = Ok(());
-        if let HasFinishedStartup::No(notifier) =
-            std::mem::replace(&mut inner.has_finished_startup, HasFinishedStartup::Yes)
-        {
-            let mut runtime = Rt::default();
-            let mut checkpoint = inner
-                .executor
-                .checkpoint
-                .clone_with_empty_witness_dropping_temp_cache(); // this extra clone is a bit ugly
-            let mut state =
-                KernelStateAccessor::from_checkpoint(&runtime.kernel(), &mut checkpoint);
-            let seq = runtime.kernel().next_sequence_number(&mut state);
-            println!("REPLICA: notifying replica sync task that we're caught up! Replayed batches up to sequence number {seq}");
-            let _ = notifier.send_replace(seq);
-        }
+        inner.has_finished_startup = true;
+        let last_replayed_sequence_number = inner.sequence_number_of_next_blob.checked_sub(1);
+        inner
+            .replay_notifier
+            .send_replace(last_replayed_sequence_number);
         inner.latest_info = info;
         let checkpoint = inner
             .executor
@@ -1627,7 +1608,6 @@ where
             .inner_do_batch_start(visible_slot_number_after_increase, visible_slots_to_advance)
             .await
         {
-            println!("Error in inner_do_batch_start: {err:?}");
             tracing::error!(
                 error = %err,
                 "Error: while calling inner_do_batch_start."
@@ -1727,7 +1707,7 @@ where
                 .executor_events_sender
                 .flush_transactions_cache(info.next_tx_number)
                 .await;
-        } else if matches!(inner.has_finished_startup, HasFinishedStartup::No(_)) {
+        } else if !inner.has_finished_startup {
             inner
                 .executor_events_sender
                 .flush_transactions_cache(info.next_tx_number)

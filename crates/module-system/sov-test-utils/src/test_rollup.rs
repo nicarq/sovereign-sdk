@@ -621,7 +621,7 @@ where
         &self,
         num_replicas: u64,
         shared_da: Arc<RwLock<StorableMockDaLayer>>,
-        with_master: bool
+        with_master: bool,
     ) -> anyhow::Result<Vec<TestRollup<R, Arc<tempfile::TempDir>>>> {
         if num_replicas == 0 {
             anyhow::bail!("num_replicas must be at least 1 (master + replicas)");

@@ -1,6 +1,5 @@
 //! See [`PreferredSequencer`].
 
-#![allow(unused_imports)]
 mod async_batch;
 mod batch_size_tracker;
 mod block_executor;
@@ -56,7 +55,7 @@ use sov_rollup_interface::node::DaSyncState;
 use sov_rollup_interface::TxHash;
 use state_root_compute::StateRootBackgroundTaskState;
 use tokio::sync::mpsc::{self, Sender};
-use tokio::sync::{broadcast, oneshot, watch};
+use tokio::sync::{broadcast, watch};
 use tokio::task::JoinHandle;
 use tokio::time::sleep;
 use tracing::{debug, error, info, trace};
@@ -276,7 +275,7 @@ where
             startup_transaction_cache_writer: None, // The main executor must *not* write to the tx cache. That's handled by the side effects task
         };
 
-        let (replica_startup_sync_notifer, replica_startup_sync_receiver) = oneshot::channel();
+        let (replica_sync_notifer, replica_sync_receiver) = watch::channel(None);
 
         let tx_queue_id = Arc::new(AtomicU64::new(0));
         let (synchronized_state, synchronized_state_updator) = create(
@@ -290,7 +289,7 @@ where
             executor_events_sender,
             next_sequence_number,
             in_flight_blobs,
-            replica_startup_sync_notifer,
+            replica_sync_notifer,
             stop_at_rollup_height,
         );
 
@@ -337,7 +336,7 @@ where
                 spawn_replica_sync_task(
                     seq.clone(),
                     shutdown_receiver.clone(),
-                    replica_startup_sync_receiver,
+                    replica_sync_receiver,
                 )
                 .await,
             );
@@ -1252,11 +1251,9 @@ pub(crate) async fn exit_rollup(shutdown_sender: &watch::Sender<()>) {
     if shutdown_sender.send(()).is_err() {
         tracing::error!("Failed to send shutdown signal");
     }
-    println!("\n\n\nEXIT_ROLLUP CALLED!!!\n\n\n");
-    // sleep(Duration::from_secs(5)).await;
-    // tracing::info!("Calling std::process::exit(1).");
-    // std::process::exit(1);
-    panic!();
+    sleep(Duration::from_secs(5)).await;
+    tracing::info!("Calling std::process::exit(1).");
+    std::process::exit(1);
 }
 
 /// An error that can occur when trying to create a new batch.
