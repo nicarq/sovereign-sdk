@@ -273,7 +273,7 @@ async fn test_replica_resynced_from_scratch() {
             .runtime
             .sequencer_registry
             .sequencer_config
-            .seq_da_address
+            .seq_da_address;
     })
     .with_preferred_seq_min_profit_per_tx(0)
     .with_preferred_seq_recovery_strategy(sov_sequencer::preferred::RecoveryStrategy::TryToSave);
@@ -289,9 +289,11 @@ async fn test_replica_resynced_from_scratch() {
 
     let shared_da = builder.shared_da_for_replicas().await.unwrap();
 
+    // sov_test_utils::initialize_logging();
+
     // ACTUAL TEST BEGINS
     let test_rollups = builder
-        .launch_n_replicas(1, shared_da.clone())
+        .launch_n_replicas(1, shared_da.clone(), true)
         .await
         .unwrap();
     let mut test_rollups = test_rollups.into_iter();
@@ -299,12 +301,8 @@ async fn test_replica_resynced_from_scratch() {
     // Allow master to take over
     tokio::time::sleep(Duration::from_secs(1)).await;
 
-    let (mut master, replicas) = identify_master_and_replicas(
-        test_rollups.next().unwrap(),
-        test_rollups.map(Some).collect(),
-    )
-    .await
-    .unwrap();
+    let mut master = test_rollups.next().unwrap();
+    let replicas = test_rollups.map(Some).collect();
 
     let (master_with_state, state) = setup_test_rollup_with_initial_state(master, &admin).await;
     master = master_with_state;
@@ -318,8 +316,8 @@ async fn test_replica_resynced_from_scratch() {
     ];
     let (master, replicas, state) =
         test_actions_against_replicas(&admin, (master, replicas, state), actions).await;
-    println!("Basic actions succeeded. Now launching big DA block production...");
 
+    println!("\nTEST: running for 40 blocks\n");
     // Run for 40 more blocks
     let slots = vec![
         TestingAction::AcceptTx,
@@ -334,10 +332,10 @@ async fn test_replica_resynced_from_scratch() {
     let (master, mut replicas, state) =
         test_actions_against_replicas(&admin, (master, replicas, state), slots).await;
 
-    println!("Block production succeeded. Launching brand new replica...");
+    println!("\nTEST: launching new replica\n");
     // Launch brand new replica
     let extra_replica = builder
-        .launch_n_replicas(1, shared_da)
+        .launch_n_replicas(1, shared_da, false)
         .await
         .unwrap()
         .into_iter()
@@ -345,9 +343,10 @@ async fn test_replica_resynced_from_scratch() {
         .unwrap();
     replicas.push(Some(extra_replica));
     // Let it sync
+    println!("\nTEST: sleeping to sync replica...\n");
     tokio::time::sleep(Duration::from_secs(10)).await;
 
-    println!("Inserting extra test actions!");
+    println!("\nTEST: sleep done, creating two new transactions and a new DA slot\n");
     // Verify rollup can still accept transactions, and state is consistent across replicas
     let actions = vec![
         TestingAction::AcceptTx,
@@ -358,7 +357,7 @@ async fn test_replica_resynced_from_scratch() {
     let (master, replicas, _state) =
         test_actions_against_replicas(&admin, (master, replicas, state), actions).await;
 
-    println!("Shutting everything down.");
+    println!("\nTEST: shutting down\n");
     for replica in replicas {
         replica.unwrap().shutdown().await.unwrap();
     }

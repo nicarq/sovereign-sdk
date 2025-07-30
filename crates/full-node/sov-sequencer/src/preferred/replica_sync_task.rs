@@ -23,8 +23,9 @@ use crate::preferred::{exit_rollup, DbEvent, PreferredSequencer};
 use crate::ProofBlobSender;
 
 /// Event type enum for type-safe parsing
-#[derive(Debug, Deserialize, Serialize, Clone, PartialEq, Eq)]
+#[derive(Debug, Deserialize, Serialize, Clone, PartialEq, Eq, sqlx::Type)]
 #[serde(rename_all = "snake_case")]
+#[sqlx(type_name = "event_type", rename_all = "snake_case")]
 enum EventType {
     Transaction,
     BatchStart,
@@ -239,13 +240,15 @@ where
                         match startup_sync_receiver.try_recv() {
                             // We're not synced yet - ignore all incoming events
                             Err(TryRecvError::Empty) => {
+                                println!("Replica receiving event but not synced yet, ignoring. Event: {payload}");
                                 continue;
                             }
                             // We just synced!
                             Ok(sequence_number) => {
                                 // Query the batch_close event with this sequence number to find the event_id
                                 // Set our latest_received_event_id to that event's id so we continue from there
-                                let event_id = query_event_id_for_batch_close(&query_pool, sequence_number).await?;
+                                let event_id = query_event_id_for_batch_close(query_pool, sequence_number).await?;
+                                println!("Replica receiving event and it just synced, replayed sequence number {sequence_number}! Event: {payload}. We're gonna be starting from event {event_id}");
                                 latest_received_event_id = Some(event_id);
                                 info!("Replica startup sync complete at sequence_number {}, event_id {}", sequence_number, event_id);
                             }
@@ -399,6 +402,7 @@ where
 {
     match db_event {
         DbEvent::TxAccepted(baked_tx, tx_hash) => {
+            println!("Replica processed event tx_accepted, hash: {tx_hash}");
             sequencer
                 .synchronized_state_updator
                 .do_new_tx_msg(tx_hash, baked_tx, "replica_sync_task:do_new_tx")
@@ -406,6 +410,7 @@ where
             Ok(())
         }
         DbEvent::BatchClosed(_) => {
+            println!("Replica processed event batch_closed");
             sequencer
                 .synchronized_state_updator
                 .close_current_batch_msg("replica_sync_task:close_current_batch")
@@ -413,10 +418,11 @@ where
             Ok(())
         }
         DbEvent::BatchStarted {
-            sequence_number: _,
+            sequence_number,
             visible_slot_number_after_increase,
             visible_slots_to_advance,
         } => {
+            println!("Replica processed event batch_started, sequence_number: {sequence_number}");
             do_batch_start(
                 sequencer,
                 visible_slot_number_after_increase,
@@ -488,6 +494,8 @@ async fn backfill_to_event_id<S: Spec, Rt: Runtime<S>, Da: DaService<Spec = S::D
     target_event_id: u64,
 ) -> anyhow::Result<()> {
     let mut current_event_id = latest_received_event_id.map(|id| id + 1).unwrap_or(0);
+
+    println!("Replica backfilling from {latest_received_event_id:?} to {target_event_id}");
     // If we're already caught up, nothing to do
     if current_event_id > target_event_id {
         return Ok(());
@@ -522,12 +530,9 @@ async fn backfill_to_event_id<S: Spec, Rt: Runtime<S>, Da: DaService<Spec = S::D
         .await?;
 
         for row in events {
-            let event_type_str: String = row.get("event_type");
+            let event_type: EventType = row.get("event_type");
             let sequence_number = row.get::<i64, _>("sequence_number") as u64;
-
-            let event_type: EventType = event_type_str
-                .parse()
-                .map_err(|e| anyhow::anyhow!("Invalid event type '{}': {}", event_type_str, e))?;
+            println!(" -> backfilling event, type: {event_type:?}, full row: {row:?}");
 
             match event_type {
                 EventType::Transaction => {
@@ -547,6 +552,8 @@ async fn backfill_to_event_id<S: Spec, Rt: Runtime<S>, Da: DaService<Spec = S::D
                 EventType::BatchStart => {
                     let batch_data: Vec<u8> = row.get("data");
                     let batch_metadata = parse_serialized_batch(batch_data, sequence_number)?;
+
+                    println!(" --> backfill: batch_start: {batch_metadata:?}");
 
                     do_batch_start(
                         sequencer.clone(),

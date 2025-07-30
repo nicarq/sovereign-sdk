@@ -1,5 +1,6 @@
 //! See [`PreferredSequencer`].
 
+#![allow(unused_imports)]
 mod async_batch;
 mod batch_size_tracker;
 mod block_executor;
@@ -1251,9 +1252,11 @@ pub(crate) async fn exit_rollup(shutdown_sender: &watch::Sender<()>) {
     if shutdown_sender.send(()).is_err() {
         tracing::error!("Failed to send shutdown signal");
     }
-    sleep(Duration::from_secs(5)).await;
-    tracing::info!("Calling std::process::exit(1).");
-    std::process::exit(1);
+    println!("\n\n\nEXIT_ROLLUP CALLED!!!\n\n\n");
+    // sleep(Duration::from_secs(5)).await;
+    // tracing::info!("Calling std::process::exit(1).");
+    // std::process::exit(1);
+    panic!();
 }
 
 /// An error that can occur when trying to create a new batch.

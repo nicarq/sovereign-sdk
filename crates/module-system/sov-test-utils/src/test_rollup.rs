@@ -592,7 +592,7 @@ where
         num_replicas: u64,
     ) -> anyhow::Result<Vec<TestRollup<R, Arc<tempfile::TempDir>>>> {
         let da = self.shared_da_for_replicas().await?;
-        self.launch_n_replicas(num_replicas, da).await
+        self.launch_n_replicas(num_replicas, da, true).await
     }
 
     fn shared_da_connection_string(&self) -> String {
@@ -621,6 +621,7 @@ where
         &self,
         num_replicas: u64,
         shared_da: Arc<RwLock<StorableMockDaLayer>>,
+        with_master: bool
     ) -> anyhow::Result<Vec<TestRollup<R, Arc<tempfile::TempDir>>>> {
         if num_replicas == 0 {
             anyhow::bail!("num_replicas must be at least 1 (master + replicas)");
@@ -672,7 +673,7 @@ where
             };
 
             // Set replica mode for non-master instances
-            if i > 0 {
+            if i > 0 || !with_master {
                 if let SequencerKindConfig::Preferred(ref mut preferred_config) =
                     instance_builder.config.sequencer_config
                 {

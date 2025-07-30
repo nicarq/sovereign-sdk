@@ -59,7 +59,7 @@ type AcceptTxRet<S, Rt> =
 
 /// The `Inner` sends the latest processed slot number when it finishes the starting sync.
 pub enum HasFinishedStartup {
-    No(oneshot::Sender<SequenceNumber>),
+    No(watch::Sender<SequenceNumber>),
     Yes,
 }
 
@@ -303,7 +303,7 @@ where
                     target_visible_slot_number = %visible_slot_number_after_increase,
                     "Cannot calculate visible slots to advance for replica: target is not greater than current"
                 );
-                anyhow!("Invalid visible slot number progression for replica".to_string())
+                anyhow!(format!("Invalid visible slot number progression for replica: target is not greater than current. visible_slot_number_after_increase: {visible_slot_number_after_increase}, current_visible_slot_number: {current_visible_slot_number}"))
             })?;
 
         assert_eq!(
@@ -1361,6 +1361,13 @@ where
         // `update_state`. That's no good.
         let current_visible_slot_number =
             current_visible_slot_number_according_to_node::<S, Rt>(info);
+
+        if inner.config.sequencer_kind_config.is_replica {
+            println!(" ----> replica update_state: current_visible_slot_number according to node: {current_visible_slot_number}; next sequence nmber according to node: {next_sequence_number_according_to_node}, our next sequence number: {next_sequence_number}. Replaying {} batches", batches_to_replay.len());
+        } else {
+            println!(" ->>>> master update_state: current_visible_slot_number_according_to_node: {current_visible_slot_number}; next sequence nmber according to node: {next_sequence_number_according_to_node}, our next sequence number: {next_sequence_number}");
+        }
+
         let condition_too_close_to_deferred_slots_count_for_comfort =
             info.slot_number.delta(current_visible_slot_number)
                 > slot_count_delta_acceptable_lower_bound(
@@ -1389,6 +1396,7 @@ where
                     target_da_height: da_sync_state.target_da_height.load(Ordering::Relaxed),
                     synced_da_height: da_sync_state.synced_da_height.load(Ordering::Relaxed),
                 });
+                println!("    replica update_state: returning WaitForNodeResyncToTip, detected newer sequence number");
                 PreferredSeqOperation::WaitForNodeResyncToTip
             }
             (_, _, true, _) => {
@@ -1411,6 +1419,7 @@ where
                 PreferredSeqOperation::RecoverAndCatchUp
             }
             (false, false, false, _) => {
+                println!("    replica update_state: returning ReplaySoftConfirmationsOnTopOfNodeState, is_startup: {is_startup}, is_resync: {is_resync}");
                 PreferredSeqOperation::ReplaySoftConfirmationsOnTopOfNodeState(
                     is_startup || is_resync,
                     time_spent_fetching_batches,
@@ -1582,7 +1591,8 @@ where
             let mut state =
                 KernelStateAccessor::from_checkpoint(&runtime.kernel(), &mut checkpoint);
             let seq = runtime.kernel().next_sequence_number(&mut state);
-            let _ = notifier.send(seq);
+            println!("REPLICA: notifying replica sync task that we're caught up! Replayed batches up to sequence number {seq}");
+            let _ = notifier.send_replace(seq);
         }
         inner.latest_info = info;
         let checkpoint = inner
@@ -1617,6 +1627,7 @@ where
             .inner_do_batch_start(visible_slot_number_after_increase, visible_slots_to_advance)
             .await
         {
+            println!("Error in inner_do_batch_start: {err:?}");
             tracing::error!(
                 error = %err,
                 "Error: while calling inner_do_batch_start."
