@@ -5,7 +5,7 @@
 //! you can bypass the Sovereign module-system completely
 //! and write a state transition function from scratch.
 //! [See here for docs](https://github.com/Sovereign-Labs/sovereign-sdk/blob/nightly/examples/demo-stf/README.md)
-pub mod auth;
+pub mod authentication;
 mod batch_selector;
 mod kernel;
 mod proof;
@@ -13,7 +13,7 @@ mod proof;
 #[cfg(feature = "native")]
 use std::sync::Arc;
 
-pub use auth::*;
+pub use authentication::*;
 pub use batch_selector::*;
 pub use kernel::*;
 
