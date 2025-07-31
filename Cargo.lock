@@ -13936,6 +13936,7 @@ version = "0.3.0"
 dependencies = [
  "arbitrary",
  "borsh",
+ "hex",
  "libfuzzer-sys",
  "serde",
  "serde_json",

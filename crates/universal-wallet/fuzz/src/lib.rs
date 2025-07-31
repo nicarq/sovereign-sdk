@@ -13,6 +13,8 @@ pub mod types {
     pub type I128 = crate::js_compat::JsI128;
     pub type U64 = crate::js_compat::JsU64;
     pub type U128 = crate::js_compat::JsU128;
+    pub type F32 = crate::js_compat::JsF32;
+    pub type F64 = crate::js_compat::JsF64;
 }
 
 #[cfg(not(feature = "js-compat"))]
@@ -21,9 +23,11 @@ pub mod types {
     pub type I128 = i128;
     pub type U64 = u64;
     pub type U128 = u128;
+    pub type F32 = f32;
+    pub type F64 = f64;
 }
 
-use types::{I128, I64, U128, U64};
+use types::{F32, F64, I128, I64, U128, U64};
 
 // arbitrary isn't implemented for safe string
 #[derive(Debug, BorshSerialize, BorshDeserialize, Serialize, Deserialize, UniversalWallet)]
@@ -77,10 +81,8 @@ pub enum NumberInput {
     I32(i32),
     I64(I64),
     I128(I128),
-    #[cfg(feature = "floats")]
-    F32(f32),
-    #[cfg(feature = "floats")]
-    F64(f64),
+    F32(F32),
+    F64(F64),
 }
 
 #[derive(

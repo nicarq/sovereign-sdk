@@ -7,9 +7,6 @@ use universal_wallet_fuzz::FuzzInput;
 #[cfg(not(feature = "js-compat"))]
 compile_error!("This fuzz test requires JS/JSON compatability otherwise big numbers/floats, etc aren't handled leading to failing tests");
 
-#[cfg(feature = "floats")]
-compile_error!("NaN & Infinity aren't handled in Schema::json_to_borsh which fails tests");
-
 fuzz_target!(|input: FuzzInput| {
     let schema = Schema::of_single_type::<FuzzInput>().unwrap();
     let data = serde_json::to_string(&input).unwrap();

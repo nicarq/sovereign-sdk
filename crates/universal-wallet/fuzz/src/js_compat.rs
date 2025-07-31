@@ -113,6 +113,67 @@ macro_rules! impl_js_safe_signed {
 impl_js_safe_signed!(JsI64, i64);
 impl_js_safe_signed!(JsI128, i128);
 
+// Serialize floats as hex encoded bytes to avoid precision loss when converting to/from JSON.
+// Implements arbitrary that avoids NaN as this is not supported by borsh.
+macro_rules! impl_js_safe_float {
+    ($wrapper:ident, $inner:ty, $byte_count:expr) => {
+        #[derive(Debug, BorshDeserialize, BorshSerialize, UniversalWallet)]
+        pub struct $wrapper(pub $inner);
+
+        impl Serialize for $wrapper {
+            fn serialize<S>(&self, serializer: S) -> Result<S::Ok, S::Error>
+            where
+                S: Serializer,
+            {
+                let bytes = self.0.to_le_bytes();
+                let hex_string = hex::encode(bytes);
+                serializer.serialize_str(&format!("0x{}", hex_string))
+            }
+        }
+
+        impl<'de> Deserialize<'de> for $wrapper {
+            fn deserialize<D>(deserializer: D) -> Result<Self, D::Error>
+            where
+                D: Deserializer<'de>,
+            {
+                use serde::de::Error;
+
+                let hex_string: String = Deserialize::deserialize(deserializer)?;
+                let hex_string = hex_string.strip_prefix("0x").expect("not prefixed with 0x");
+                let bytes = hex::decode(hex_string)
+                    .map_err(|e| D::Error::custom(format!("Invalid hex string: {}", e)))?;
+
+                if bytes.len() != $byte_count {
+                    return Err(D::Error::custom(format!(
+                        "Hex string must decode to exactly {} bytes for {}",
+                        $byte_count,
+                        stringify!($inner)
+                    )));
+                }
+
+                let byte_array: [u8; $byte_count] = bytes
+                    .try_into()
+                    .map_err(|_| D::Error::custom("Failed to convert bytes to array"))?;
+
+                Ok($wrapper(<$inner>::from_le_bytes(byte_array)))
+            }
+        }
+
+        impl Arbitrary<'_> for $wrapper {
+            fn arbitrary(u: &mut arbitrary::Unstructured<'_>) -> arbitrary::Result<Self> {
+                let val: $inner = u.arbitrary()?;
+                // borsh doesnt allow NaN
+                let valid_val = if val.is_nan() { 0.0 } else { val };
+
+                Ok($wrapper(valid_val))
+            }
+        }
+    };
+}
+
+impl_js_safe_float!(JsF32, f32, 4);
+impl_js_safe_float!(JsF64, f64, 8);
+
 #[cfg(test)]
 mod tests {
     use super::*;
