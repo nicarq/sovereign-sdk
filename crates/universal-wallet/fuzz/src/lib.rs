@@ -78,7 +78,7 @@ pub enum NumberInput {
     I64(I64),
     I128(I128),
     #[cfg(feature = "floats")]
-    F32(F32),
+    F32(f32),
     #[cfg(feature = "floats")]
     F64(f64),
 }
