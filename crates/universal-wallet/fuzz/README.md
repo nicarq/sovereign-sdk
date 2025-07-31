@@ -15,4 +15,3 @@ cargo fuzz run fuzz_json_to_borsh --fuzz-dir . --features js-compat
 ### Features
 
 - `js-compat` serializes numbers in a way that is compatible with JS/JSON, big ints as strings, etc.
-- `floats` Uses f32/f64 in fuzz tests, when running JSON+borsh based tests this can cause failures due to precision loss.
