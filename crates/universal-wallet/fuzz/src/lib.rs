@@ -5,6 +5,7 @@ use sov_modules_api::prelude::serde::{Deserialize, Serialize};
 use sov_modules_api::SafeString;
 use sov_universal_wallet::schema::safe_string::DEFAULT_MAX_STRING_LENGTH;
 
+#[cfg(feature = "js-compat")]
 mod js_compat;
 
 #[cfg(feature = "js-compat")]
