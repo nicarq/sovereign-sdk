@@ -643,6 +643,7 @@ async fn flaky_seq_behind_deferred_slots_count_simple_lagging() {
 
 #[tokio::test(flavor = "multi_thread")]
 async fn seq_behind_deferred_slots_count_with_shutdown() {
+    sov_test_utils::logging::initialize_or_change_logging_with_filter("info");
     std::env::set_var("SOV_TEST_CONST_OVERRIDE_DEFERRED_SLOTS_COUNT", "40");
     let (test_rollup, admin) = create_test_rollup(
         0,
@@ -692,14 +693,18 @@ async fn seq_behind_deferred_slots_count_with_shutdown() {
     let builder = test_rollup.shutdown().await.unwrap();
 
     tracing::info!("Producing DA blocks while rollup is shut down, to exceed deferred_slots_count");
-    // This can be lower than DEFERRED_SLOTS_COUNT because the sequencer takes into account a)
-    // possible node lag and b) a 90% threshold.
+    // This can be lower than DEFERRED_SLOTS_COUNT because the sequencer takes into account:
+    // a) possible node lag and b) a 90% threshold.
     da_service.produce_n_blocks_now(30).await.unwrap();
 
     // Restart the rollup
     tracing::info!("Restarting rollup after exceeding deferred_slots_count");
     let test_rollup = builder.start().await.unwrap();
     let client = test_rollup.api_client().clone();
+
+    let value = client.get_sync_status().await.unwrap();
+    let x = value.into_inner();
+    tracing::info!("SYNC STATUS: {:?}", x);
 
     // Give the rollup time to process the backlog and enter recovery mode
     tokio::time::sleep(Duration::from_millis(1000)).await;
