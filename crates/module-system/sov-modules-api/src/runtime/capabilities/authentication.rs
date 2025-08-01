@@ -16,9 +16,9 @@ use crate::transaction::{
     VersionedTx,
 };
 use crate::{
-    capabilities, metered_credential, AuthenticatedTransactionData, CryptoSpec, DispatchCall,
-    FullyBakedTx, GasMeter, GasMeteringError, MeteredBorshDeserialize,
-    MeteredBorshDeserializeError, MeteredHasher, ProvableStateReader, RawTx, Runtime, Spec,
+    capabilities, metered_credential, CryptoSpec, DispatchCall, FullyBakedTx, GasMeter,
+    GasMeteringError, MeteredBorshDeserialize, MeteredBorshDeserializeError, MeteredHasher,
+    ProvableStateReader, RawTx, Runtime, Spec,
 };
 
 /// The chain ID of the rollup.
@@ -301,7 +301,7 @@ fn verify_and_decode_tx<S: Spec, D: DispatchCall<Spec = S>>(
             let runtime_call = tx_v0.runtime_call.clone();
             let tx_and_raw_hash = AuthenticatedTransactionAndRawHash {
                 raw_tx_hash,
-                authenticated_tx: AuthenticatedTransactionData(tx_v0.details.clone()),
+                authenticated_tx: tx_v0.details.clone().into(),
             };
 
             Ok((tx_and_raw_hash, authorization_data, runtime_call))
