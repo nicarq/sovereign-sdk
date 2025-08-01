@@ -139,7 +139,7 @@ macro_rules! impl_js_safe_float {
                 use serde::de::Error;
 
                 let hex_string: String = Deserialize::deserialize(deserializer)?;
-                let hex_string = hex_string.strip_prefix("0x").expect("not prefixed with 0x");
+                let hex_string = hex_string.strip_prefix("0x").unwrap_or(&hex_string);
                 let bytes = hex::decode(hex_string)
                     .map_err(|e| D::Error::custom(format!("Invalid hex string: {}", e)))?;
 
