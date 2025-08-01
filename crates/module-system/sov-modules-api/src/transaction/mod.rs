@@ -75,10 +75,37 @@ pub struct Version0<Call, S: Spec> {
     UniversalWallet,
 )]
 #[serde(bound = "Call: serde::Serialize + serde::de::DeserializeOwned")]
-/// Versioned transaction
+/// V1 transaction, nonce based
+pub struct Version1<Call, S: Spec> {
+    /// The signature of the transaction.
+    pub signature: <S::CryptoSpec as CryptoSpec>::Signature,
+    /// The public key of the sender of the transaction.
+    pub pub_key: <S::CryptoSpec as CryptoSpec>::PublicKey,
+    /// The runtime call of the transaction.
+    #[sov_wallet(
+        bound = "Call: sov_rollup_interface::sov_universal_wallet::schema::UniversalWallet"
+    )]
+    pub runtime_call: Call,
+    /// The generation of the transaction (for uniqueness).
+    pub generation: u64,
+    /// The transaction metadata. Contains gas parameters and the chain ID.
+    pub details: TxDetails<S>,
+}
+
+#[derive(
+    derive_more::Debug,
+    Clone,
+    borsh::BorshDeserialize,
+    serde::Serialize,
+    serde::Deserialize,
+    borsh::BorshSerialize,
+    UniversalWallet,
+)]
+#[serde(bound = "Call: serde::Serialize + serde::de::DeserializeOwned")]
+#[allow(missing_docs)]
 pub enum VersionedTx<Call, S: Spec> {
-    /// V0 transaction.
     V0(Version0<Call, S>),
+    V1(Version1<Call, S>),
 }
 
 #[derive(
@@ -165,6 +192,14 @@ impl<R: TransactionCallable, S: Spec> PartialEq for Transaction<R, S> {
                     && self_inner.generation == other_inner.generation
                     && self_inner.details == other_inner.details
             }
+            (VersionedTx::V1(self_inner), VersionedTx::V1(other_inner)) => {
+                self_inner.signature == other_inner.signature
+                    && self_inner.pub_key == other_inner.pub_key
+                    && self_inner.runtime_call == other_inner.runtime_call
+                    && self_inner.generation == other_inner.generation
+                    && self_inner.details == other_inner.details
+            }
+            _ => false,
         }
     }
 }
@@ -202,6 +237,7 @@ impl<R: TransactionCallable, S: Spec> Transaction<R, S> {
     pub fn runtime_call(&self) -> &R::Call {
         match &self.versioned_tx {
             VersionedTx::V0(inner) => &inner.runtime_call,
+            VersionedTx::V1(inner) => &inner.runtime_call,
         }
     }
 
@@ -209,6 +245,7 @@ impl<R: TransactionCallable, S: Spec> Transaction<R, S> {
     pub fn chain_id(&self) -> u64 {
         match &self.versioned_tx {
             VersionedTx::V0(inner) => inner.details.chain_id,
+            VersionedTx::V1(inner) => inner.details.chain_id,
         }
     }
 
@@ -234,6 +271,9 @@ impl<R: TransactionCallable, S: Spec> Transaction<R, S> {
                 MeteredSignature::new::<S>(inner.signature.clone())
                     .verify(&inner.pub_key, &serialized_tx, meter)
                     .map_err(TransactionVerificationError::from)?;
+            }
+            VersionedTx::V1(_inner) => {
+                todo!("Decide exactly")
             }
         }
         Ok(())
@@ -262,12 +302,18 @@ impl<R: TransactionCallable, S: Spec> Transaction<R, S> {
     pub fn call(self) -> R::Call {
         match self.versioned_tx {
             VersionedTx::V0(inner) => inner.runtime_call.clone(),
+            VersionedTx::V1(inner) => inner.runtime_call.clone(),
         }
     }
 
     fn to_unsigned_transaction(&self) -> UnsignedTransaction<R, S> {
         match &self.versioned_tx {
             VersionedTx::V0(inner) => UnsignedTransaction::new_with_details(
+                inner.runtime_call.clone(),
+                inner.generation,
+                inner.details.clone(),
+            ),
+            VersionedTx::V1(inner) => UnsignedTransaction::new_with_details(
                 inner.runtime_call.clone(),
                 inner.generation,
                 inner.details.clone(),

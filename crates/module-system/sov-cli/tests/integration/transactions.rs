@@ -206,6 +206,10 @@ fn transaction_signed_properly_from_file() {
             assert_eq!(default_pubkey, &inner.pub_key);
             assert_eq!(nonce, inner.generation);
         }
+        VersionedTx::V1(inner) => {
+            assert_eq!(default_pubkey, &inner.pub_key);
+            assert_eq!(nonce, inner.generation);
+        }
     }
 
     assert_eq!(&runtime_call, signed_tx.runtime_call());
@@ -322,6 +326,9 @@ fn transaction_signed_by_account_nickname() {
 
     match signed_tx.versioned_tx {
         VersionedTx::V0(inner) => {
+            assert_eq!(&key2.pub_key, &inner.pub_key);
+        }
+        VersionedTx::V1(inner) => {
             assert_eq!(&key2.pub_key, &inner.pub_key);
         }
     }

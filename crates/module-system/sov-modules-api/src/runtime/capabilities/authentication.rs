@@ -312,6 +312,9 @@ fn verify_and_decode_tx<S: Spec, D: DispatchCall<Spec = S>>(
 
             Ok((tx_and_raw_hash, authorization_data, runtime_call))
         }
+        VersionedTx::V1(_tx_v0) => {
+            todo!()
+        }
     }
 }
 

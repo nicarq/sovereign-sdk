@@ -1,4 +1,4 @@
-pub const CHAIN_HASH: [u8; 32] = [232, 142, 248, 199, 122, 149, 104, 155, 161, 139, 194, 86, 237, 142, 155, 9, 246, 124, 166, 68, 247, 81, 222, 145, 70, 224, 71, 178, 201, 242, 62, 51];
+pub const CHAIN_HASH: [u8; 32] = [62, 140, 96, 211, 154, 207, 0, 62, 241, 210, 243, 201, 23, 146, 171, 107, 142, 31, 149, 183, 214, 152, 30, 247, 151, 211, 66, 117, 96, 214, 158, 99];
 
 #[allow(dead_code)]
 pub const SCHEMA_JSON: &str = r#"{
@@ -30,6 +30,14 @@ pub const SCHEMA_JSON: &str = r#"{
             "template": null,
             "value": {
               "ByIndex": 2
+            }
+          },
+          {
+            "name": "V1",
+            "discriminant": 1,
+            "template": null,
+            "value": {
+              "ByIndex": 115
             }
           }
         ],
@@ -2679,6 +2687,75 @@ pub const SCHEMA_JSON: &str = r#"{
       }
     },
     {
+      "Tuple": {
+        "template": null,
+        "peekable": false,
+        "fields": [
+          {
+            "value": {
+              "ByIndex": 116
+            },
+            "silent": false,
+            "doc": ""
+          }
+        ]
+      }
+    },
+    {
+      "Struct": {
+        "type_name": "Version1",
+        "template": null,
+        "peekable": false,
+        "fields": [
+          {
+            "display_name": "signature",
+            "silent": false,
+            "value": {
+              "ByIndex": 4
+            },
+            "doc": ""
+          },
+          {
+            "display_name": "pub_key",
+            "silent": false,
+            "value": {
+              "ByIndex": 5
+            },
+            "doc": ""
+          },
+          {
+            "display_name": "runtime_call",
+            "silent": false,
+            "value": {
+              "ByIndex": 6
+            },
+            "doc": ""
+          },
+          {
+            "display_name": "generation",
+            "silent": false,
+            "value": {
+              "Immediate": {
+                "Integer": [
+                  "u64",
+                  "Decimal"
+                ]
+              }
+            },
+            "doc": ""
+          },
+          {
+            "display_name": "details",
+            "silent": false,
+            "value": {
+              "ByIndex": 113
+            },
+            "doc": ""
+          }
+        ]
+      }
+    },
+    {
       "Struct": {
         "type_name": "UnsignedTransaction",
         "template": null,
@@ -2719,7 +2796,7 @@ pub const SCHEMA_JSON: &str = r#"{
   ],
   "root_type_indices": [
     0,
-    115,
+    117,
     6,
     12
   ],
@@ -2795,6 +2872,9 @@ pub const SCHEMA_JSON: &str = r#"{
       "fields_or_variants": [
         {
           "name": "V0"
+        },
+        {
+          "name": "V1"
         }
       ]
     },
@@ -3782,6 +3862,30 @@ pub const SCHEMA_JSON: &str = r#"{
     {
       "name": "",
       "fields_or_variants": []
+    },
+    {
+      "name": "",
+      "fields_or_variants": []
+    },
+    {
+      "name": "Version1",
+      "fields_or_variants": [
+        {
+          "name": "signature"
+        },
+        {
+          "name": "pub_key"
+        },
+        {
+          "name": "runtime_call"
+        },
+        {
+          "name": "generation"
+        },
+        {
+          "name": "details"
+        }
+      ]
     },
     {
       "name": "UnsignedTransaction",

@@ -263,6 +263,7 @@ pub fn create_tx_bad_sig<RT: Runtime<S>>(
                 chain_id,
             },
         ),
+        VersionedTx::V1(_) => todo!(),
     }
 }
 
