@@ -6,6 +6,7 @@
 //! and write a state transition function from scratch.
 //! [See here for docs](https://github.com/Sovereign-Labs/sovereign-sdk/blob/nightly/examples/demo-stf/README.md)
 pub mod authentication;
+pub mod authorization;
 mod batch_selector;
 mod kernel;
 mod proof;
@@ -14,6 +15,7 @@ mod proof;
 use std::sync::Arc;
 
 pub use authentication::*;
+pub use authorization::*;
 pub use batch_selector::*;
 pub use kernel::*;
 
