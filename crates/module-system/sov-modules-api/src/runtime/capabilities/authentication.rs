@@ -312,8 +312,55 @@ fn verify_and_decode_tx<S: Spec, D: DispatchCall<Spec = S>>(
 
             Ok((tx_and_raw_hash, authorization_data, runtime_call))
         }
-        VersionedTx::V1(_tx_v0) => {
-            todo!()
+        VersionedTx::V1(tx_v1) => {
+            if tx_v1.details.chain_id != config_chain_id() {
+                return Err(AuthenticationError::FatalError(
+                    FatalError::InvalidChainId {
+                        expected: config_chain_id(),
+                        got: tx_v1.details.chain_id,
+                    },
+                    raw_tx_hash,
+                ));
+            }
+
+            tx.verify(chain_hash, meter).map_err(|e| match e {
+                TransactionVerificationError::BadSignature(_)
+                | TransactionVerificationError::TransactionDeserializationError(_) => {
+                    AuthenticationError::FatalError(
+                        FatalError::SigVerificationFailed(e.to_string()),
+                        raw_tx_hash,
+                    )
+                }
+                TransactionVerificationError::GasError(_) => {
+                    AuthenticationError::OutOfGas(e.to_string())
+                }
+            })?;
+
+            let runtime_call = tx_v1.runtime_call.clone();
+            let pub_key = tx_v1.pub_key.clone();
+            let credential_id = metered_credential(&pub_key, meter)
+                .map_err(|e| AuthenticationError::OutOfGas(e.to_string()))?;
+
+            let default_address = credential_id.into();
+
+            let credentials = Credentials::new(pub_key);
+
+            let tx_and_raw_hash = AuthenticatedTransactionAndRawHash {
+                raw_tx_hash,
+                authenticated_tx: AuthenticatedTransactionData(tx_v1.details.clone()),
+            };
+
+            Ok((
+                tx_and_raw_hash,
+                AuthorizationData {
+                    uniqueness,
+                    tx_hash: raw_tx_hash,
+                    credential_id,
+                    credentials,
+                    default_address,
+                },
+                runtime_call,
+            ))
         }
     }
 }

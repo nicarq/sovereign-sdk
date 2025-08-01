@@ -17,6 +17,7 @@ use sov_rollup_interface::TxHash;
 use sov_universal_wallet::schema::UniversalWallet;
 use thiserror::Error;
 
+use crate::capabilities::UniquenessData;
 use crate::{
     Amount, DispatchCall, Gas, GasMeter, GasMeteringError, GasSpec, MeteredBorshDeserialize,
     MeteredBorshDeserializeError, MeteredSigVerificationError, MeteredSignature, Spec,
@@ -86,8 +87,8 @@ pub struct Version1<Call, S: Spec> {
         bound = "Call: sov_rollup_interface::sov_universal_wallet::schema::UniversalWallet"
     )]
     pub runtime_call: Call,
-    /// The generation of the transaction (for uniqueness).
-    pub generation: u64,
+    /// The nonce of the transaction (for uniqueness).
+    pub nonce: u64,
     /// The transaction metadata. Contains gas parameters and the chain ID.
     pub details: TxDetails<S>,
 }
@@ -106,6 +107,25 @@ pub struct Version1<Call, S: Spec> {
 pub enum VersionedTx<Call, S: Spec> {
     V0(Version0<Call, S>),
     V1(Version1<Call, S>),
+}
+
+#[allow(missing_docs)]
+impl<Call, S: Spec> VersionedTx<Call, S> {
+
+    pub fn get_details(&self) -> &TxDetails<S> {
+        match self {
+            VersionedTx::V0(inner) => &inner.details,
+            VersionedTx::V1(inner) => &inner.details,
+        }
+    }
+
+    pub fn get_uniqueness(&self) -> UniquenessData {
+        match self {
+            VersionedTx::V0(inner) => UniquenessData::Generation(inner.generation),
+            VersionedTx::V1(inner) => UniquenessData::Generation(inner.nonce),
+        }
+    }
+    
 }
 
 #[derive(
