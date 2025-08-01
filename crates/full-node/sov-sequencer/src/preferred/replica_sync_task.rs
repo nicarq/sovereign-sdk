@@ -1,9 +1,4 @@
-use std::num::NonZero;
-use std::pin::Pin;
-use std::str::FromStr;
-use std::sync::Arc;
-use std::time::Duration;
-
+use crate::preferred::SequenceNumber;
 use anyhow::anyhow;
 use futures::stream::FuturesOrdered;
 use futures::{Future, StreamExt};
@@ -12,6 +7,11 @@ use sov_modules_api::{FullyBakedTx, Runtime, Spec, StateUpdateInfo, TxHash, Visi
 use sov_rollup_interface::node::da::DaService;
 use sqlx::postgres::{PgListener, PgPoolOptions};
 use sqlx::{PgPool, Row};
+use std::num::NonZero;
+use std::pin::Pin;
+use std::str::FromStr;
+use std::sync::Arc;
+use std::time::Duration;
 use tokio::sync::watch;
 use tokio::task::JoinHandle;
 use tracing::{debug, error, info, trace, warn};
@@ -113,6 +113,7 @@ pub async fn spawn_replica_sync_task<S, Rt, Da>(
     sequencer: Arc<PreferredSequencer<S, Rt, Da>>,
     shutdown_receiver: watch::Receiver<()>,
     latest_state_update: StateUpdateInfo<S::Storage>,
+    replay_receiver: watch::Receiver<Option<SequenceNumber>>,
 ) -> JoinHandle<()>
 where
     S: Spec,
@@ -134,12 +135,17 @@ where
         exit_rollup(&sequencer.shutdown_sender).await;
         unreachable!()
     }
-    tokio::spawn(replica_sync_task_inner(sequencer, shutdown_receiver))
+    tokio::spawn(replica_sync_task_inner(
+        sequencer,
+        shutdown_receiver,
+        replay_receiver,
+    ))
 }
 
 async fn replica_sync_task_inner<S, Rt, Da>(
     sequencer: Arc<PreferredSequencer<S, Rt, Da>>,
     mut shutdown_receiver: watch::Receiver<()>,
+    mut replay_receiver: watch::Receiver<Option<SequenceNumber>>,
 ) where
     S: Spec,
     Rt: Runtime<S>,
@@ -201,6 +207,7 @@ async fn replica_sync_task_inner<S, Rt, Da>(
         &mut listener,
         &query_pool,
         &mut shutdown_receiver,
+        &mut replay_receiver,
     )
     .await
     {
@@ -215,6 +222,7 @@ async fn concurrent_event_processing_loop<S, Rt, Da>(
     listener: &mut PgListener,
     query_pool: &PgPool,
     shutdown_receiver: &mut watch::Receiver<()>,
+    replay_receiver: &mut watch::Receiver<Option<SequenceNumber>>,
 ) -> anyhow::Result<()>
 where
     S: Spec,
@@ -234,6 +242,7 @@ where
     let mut pending_events: FuturesOrdered<PendingEventFuture> = FuturesOrdered::new();
 
     let mut latest_received_event_id: Option<u64> = None;
+    let mut last_fully_processed_batch: Option<SequenceNumber> = None;
     loop {
         tokio::select! {
             // Only poll listener if we have capacity
@@ -245,6 +254,34 @@ where
                         let payload = notification.payload();
                         let parsed_notification = EventsNotificationPayload::parse_csv(payload)
                             .map_err(|e| anyhow!("Failed to parse CSV notification payload: {e}"))?;
+
+
+                            let replayed_sequence_number = *replay_receiver.borrow();
+                            match replayed_sequence_number {
+                                // Node is not synced yet - ignore all incoming events
+                                None => {
+                                    trace!("Replica receiving event but node is not synced yet, ignoring. Event: {payload}");
+                                    continue;
+                                }
+                                // We are indeed synced. Is the last replayed batch ahead of our event
+                                // stream?
+                                Some(last_replayed_sequence_number) => {
+                                    if last_fully_processed_batch.is_none_or(|seq| seq < last_replayed_sequence_number) {
+                                        // Query the batch_close event with this sequence number to find the event_id
+                                        // Set our latest_received_event_id to that event's id so we continue from there
+                                        let new_latest_event_id = query_event_id_for_batch_close(query_pool, last_replayed_sequence_number).await?;
+                                        if latest_received_event_id.is_some_and(|latest| latest >= new_latest_event_id) {
+                                            // Return an error rather than using assert! - this way the
+                                            // sequencer will call exit_rollup() cleanly
+                                            anyhow::bail!("Sanity check failed - update_state fast-forwarded our sequence number, but this would not have fast-forwarded our event ID");
+                                        }
+                                        latest_received_event_id = Some(new_latest_event_id);
+                                        last_fully_processed_batch = Some(last_replayed_sequence_number);
+                                        debug!("Replica event processing fast-forwarding to sequence_number {}, event_id {}, due to update_state running ahead", last_replayed_sequence_number, new_latest_event_id);
+                                    }
+                                }
+                            }
+
 
                         // Check for gaps and add backfill if needed
                         if detect_gap(latest_received_event_id, parsed_notification.event_id).is_some() {
@@ -279,7 +316,7 @@ where
             Some(completed_result) = pending_events.next() => {
                 match completed_result? {
                     CompletedEvent::Event(db_event) => {
-                        process_db_event(sequencer.clone(), db_event, query_pool).await?;
+                        process_db_event(sequencer.clone(), db_event, query_pool, &mut last_fully_processed_batch).await?;
                     }
                     CompletedEvent::Backfill {
                         current_latest,
@@ -367,6 +404,7 @@ async fn process_db_event<S, Rt, Da>(
     sequencer: Arc<PreferredSequencer<S, Rt, Da>>,
     db_event: DbEvent,
     query_pool: &PgPool,
+    last_fully_processed_batch: &mut Option<u64>,
 ) -> anyhow::Result<()>
 where
     S: Spec,
@@ -382,6 +420,7 @@ where
             Ok(())
         }
         DbEvent::BatchClosed(_) => {
+            *last_fully_processed_batch = Some(last_fully_processed_batch.map_or(0, |n| n + 1));
             sequencer
                 .synchronized_state_updator
                 .close_current_batch_msg("replica_sync_task:close_current_batch")
@@ -625,4 +664,19 @@ async fn query_proof_blob_from_db(
             sequence_number
         )),
     }
+}
+
+async fn query_event_id_for_batch_close(
+    query_pool: &PgPool,
+    sequence_number: u64,
+) -> anyhow::Result<u64> {
+    let row = sqlx::query(
+        "SELECT event_id FROM events WHERE sequence_number = $1 AND event_type = 'batch_end'",
+    )
+    .bind(i64::try_from(sequence_number)?)
+    .fetch_one(query_pool)
+    .await?;
+
+    let event_id: i64 = row.get("event_id");
+    Ok(event_id as u64)
 }
