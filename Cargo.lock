@@ -4870,6 +4870,7 @@ dependencies = [
  "serde",
  "serde_json",
  "sov-accounts",
+ "sov-address",
  "sov-attester-incentives",
  "sov-bank",
  "sov-chain-state",
