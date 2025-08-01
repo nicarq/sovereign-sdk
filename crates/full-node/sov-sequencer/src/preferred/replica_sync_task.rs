@@ -214,6 +214,7 @@ where
     Rt: Runtime<S>,
     Da: DaService<Spec = S::Da>,
 {
+    println!("Start replica sync task concurrent event processing loop");
     // This determines the maximum number of futures. The futures are used to fetch extra info from
     // the DB when a notification comes in, so that notification processing doesn't block on this.
     // In theory, this will only grow above the pool's max_connections() if either the replica is
@@ -228,12 +229,19 @@ where
 
     let mut latest_received_event_id: Option<u64> = None;
     let mut last_fully_processed_batch: Option<SequenceNumber> = None;
+    tokio::time::sleep(Duration::from_secs(5)).await;
+
     loop {
+        println!("==== Replica sync task: waiting for notification");
+
         tokio::select! {
             // Only poll listener if we have capacity
             notification_result = listener.recv(), if pending_events.len() < MAX_CONCURRENT => {
                 match notification_result {
                     Ok(notification) => {
+                        println!("==== XXX1");
+
+
                         trace!("Replica sync: received PostgreSQL notification: {:?}", notification);
 
                         let payload = notification.payload();
@@ -241,15 +249,19 @@ where
                             .map_err(|e| anyhow!("Failed to parse CSV notification payload: {e}"))?;
 
                         let replayed_sequence_number = *replay_receiver.borrow();
+
                         match replayed_sequence_number {
                             // Node is not synced yet - ignore all incoming events
                             None => {
+                                println!("==== XXX2");
                                 trace!("Replica receiving event but node is not synced yet, ignoring. Event: {payload}");
+                                tokio::time::sleep(Duration::from_secs(1)).await;
                                 continue;
                             }
                             // We are indeed synced. Is the last replayed batch ahead of our event
                             // stream?
                             Some(last_replayed_sequence_number) => {
+                                println!("==== XXX3");
                                 if last_fully_processed_batch.is_none_or(|seq| seq < last_replayed_sequence_number) {
                                     // Query the batch_close event with this sequence number to find the event_id
                                     // Set our latest_received_event_id to that event's id so we continue from there
@@ -289,7 +301,8 @@ where
                     }
                     Err(e) => {
                         error!("Error in replica receiving PostgreSQL notification: {e:?}. Replica will sleep then retry.");
-                        tokio::time::sleep(Duration::from_secs(1)).await;
+                        println!("Error in replica receiving PostgreSQL notification: {e:?}. Replica will sleep then retry.");
+                        tokio::time::sleep(Duration::from_secs(5)).await;
                     }
                 }
             },
@@ -314,6 +327,11 @@ where
                 break;
             }
         }
+
+        println!(
+            "Sucessfully processed a notification, current pending events: {}",
+            pending_events.len()
+        );
     }
 
     Ok(())

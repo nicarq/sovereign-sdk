@@ -157,6 +157,8 @@ where
         shutdown_sender: watch::Sender<()>,
         stop_at_rollup_height: Option<RollupHeight>,
     ) -> anyhow::Result<(Arc<Self>, Vec<JoinHandle<()>>)> {
+        println!("IsReplica {:?}", config.sequencer_kind_config.is_replica);
+
         let shutdown_receiver = shutdown_sender.subscribe();
         let latest_state_update = state_update_receiver.borrow().clone();
         let da_address = da.get_signer().await;
@@ -275,7 +277,8 @@ where
             startup_transaction_cache_writer: None, // The main executor must *not* write to the tx cache. That's handled by the side effects task
         };
 
-        let (replica_sync_notifer, replica_sync_receiver) = watch::channel(None);
+        let (replica_sync_notifer, replica_sync_receiver) = watch::channel(Some(0));
+        replica_sync_notifer.send_replace(Some(0));
 
         let tx_queue_id = Arc::new(AtomicU64::new(0));
         let (synchronized_state, synchronized_state_updator) = create(
