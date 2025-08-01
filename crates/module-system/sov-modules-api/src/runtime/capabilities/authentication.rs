@@ -234,6 +234,61 @@ pub enum UnregisteredAuthenticationError {
     InvalidAuthenticationDiscriminant,
 }
 
+/// Verifies that the transaction has the correct chain ID.
+fn verify_chain_id<S: Spec, Call>(
+    tx_v0: &crate::transaction::Version0<Call, S>,
+    raw_tx_hash: TxHash,
+) -> Result<(), AuthenticationError> {
+    if tx_v0.details.chain_id != config_chain_id() {
+        return Err(AuthenticationError::FatalError(
+            FatalError::InvalidChainId {
+                expected: config_chain_id(),
+                got: tx_v0.details.chain_id,
+            },
+            raw_tx_hash,
+        ));
+    }
+    Ok(())
+}
+
+/// Verifies the transaction signature.
+fn verify_signature<S: Spec, D: DispatchCall<Spec = S>>(
+    tx: &Transaction<D, S>,
+    chain_hash: &[u8; 32],
+    raw_tx_hash: TxHash,
+    meter: &mut impl GasMeter<Spec = S>,
+) -> Result<(), AuthenticationError> {
+    tx.verify(chain_hash, meter).map_err(|e| match e {
+        TransactionVerificationError::BadSignature(_)
+        | TransactionVerificationError::TransactionDeserializationError(_) => {
+            AuthenticationError::FatalError(
+                FatalError::SigVerificationFailed(e.to_string()),
+                raw_tx_hash,
+            )
+        }
+        TransactionVerificationError::GasError(_) => AuthenticationError::OutOfGas(e.to_string()),
+    })
+}
+
+/// Extracts authorization data from a verified transaction.
+fn extract_authorization_data<S: Spec, D: DispatchCall<Spec = S>>(
+    tx_v0: &crate::transaction::Version0<D::Decodable, S>,
+    raw_tx_hash: TxHash,
+    meter: &mut impl GasMeter<Spec = S>,
+) -> Result<AuthorizationData<S>, AuthenticationError> {
+    let pub_key = tx_v0.pub_key.clone();
+    let credential_id = metered_credential(&pub_key, meter)
+        .map_err(|e| AuthenticationError::OutOfGas(e.to_string()))?;
+
+    Ok(AuthorizationData {
+        uniqueness: UniquenessData::Generation(tx_v0.generation),
+        tx_hash: raw_tx_hash,
+        credential_id,
+        credentials: Credentials::new(pub_key),
+        default_address: credential_id.into(),
+    })
+}
+
 fn verify_and_decode_tx<S: Spec, D: DispatchCall<Spec = S>>(
     raw_tx_hash: TxHash,
     tx: Transaction<D, S>,
@@ -242,55 +297,17 @@ fn verify_and_decode_tx<S: Spec, D: DispatchCall<Spec = S>>(
 ) -> Result<AuthenticationOutput<S, D::Decodable>, AuthenticationError> {
     match &tx.versioned_tx {
         VersionedTx::V0(tx_v0) => {
-            if tx_v0.details.chain_id != config_chain_id() {
-                return Err(AuthenticationError::FatalError(
-                    FatalError::InvalidChainId {
-                        expected: config_chain_id(),
-                        got: tx_v0.details.chain_id,
-                    },
-                    raw_tx_hash,
-                ));
-            }
-
-            tx.verify(chain_hash, meter).map_err(|e| match e {
-                TransactionVerificationError::BadSignature(_)
-                | TransactionVerificationError::TransactionDeserializationError(_) => {
-                    AuthenticationError::FatalError(
-                        FatalError::SigVerificationFailed(e.to_string()),
-                        raw_tx_hash,
-                    )
-                }
-                TransactionVerificationError::GasError(_) => {
-                    AuthenticationError::OutOfGas(e.to_string())
-                }
-            })?;
+            verify_chain_id(tx_v0, raw_tx_hash)?;
+            verify_signature(&tx, chain_hash, raw_tx_hash, meter)?;
+            let authorization_data = extract_authorization_data::<S, D>(tx_v0, raw_tx_hash, meter)?;
 
             let runtime_call = tx_v0.runtime_call.clone();
-            let pub_key = tx_v0.pub_key.clone();
-            let credential_id = metered_credential(&pub_key, meter)
-                .map_err(|e| AuthenticationError::OutOfGas(e.to_string()))?;
-
-            let default_address = credential_id.into();
-
-            let credentials = Credentials::new(pub_key);
-            let generation = tx_v0.generation;
-
             let tx_and_raw_hash = AuthenticatedTransactionAndRawHash {
                 raw_tx_hash,
                 authenticated_tx: AuthenticatedTransactionData(tx_v0.details.clone()),
             };
 
-            Ok((
-                tx_and_raw_hash,
-                AuthorizationData {
-                    uniqueness: UniquenessData::Generation(generation),
-                    tx_hash: raw_tx_hash,
-                    credential_id,
-                    credentials,
-                    default_address,
-                },
-                runtime_call,
-            ))
+            Ok((tx_and_raw_hash, authorization_data, runtime_call))
         }
     }
 }
