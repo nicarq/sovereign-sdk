@@ -260,8 +260,15 @@ where
                             }
                             // We are indeed synced. Is the last replayed batch ahead of our event
                             // stream?
+
+                            // Q1. Is this only optimization
+                            // Q2. What would be the way for "launched at genesis and there's nothing to resync" case
+                            // q4 Config is replica.
+                            // Q 5Cached in-progress batch state (None) didn't match backend db state: Err(encountered unexpected or invalid data: unexpected response from SSLRequest: 0x00 (sqlx_postgres::connection::tls:95)
+
+
                             Some(last_replayed_sequence_number) => {
-                                println!("==== XXX3");
+
                                 if last_fully_processed_batch.is_none_or(|seq| seq < last_replayed_sequence_number) {
                                     // Query the batch_close event with this sequence number to find the event_id
                                     // Set our latest_received_event_id to that event's id so we continue from there
