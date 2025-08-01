@@ -3,6 +3,7 @@
 use std::marker::PhantomData;
 
 use borsh::{BorshDeserialize, BorshSerialize};
+use digest::Digest;
 use serde::{Deserialize, Serialize};
 use sov_modules_macros::config_value_private;
 use sov_rollup_interface::TxHash;
@@ -140,11 +141,7 @@ where
     #[cfg(feature = "native")]
     fn compute_tx_hash(tx: &FullyBakedTx) -> anyhow::Result<TxHash> {
         let AuthenticatorInput::Standard(input) = borsh::from_slice(&tx.data)?;
-
-        Ok(calculate_hash(
-            &input.data,
-            &mut crate::gas::UnlimitedGasMeter::<S>::default(),
-        )?)
+        Ok(calculate_hash::<S>(&input.data))
     }
 
     fn authenticate_unregistered<Accessor: ProvableStateReader<sov_state::User, Spec = S>>(
@@ -326,7 +323,7 @@ pub fn authenticate<
     chain_hash: &[u8; 32],
     state: &mut Accessor,
 ) -> Result<AuthenticationOutput<S, D::Decodable>, AuthenticationError> {
-    let raw_tx_hash = calculate_hash::<Accessor, S>(raw_tx, state)
+    let raw_tx_hash = calculate_hash_metered::<Accessor, S>(raw_tx, state)
         .map_err(|e| AuthenticationError::OutOfGas(e.to_string()))?;
 
     let tx =
@@ -364,7 +361,7 @@ pub fn decode_sov_tx<S: Spec, D: DispatchCall<Spec = S>>(
 ///
 /// # Errors
 /// Returns an error if the operation runs out of gas.
-pub fn calculate_hash<G: GasMeter<Spec = S>, S: Spec>(
+pub fn calculate_hash_metered<G: GasMeter<Spec = S>, S: Spec>(
     data: &[u8],
     gas_meter: &mut G,
 ) -> Result<TxHash, GasMeteringError<S::Gas>> {
@@ -372,6 +369,13 @@ pub fn calculate_hash<G: GasMeter<Spec = S>, S: Spec>(
         .map(TxHash::new)?;
 
     Ok(hash)
+}
+
+/// Calculates the hash of `data`.
+pub fn calculate_hash<S: Spec>(data: &[u8]) -> TxHash {
+    let hash = <S::CryptoSpec as CryptoSpec>::Hasher::digest(data);
+    let hash_bytes: [u8; 32] = hash.into();
+    TxHash::new(hash_bytes)
 }
 
 /// Helper function to create a `FatalError::DeserializationFailed` authentication error.
@@ -384,7 +388,7 @@ pub fn fatal_deserialization_error<
     err: E,
     pre_exec_working_set: &mut Accessor,
 ) -> AuthenticationError {
-    let hash = match calculate_hash::<Accessor, S>(raw_tx, pre_exec_working_set) {
+    let hash = match calculate_hash_metered::<Accessor, S>(raw_tx, pre_exec_working_set) {
         Ok(hash) => hash,
         Err(err) => return AuthenticationError::OutOfGas(err.to_string()),
     };

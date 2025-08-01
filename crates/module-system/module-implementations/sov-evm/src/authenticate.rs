@@ -205,10 +205,7 @@ where
                 let (_rlp, tx) = decode_evm_tx(&tx.data)?;
                 Ok(TxHash::new(tx.hash().into()))
             }
-            EvmAuthenticatorInput::Standard(tx) => Ok(capabilities::calculate_hash(
-                &tx.data,
-                &mut sov_modules_api::gas::UnlimitedGasMeter::<S>::default(),
-            )?),
+            EvmAuthenticatorInput::Standard(tx) => Ok(capabilities::calculate_hash::<S>(&tx.data)),
         }
     }
 
