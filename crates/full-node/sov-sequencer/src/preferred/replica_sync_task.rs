@@ -488,7 +488,7 @@ async fn backfill_to_event_id<S: Spec, Rt: Runtime<S>, Da: DaService<Spec = S::D
 
         // Query and process events for this page
         let events = sqlx::query(
-            "SELECT sequence_number, index_in_batch, event_type, hash, data FROM events 
+            "SELECT event_id, sequence_number, index_in_batch, event_type, hash, data FROM events 
              WHERE event_id >= $1 AND event_id < $2
              ORDER BY event_id ASC",
         )
@@ -498,12 +498,8 @@ async fn backfill_to_event_id<S: Spec, Rt: Runtime<S>, Da: DaService<Spec = S::D
         .await?;
 
         for row in events {
-            let event_type_str: String = row.get("event_type");
+            let event_type: EventType = row.get("event_type");
             let sequence_number = row.get::<i64, _>("sequence_number") as u64;
-
-            let event_type: EventType = event_type_str
-                .parse()
-                .map_err(|e| anyhow::anyhow!("Invalid event type '{}': {}", event_type_str, e))?;
 
             match event_type {
                 EventType::Transaction => {
