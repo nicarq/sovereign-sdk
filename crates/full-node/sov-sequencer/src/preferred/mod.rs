@@ -658,7 +658,7 @@ pub(crate) async fn update_api_ledger<S: Spec, Rt: Runtime<S>>(
     transaction_cache: TxResultWriter<S, Rt>,
     info: &StateUpdateInfo<S::Storage>,
 ) {
-    api_ledger_db.replace_reader(info.ledger_reader.clone());
+    tokio::task::block_in_place(|| api_ledger_db.replace_reader(info.ledger_reader.clone()));
     api_ledger_db.send_notifications_for_slot(info.slot_number);
     prune_transactions_cache(info.next_tx_number, transaction_cache).await;
 }
