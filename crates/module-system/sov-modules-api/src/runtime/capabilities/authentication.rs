@@ -151,15 +151,11 @@ where
         let AuthenticatorInput::Standard(input) = borsh::from_slice(&batch.tx.data)
             .map_err(|_| UnregisteredAuthenticationError::InvalidAuthenticationDiscriminant)?;
 
-        crate::capabilities::authenticate::<_, S, Rt>(&input.data, &Rt::CHAIN_HASH, pre_exec_ws)
-            .map_err(|e| match e {
-                AuthenticationError::FatalError(err, hash) => {
-                    UnregisteredAuthenticationError::FatalError(err, hash)
-                }
-                AuthenticationError::OutOfGas(err) => {
-                    UnregisteredAuthenticationError::OutOfGas(err)
-                }
-            })
+        Ok(crate::capabilities::authenticate::<_, S, Rt>(
+            &input.data,
+            &Rt::CHAIN_HASH,
+            pre_exec_ws,
+        )?)
     }
 
     fn add_standard_auth(tx: RawTx) -> Self::Input {
@@ -231,6 +227,19 @@ pub enum UnregisteredAuthenticationError {
     InvalidAuthenticationDiscriminant,
 }
 
+impl From<AuthenticationError> for UnregisteredAuthenticationError {
+    fn from(err: AuthenticationError) -> Self {
+        match err {
+            AuthenticationError::FatalError(fatal_error, hash) => {
+                UnregisteredAuthenticationError::FatalError(fatal_error, hash)
+            }
+            AuthenticationError::OutOfGas(out_of_gas) => {
+                UnregisteredAuthenticationError::OutOfGas(out_of_gas)
+            }
+        }
+    }
+}
+
 /// Verifies that the transaction has the correct chain ID.
 fn verify_chain_id<S: Spec, Call>(
     tx_v0: &crate::transaction::Version0<Call, S>,
@@ -256,14 +265,11 @@ fn verify_signature<S: Spec, D: DispatchCall<Spec = S>>(
     meter: &mut impl GasMeter<Spec = S>,
 ) -> Result<(), AuthenticationError> {
     tx.verify(chain_hash, meter).map_err(|e| match e {
-        TransactionVerificationError::BadSignature(_)
-        | TransactionVerificationError::TransactionDeserializationError(_) => {
-            AuthenticationError::FatalError(
-                FatalError::SigVerificationFailed(e.to_string()),
-                raw_tx_hash,
-            )
-        }
         TransactionVerificationError::GasError(_) => AuthenticationError::OutOfGas(e.to_string()),
+        _ => AuthenticationError::FatalError(
+            FatalError::SigVerificationFailed(e.to_string()),
+            raw_tx_hash,
+        ),
     })
 }
 
