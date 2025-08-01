@@ -101,8 +101,6 @@ pub trait PreferredSequencerDbBackend: Send + Sync + 'static {
 pub struct DbSnapshotData {
     pub completed_blobs: Vec<PreferredSequencerReadBlob>,
     pub in_progress_batch: Option<InProgressBatch>,
-    #[allow(dead_code)]
-    pub latest_event_id: Option<u64>,
 }
 
 /// See [`PreferredSequencerReadBlob::Batch`].
@@ -402,7 +400,6 @@ where
         let DbSnapshotData {
             completed_blobs,
             in_progress_batch,
-            latest_event_id: _,
         } = backend.current_data().await?;
         let completed_blobs = VecDeque::from(completed_blobs);
 
