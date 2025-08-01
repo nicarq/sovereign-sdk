@@ -21,8 +21,9 @@ use crate::preferred::{exit_rollup, DbEvent, PreferredSequencer};
 use crate::ProofBlobSender;
 
 /// Event type enum for type-safe parsing
-#[derive(Debug, Deserialize, Serialize, Clone, PartialEq, Eq)]
+#[derive(Debug, Deserialize, Serialize, Clone, PartialEq, Eq, sqlx::Type)]
 #[serde(rename_all = "snake_case")]
+#[sqlx(type_name = "event_type", rename_all = "snake_case")]
 enum EventType {
     Transaction,
     BatchStart,
@@ -247,13 +248,6 @@ where
 
                         // Check for gaps and add backfill if needed
                         if detect_gap(latest_received_event_id, parsed_notification.event_id).is_some() {
-                            /*
-                            let backfill_future = create_backfill_future(
-                                sequencer.clone(),
-                                query_pool,
-                                *latest_received_event_id,
-                                parsed_notification.event_id,
-                            );*/
 
                             let backfill_future: PendingEventFuture = Box::pin(async move {
                                 Ok(CompletedEvent::Backfill {
