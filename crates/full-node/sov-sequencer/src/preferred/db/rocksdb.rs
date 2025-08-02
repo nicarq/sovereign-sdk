@@ -154,7 +154,6 @@ impl PreferredSequencerDbBackend for RocksDbBackend {
         Ok(DbSnapshotData {
             completed_blobs,
             in_progress_batch,
-            latest_event_id: None,
         })
     }
 }

@@ -21,8 +21,9 @@ use crate::preferred::{exit_rollup, DbEvent, PreferredSequencer};
 use crate::ProofBlobSender;
 
 /// Event type enum for type-safe parsing
-#[derive(Debug, Deserialize, Serialize, Clone, PartialEq, Eq)]
+#[derive(Debug, Deserialize, Serialize, Clone, PartialEq, Eq, sqlx::Type)]
 #[serde(rename_all = "snake_case")]
+#[sqlx(type_name = "event_type", rename_all = "snake_case")]
 enum EventType {
     Transaction,
     BatchStart,
@@ -100,7 +101,10 @@ type PendingEventFuture = Pin<Box<dyn Future<Output = anyhow::Result<CompletedEv
 #[derive(Debug)]
 enum CompletedEvent {
     Event(DbEvent),
-    Backfill,
+    Backfill {
+        current_latest: Option<u64>,
+        target: u64,
+    },
 }
 
 /// Background task for replica sequencers to sync state from the master sequencer's database.
@@ -109,7 +113,6 @@ pub async fn spawn_replica_sync_task<S, Rt, Da>(
     sequencer: Arc<PreferredSequencer<S, Rt, Da>>,
     shutdown_receiver: watch::Receiver<()>,
     latest_state_update: StateUpdateInfo<S::Storage>,
-    latest_loaded_event_id: Option<u64>,
 ) -> JoinHandle<()>
 where
     S: Spec,
@@ -131,17 +134,12 @@ where
         exit_rollup(&sequencer.shutdown_sender).await;
         unreachable!()
     }
-    tokio::spawn(replica_sync_task_inner(
-        sequencer,
-        shutdown_receiver,
-        latest_loaded_event_id,
-    ))
+    tokio::spawn(replica_sync_task_inner(sequencer, shutdown_receiver))
 }
 
 async fn replica_sync_task_inner<S, Rt, Da>(
     sequencer: Arc<PreferredSequencer<S, Rt, Da>>,
     mut shutdown_receiver: watch::Receiver<()>,
-    latest_loaded_event_id: Option<u64>,
 ) where
     S: Spec,
     Rt: Runtime<S>,
@@ -179,8 +177,6 @@ async fn replica_sync_task_inner<S, Rt, Da>(
         }
     };
 
-    let mut latest_received_event_id = latest_loaded_event_id;
-
     // Create a dedicated listener for PostgreSQL LISTEN/NOTIFY
     let mut listener = match PgListener::connect(connection_string).await {
         Ok(listener) => listener,
@@ -204,7 +200,6 @@ async fn replica_sync_task_inner<S, Rt, Da>(
         sequencer.clone(),
         &mut listener,
         &query_pool,
-        &mut latest_received_event_id,
         &mut shutdown_receiver,
     )
     .await
@@ -219,7 +214,6 @@ async fn concurrent_event_processing_loop<S, Rt, Da>(
     sequencer: Arc<PreferredSequencer<S, Rt, Da>>,
     listener: &mut PgListener,
     query_pool: &PgPool,
-    latest_received_event_id: &mut Option<u64>,
     shutdown_receiver: &mut watch::Receiver<()>,
 ) -> anyhow::Result<()>
 where
@@ -239,6 +233,7 @@ where
     const MAX_CONCURRENT: usize = 1000;
     let mut pending_events: FuturesOrdered<PendingEventFuture> = FuturesOrdered::new();
 
+    let mut latest_received_event_id: Option<u64> = None;
     loop {
         tokio::select! {
             // Only poll listener if we have capacity
@@ -252,17 +247,21 @@ where
                             .map_err(|e| anyhow!("Failed to parse CSV notification payload: {e}"))?;
 
                         // Check for gaps and add backfill if needed
-                        if detect_gap(*latest_received_event_id, parsed_notification.event_id).is_some() {
-                            let backfill_future = create_backfill_future(
-                                sequencer.clone(),
-                                query_pool,
-                                *latest_received_event_id,
-                                parsed_notification.event_id,
-                            );
+                        if detect_gap(latest_received_event_id, parsed_notification.event_id).is_some() {
+
+                            let backfill_future: PendingEventFuture = Box::pin(async move {
+                                Ok(CompletedEvent::Backfill {
+                                    current_latest: latest_received_event_id,
+                                    target: parsed_notification.event_id,
+                                })
+                            });
+
                             pending_events.push_back(backfill_future);
+                        } else if latest_received_event_id.map(|latest_id| parsed_notification.event_id <= latest_id).unwrap_or(false) {
+                            continue;
                         }
 
-                        *latest_received_event_id = Some(parsed_notification.event_id);
+                        latest_received_event_id = Some(parsed_notification.event_id);
 
                         // Create future for current notification
                         let event_future = create_event_future(parsed_notification, query_pool);
@@ -282,8 +281,11 @@ where
                     CompletedEvent::Event(db_event) => {
                         process_db_event(sequencer.clone(), db_event, query_pool).await?;
                     }
-                    CompletedEvent::Backfill => {
-                        trace!("Backfill completed up to event_id");
+                    CompletedEvent::Backfill {
+                        current_latest,
+                        target,
+                    }  => {
+                        backfill_to_event_id(sequencer.clone(), query_pool, current_latest, target).await?;
                     }
                 }
             },
@@ -358,27 +360,6 @@ fn create_event_future(
             })
         }
     }
-}
-
-/// Creates a future for backfilling a gap in events using existing backfill logic
-fn create_backfill_future<S, Rt, Da>(
-    sequencer: Arc<PreferredSequencer<S, Rt, Da>>,
-    query_pool: &PgPool,
-    current_latest: Option<u64>,
-    target_event_id: u64,
-) -> PendingEventFuture
-where
-    S: Spec,
-    Rt: Runtime<S>,
-    Da: DaService<Spec = S::Da>,
-{
-    let sequencer = sequencer.clone();
-    let pool = query_pool.clone();
-
-    Box::pin(async move {
-        backfill_to_event_id(sequencer.clone(), &pool, current_latest, target_event_id).await?;
-        Ok(CompletedEvent::Backfill)
-    })
 }
 
 /// Processes a completed DB event
@@ -507,7 +488,7 @@ async fn backfill_to_event_id<S: Spec, Rt: Runtime<S>, Da: DaService<Spec = S::D
 
         // Query and process events for this page
         let events = sqlx::query(
-            "SELECT sequence_number, index_in_batch, event_type, hash, data FROM events 
+            "SELECT event_id, sequence_number, index_in_batch, event_type, hash, data FROM events 
              WHERE event_id >= $1 AND event_id < $2
              ORDER BY event_id ASC",
         )
@@ -517,12 +498,8 @@ async fn backfill_to_event_id<S: Spec, Rt: Runtime<S>, Da: DaService<Spec = S::D
         .await?;
 
         for row in events {
-            let event_type_str: String = row.get("event_type");
+            let event_type: EventType = row.get("event_type");
             let sequence_number = row.get::<i64, _>("sequence_number") as u64;
-
-            let event_type: EventType = event_type_str
-                .parse()
-                .map_err(|e| anyhow::anyhow!("Invalid event type '{}': {}", event_type_str, e))?;
 
             match event_type {
                 EventType::Transaction => {

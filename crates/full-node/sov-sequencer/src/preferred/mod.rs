@@ -181,13 +181,12 @@ where
             } else {
                 Box::new(RocksDbBackend::new(storage_path).await?)
             };
-        let (db, latest_db_event_id, next_sequence_number, db_cache) =
-            PreferredSequencerDb::<S, Rt>::new(
-                db_backend,
-                shutdown_sender.clone(),
-                config.sequencer_kind_config.is_replica,
-            )
-            .await?;
+        let (db, next_sequence_number, db_cache) = PreferredSequencerDb::<S, Rt>::new(
+            db_backend,
+            shutdown_sender.clone(),
+            config.sequencer_kind_config.is_replica,
+        )
+        .await?;
 
         let mut handles = vec![];
 
@@ -317,7 +316,6 @@ where
                     seq.clone(),
                     shutdown_receiver.clone(),
                     latest_state_update.clone(),
-                    latest_db_event_id,
                 )
                 .await,
             );
