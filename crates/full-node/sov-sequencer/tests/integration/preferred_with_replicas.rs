@@ -156,6 +156,14 @@ async fn seq_with_replicas() {
     let actions = vec![
         TestingAction::NewDaSlot,
         TestingAction::Sleep { duration_ms: 100 },
+        TestingAction::NewDaSlot,
+        TestingAction::Sleep { duration_ms: 100 },
+        TestingAction::NewDaSlot,
+        TestingAction::Sleep { duration_ms: 100 },
+        TestingAction::NewDaSlot,
+        TestingAction::Sleep { duration_ms: 100 },
+        TestingAction::NewDaSlot,
+        TestingAction::Sleep { duration_ms: 100 },
     ];
     let (master, replicas, mut state) =
         test_actions_against_replicas(&admin, (master, replicas, state), actions).await;
