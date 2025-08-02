@@ -157,6 +157,7 @@ where
             "Attempting to use preferred sequencer with an incompatible rollup. Set your sequencer config to `standard` in your rollup's config.toml file or change your kernel to be compatible with soft confirmations."
         );
 
+        let (replica_sync_notifer, replica_sync_receiver) = watch::channel(None);
         let (checkpoint_sender, checkpoint_receiver) = watch::channel(StateCheckpoint::new(
             latest_state_update.storage.clone(),
             &runtime.kernel(),
@@ -269,6 +270,7 @@ where
             executor_events_sender,
             next_sequence_number,
             in_flight_blobs,
+            replica_sync_notifer,
             stop_at_rollup_height,
         );
 
@@ -311,7 +313,14 @@ where
         // state, then yield when it switches to processing postgres events live.
         // This is necessary to prevent conflicts with the update_state task.
         if config.sequencer_kind_config.is_replica {
-            handles.push(spawn_replica_sync_task(seq.clone(), shutdown_receiver.clone()).await);
+            handles.push(
+                spawn_replica_sync_task(
+                    seq.clone(),
+                    shutdown_receiver.clone(),
+                    replica_sync_receiver,
+                )
+                .await,
+            );
         }
         handles.push(tokio::spawn({
             update_state_task(
