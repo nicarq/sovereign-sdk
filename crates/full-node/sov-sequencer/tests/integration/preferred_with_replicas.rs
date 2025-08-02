@@ -98,7 +98,7 @@ async fn test_actions_against_replicas(
         run_actions_against_test_rollup(actions, master, &admin.clone(), state).await;
 
     // Ensure replicas have processed the database changes
-    tokio::time::sleep(Duration::from_millis(300)).await;
+    tokio::time::sleep(Duration::from_millis(3000)).await;
 
     // Verify state synchronization across all replicas
     for replica_opt in &mut replicas {
@@ -136,6 +136,9 @@ async fn restart_replica(
 
 #[tokio::test(flavor = "multi_thread")]
 async fn seq_with_replicas() {
+    sov_test_utils::logging::initialize_or_change_logging_with_filter(
+        "debug,sov_metrics=error,sov_sequencer::preferred=debug",
+    );
     let (test_rollups, _tempdir, admin) = create_test_rollups(4).await;
     let Some(test_rollups) = test_rollups else {
         return;
