@@ -8,7 +8,7 @@ use anyhow::anyhow;
 use futures::stream::FuturesOrdered;
 use futures::{Future, StreamExt};
 use serde::{Deserialize, Serialize};
-use sov_modules_api::{FullyBakedTx, Runtime, Spec, StateUpdateInfo, TxHash, VisibleSlotNumber};
+use sov_modules_api::{FullyBakedTx, Runtime, Spec, TxHash, VisibleSlotNumber};
 use sov_rollup_interface::node::da::DaService;
 use sqlx::postgres::{PgListener, PgPoolOptions};
 use sqlx::{PgPool, Row};
@@ -112,7 +112,6 @@ enum CompletedEvent {
 pub async fn spawn_replica_sync_task<S, Rt, Da>(
     sequencer: Arc<PreferredSequencer<S, Rt, Da>>,
     shutdown_receiver: watch::Receiver<()>,
-    latest_state_update: StateUpdateInfo<S::Storage>,
 ) -> JoinHandle<()>
 where
     S: Spec,
