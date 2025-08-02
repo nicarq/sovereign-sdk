@@ -157,6 +157,7 @@ where
             "Attempting to use preferred sequencer with an incompatible rollup. Set your sequencer config to `standard` in your rollup's config.toml file or change your kernel to be compatible with soft confirmations."
         );
 
+        let (replica_sync_notifer, replica_sync_receiver) = watch::channel(None);
         let (checkpoint_sender, checkpoint_receiver) = watch::channel(StateCheckpoint::new(
             latest_state_update.storage.clone(),
             &runtime.kernel(),
@@ -181,13 +182,12 @@ where
             } else {
                 Box::new(RocksDbBackend::new(storage_path).await?)
             };
-        let (db, latest_db_event_id, next_sequence_number, db_cache) =
-            PreferredSequencerDb::<S, Rt>::new(
-                db_backend,
-                shutdown_sender.clone(),
-                config.sequencer_kind_config.is_replica,
-            )
-            .await?;
+        let (db, next_sequence_number, db_cache) = PreferredSequencerDb::<S, Rt>::new(
+            db_backend,
+            shutdown_sender.clone(),
+            config.sequencer_kind_config.is_replica,
+        )
+        .await?;
 
         let mut handles = vec![];
 
@@ -270,6 +270,7 @@ where
             executor_events_sender,
             next_sequence_number,
             in_flight_blobs,
+            replica_sync_notifer,
             stop_at_rollup_height,
         );
 
@@ -316,8 +317,7 @@ where
                 spawn_replica_sync_task(
                     seq.clone(),
                     shutdown_receiver.clone(),
-                    latest_state_update.clone(),
-                    latest_db_event_id,
+                    replica_sync_receiver,
                 )
                 .await,
             );

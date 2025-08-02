@@ -83,6 +83,10 @@ where
     metrics: Vec<PreferredSequencerChannelMetrics>,
     // Shared between sequencer and Inner.
     tx_queue_id: Arc<AtomicU64>,
+    /// Channel that sends a notification every time the executor is replaced after batch replay
+
+    /// finishes (at the end of update_state).
+    replay_notifier: watch::Sender<Option<SequenceNumber>>,
     stop_at_rollup_height: Option<RollupHeight>,
 }
 
@@ -300,7 +304,7 @@ where
                     target_visible_slot_number = %visible_slot_number_after_increase,
                     "Cannot calculate visible slots to advance for replica: target is not greater than current"
                 );
-                anyhow!("Invalid visible slot number progression for replica".to_string())
+                anyhow!(format!("Invalid visible slot number progression for replica: target is not greater than current. visible_slot_number_after_increase: {visible_slot_number_after_increase}, current_visible_slot_number: {current_visible_slot_number}"))
             })?;
 
         assert_eq!(
@@ -777,6 +781,7 @@ pub(crate) fn create<S, Rt>(
     executor_events_sender: ExecutorEventsSender<S, Rt>,
     sequence_number_of_next_blob: SequenceNumber,
     in_flight_blobs: Arc<AtomicUsize>,
+    replay_notifier: watch::Sender<Option<SequenceNumber>>,
     stop_at_rollup_height: Option<RollupHeight>,
 ) -> (
     SynchronizedSequencerState<S, Rt>,
@@ -809,6 +814,7 @@ where
         has_finished_startup: false,
         metrics: Vec::with_capacity(128),
         is_ready,
+        replay_notifier,
         stop_at_rollup_height,
     };
 
@@ -1590,6 +1596,11 @@ where
         inner.executor.replace_state(*executor).await;
         inner.is_ready = Ok(());
         inner.has_finished_startup = true;
+        let last_replayed_sequence_number = inner.sequence_number_of_next_blob.checked_sub(1);
+        inner
+            .replay_notifier
+            .send_replace(last_replayed_sequence_number);
+
         inner.latest_info = info;
         let checkpoint = inner
             .executor
