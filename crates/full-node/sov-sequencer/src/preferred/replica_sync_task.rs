@@ -119,21 +119,6 @@ where
     Rt: Runtime<S>,
     Da: DaService<Spec = S::Da>,
 {
-    if let Err(e) = sequencer
-        .replay_soft_confirmations_on_top_of_node_state(
-            latest_state_update,
-            std::time::Instant::now(),
-            true,
-            std::time::Duration::from_secs(0),
-        )
-        .await
-    {
-        error!(
-            "Replica failed to replay existing soft confirmation on startup: {e:?}. Shutting down."
-        );
-        exit_rollup(&sequencer.shutdown_sender).await;
-        unreachable!()
-    }
     tokio::spawn(replica_sync_task_inner(sequencer, shutdown_receiver))
 }
 
