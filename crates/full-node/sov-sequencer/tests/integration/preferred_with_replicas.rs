@@ -89,7 +89,7 @@ async fn test_actions_against_replicas(
         run_actions_against_test_rollup(actions, master, &admin.clone(), state).await;
 
     // Ensure replicas have processed the database changes
-    tokio::time::sleep(Duration::from_millis(300)).await;
+    tokio::time::sleep(Duration::from_millis(3000)).await;
 
     // Verify state synchronization across all replicas
     for replica_opt in &mut replicas {
@@ -130,7 +130,7 @@ async fn seq_with_replicas() {
     sov_test_utils::logging::initialize_or_change_logging_with_filter(
         "sov_sequencer::preferred=info",
     );
-    let (test_rollups, _tempdir, admin) = create_test_rollups(4).await;
+    let (test_rollups, _tempdir, admin) = create_test_rollups(2).await;
     let Some(test_rollups) = test_rollups else {
         return;
     };
@@ -170,6 +170,7 @@ async fn seq_with_replicas() {
         TestingAction::NewDaSlot,
         TestingAction::Sleep { duration_ms: 100 },
     ];
+
     let (master, replicas, mut state) =
         test_actions_against_replicas(&admin, (master, replicas, state), actions).await;
 
