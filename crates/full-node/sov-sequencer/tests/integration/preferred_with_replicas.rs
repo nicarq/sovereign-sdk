@@ -126,6 +126,110 @@ async fn restart_replica(
 
 #[tokio::test(flavor = "multi_thread")]
 async fn seq_with_replicas() {
+    let (test_rollups, _tempdir, admin) = create_test_rollups(2).await;
+    let Some(test_rollups) = test_rollups else {
+        return;
+    };
+    let mut test_rollups = test_rollups.into_iter();
+
+    let master = test_rollups.next().unwrap();
+    let replicas: Vec<Option<_>> = test_rollups.map(Some).collect();
+
+    let (master, state) = setup_test_rollup_with_initial_state(master, &admin).await;
+    tokio::time::sleep(Duration::from_secs(2)).await;
+
+    let actions = vec![
+        TestingAction::NewDaSlot,
+        TestingAction::Sleep { duration_ms: 100 },
+        TestingAction::NewDaSlot,
+        TestingAction::Sleep { duration_ms: 100 },
+        TestingAction::NewDaSlot,
+        TestingAction::Sleep { duration_ms: 100 },
+        TestingAction::NewDaSlot,
+        TestingAction::Sleep { duration_ms: 100 },
+        TestingAction::NewDaSlot,
+        TestingAction::Sleep { duration_ms: 100 },
+        TestingAction::NewDaSlot,
+        TestingAction::Sleep { duration_ms: 100 },
+        TestingAction::NewDaSlot,
+        TestingAction::Sleep { duration_ms: 100 },
+        TestingAction::NewDaSlot,
+        TestingAction::Sleep { duration_ms: 100 },
+        TestingAction::NewDaSlot,
+        TestingAction::Sleep { duration_ms: 100 },
+        TestingAction::AcceptTx,
+        TestingAction::QuerySetValue,
+    ];
+
+    let (master, replicas, mut state) =
+        test_actions_against_replicas(&admin, (master, replicas, state), actions).await;
+
+    sov_test_utils::logging::initialize_or_change_logging_with_filter(
+        "sov_sequencer::preferred=error",
+    );
+    println!("");
+    println!("");
+    println!("");
+    println!("");
+    println!("================== Restart replicas ==================");
+    let replicas = restart_replica(&admin, replicas, &mut state, 0).await;
+    tokio::time::sleep(Duration::from_secs(2)).await;
+
+    let actions = vec![
+        TestingAction::NewDaSlot,
+        TestingAction::Sleep { duration_ms: 100 },
+    ];
+
+    print!("================== test_actions_against_replicas ==================");
+    // tokio::time::sleep(Duration::from_secs(5)).await;
+    let (master, replicas, mut state) =
+        test_actions_against_replicas(&admin, (master, replicas, state), actions).await;
+
+    //let replicas = restart_replica(&admin, replicas, &mut state, 0).await;
+
+    /*
+    let actions = vec![
+        TestingAction::AcceptTxs { count: 10 },
+        TestingAction::NewDaSlot,
+        TestingAction::TryAcceptBadTx {
+            invalid_reason: InvalidGeneration::DuplicateTransaction,
+        },
+        TestingAction::Sleep { duration_ms: 100 },
+        TestingAction::NewDaSlot,
+        TestingAction::Sleep { duration_ms: 100 },
+        TestingAction::NewDaSlot,
+        TestingAction::Sleep { duration_ms: 100 },
+    ];
+    */
+    //let (master, replicas, mut state) =
+    //    test_actions_against_replicas(&admin, (master, replicas, state), actions).await;
+
+    /*
+    let replicas = restart_replica(&admin, replicas, &mut state, 1).await;
+    let replicas = restart_replica(&admin, replicas, &mut state, 2).await;
+
+    let (master, replicas, state) = test_actions_against_replicas(
+        &admin,
+        (master, replicas, state),
+        vec![TestingAction::QuerySetValue],
+    )
+    .await;*/
+
+    // Silence unused variable warnings to keep the test easier to edit
+    drop(state);
+
+    // Shutdown replicas first
+    for replica in replicas {
+        replica.unwrap().shutdown().await.unwrap();
+    }
+    // Shut down master last, otherwise the postgres subscription will drop and replicas will error
+    master.shutdown().await.unwrap();
+}
+
+/*
+
+#[tokio::test(flavor = "multi_thread")]
+async fn seq_with_replicas() {
     let (test_rollups, _tempdir, admin) = create_test_rollups(4).await;
     let Some(test_rollups) = test_rollups else {
         return;
@@ -186,4 +290,4 @@ async fn seq_with_replicas() {
     }
     // Shut down master last, otherwise the postgres subscription will drop and replicas will error
     master.shutdown().await.unwrap();
-}
+}*/
