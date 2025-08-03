@@ -1399,12 +1399,28 @@ where
         ) {
             (true, _, _, true) => PreferredSeqOperation::Unreachable,
             (true, _, false, false) => {
-                warn!("The node has a higher sequence number than the sequencer, but we're very close to the chain tip, i.e. we don't expect to be simply syncing. This could mean there is another preferred sequencer running (which is not supported and will likely lead to issues), or you very recently restarted the node and there's still some in-flight blobs. Resyncing to the chain tip.");
-                inner.is_ready = Err(SequencerNotReadyDetails::Syncing {
-                    target_da_height: da_sync_state.target_da_height.load(Ordering::Relaxed),
-                    synced_da_height: da_sync_state.synced_da_height.load(Ordering::Relaxed),
-                });
-                PreferredSeqOperation::WaitForNodeResyncToTip
+                /*
+                                warn!("The node has a higher sequence number than the sequencer, but we're very close to the chain tip, i.e. we don't expect to be simply syncing. This could mean there is another preferred sequencer running (which is not supported and will likely lead to issues), or you very recently restarted the node and there's still some in-flight blobs. Resyncing to the chain tip. {} {}",da_sync_state.target_da_height.load(Ordering::Relaxed), da_sync_state.synced_da_height.load(Ordering::Relaxed));
+                                inner.is_ready = Err(SequencerNotReadyDetails::Syncing {
+                                    target_da_height: da_sync_state.target_da_height.load(Ordering::Relaxed),
+                                    synced_da_height: da_sync_state.synced_da_height.load(Ordering::Relaxed),
+                                });
+                                PreferredSeqOperation::WaitForNodeResyncWithAllowedSlack
+
+                */
+                let should_flush_tx_cache = is_startup || is_resync || is_recover;
+
+                if should_flush_tx_cache {
+                    inner
+                        .executor_events_sender
+                        .flush_transactions_cache(info.next_tx_number)
+                        .await;
+                }
+
+                PreferredSeqOperation::ReplaySoftConfirmationsOnTopOfNodeState(
+                    should_flush_tx_cache,
+                    time_spent_fetching_batches,
+                )
             }
             (_, _, true, _) => {
                 warn!(?distance, "The sequencer must pause because the node has lagged behind the DA blockchain. This might lead to a brief downtime for users.");
@@ -1481,6 +1497,7 @@ where
             .await
             .map_err(AcceptTxError::NotFullySynced)?;
 
+        println!("XXX process_accept_tx");
         if let Err(batch_creation_error) = inner
             .try_to_create_and_start_batch_if_none_in_progress(false)
             .await
@@ -1596,10 +1613,19 @@ where
         inner.executor.replace_state(*executor).await;
         inner.is_ready = Ok(());
         inner.has_finished_startup = true;
-        let last_replayed_sequence_number = inner.sequence_number_of_next_blob.checked_sub(1);
+        //let last_replayed_sequence_number = inner.sequence_number_of_next_blob.checked_sub(1);
+
+        let next_sequence_number_according_to_node =
+            get_next_sequence_number_according_to_node(&info, &mut Rt::default()).checked_sub(1);
+
+        println!(
+            "Send last_replayed_sequence_number {:?}",
+            next_sequence_number_according_to_node
+        );
+
         inner
             .replay_notifier
-            .send_replace(last_replayed_sequence_number);
+            .send_replace(next_sequence_number_according_to_node);
 
         inner.latest_info = info;
         let checkpoint = inner

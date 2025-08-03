@@ -130,7 +130,7 @@ async fn seq_with_replicas() {
     sov_test_utils::logging::initialize_or_change_logging_with_filter(
         "sov_sequencer::preferred=info",
     );
-    let (test_rollups, _tempdir, admin) = create_test_rollups(2).await;
+    let (test_rollups, _tempdir, admin) = create_test_rollups(4).await;
     let Some(test_rollups) = test_rollups else {
         return;
     };
@@ -142,46 +142,21 @@ async fn seq_with_replicas() {
     let (master, state) = setup_test_rollup_with_initial_state(master, &admin).await;
     tokio::time::sleep(Duration::from_secs(2)).await;
 
-    let actions = vec![
-        TestingAction::NewDaSlot,
-        TestingAction::Sleep { duration_ms: 1000 },
-        TestingAction::NewDaSlot,
-        TestingAction::Sleep { duration_ms: 1000 },
-        TestingAction::NewDaSlot,
-        TestingAction::Sleep { duration_ms: 1000 },
-        TestingAction::NewDaSlot,
-        TestingAction::Sleep { duration_ms: 1000 },
-        TestingAction::NewDaSlot,
-        TestingAction::Sleep { duration_ms: 1000 },
-        TestingAction::NewDaSlot,
-        TestingAction::Sleep { duration_ms: 1000 },
-        TestingAction::NewDaSlot,
-        TestingAction::Sleep { duration_ms: 1000 },
-        TestingAction::NewDaSlot,
-        TestingAction::Sleep { duration_ms: 1000 },
-        TestingAction::NewDaSlot,
-        TestingAction::Sleep { duration_ms: 1000 },
-        TestingAction::AcceptTx,
-        TestingAction::QuerySetValue,
-    ];
+    let actions = vec![TestingAction::AcceptTx, TestingAction::QuerySetValue];
     let (master, replicas, mut state) =
         test_actions_against_replicas(&admin, (master, replicas, state), actions).await;
 
-    /*  let replicas = restart_replica(&admin, replicas, &mut state, 0).await;
+    let replicas = restart_replica(&admin, replicas, &mut state, 0).await;
 
     let actions = vec![
         TestingAction::NewDaSlot,
         TestingAction::Sleep { duration_ms: 100 },
     ];
-    */
 
-    /*
     let (master, replicas, mut state) =
         test_actions_against_replicas(&admin, (master, replicas, state), actions).await;
 
-
     let replicas = restart_replica(&admin, replicas, &mut state, 0).await;
-
 
     let actions = vec![
         TestingAction::AcceptTxs { count: 10 },
@@ -209,7 +184,7 @@ async fn seq_with_replicas() {
     .await;
 
     // Silence unused variable warnings to keep the test easier to edit
-    drop(state);*/
+    drop(state);
 
     // Shutdown replicas first
     for replica in replicas {

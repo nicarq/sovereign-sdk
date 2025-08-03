@@ -1,3 +1,4 @@
+#![allow(dead_code)]
 //! See [`PreferredSequencer`].
 
 mod async_batch;

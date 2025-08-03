@@ -177,6 +177,11 @@ where
             .await?;
         }
 
+        println!(
+            "XXXXX  replay_soft_confirmations_on_top_of_node_state {}",
+            self.config.sequencer_kind_config.is_replica
+        );
+
         let (maybe_data, message_processing_duration) = self
             .synchronized_state_updator
             .final_catchup_msg(
@@ -194,6 +199,11 @@ where
                 "update_state::do_final_catchup",
             )
             .await;
+
+        println!(
+            "XXXXX  END {}",
+            self.config.sequencer_kind_config.is_replica
+        );
 
         let data = maybe_data?;
 
