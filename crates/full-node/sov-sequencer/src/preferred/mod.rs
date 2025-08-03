@@ -312,7 +312,7 @@ where
         // state, then yield when it switches to processing postgres events live.
         // This is necessary to prevent conflicts with the update_state task.
         if config.sequencer_kind_config.is_replica {
-            handles.push(
+            /*             handles.push(
                 spawn_replica_sync_task(
                     seq.clone(),
                     shutdown_receiver.clone(),
@@ -320,7 +320,7 @@ where
                     latest_db_event_id,
                 )
                 .await,
-            );
+            );*/
         }
         handles.push(tokio::spawn({
             update_state_task(
