@@ -1,3 +1,4 @@
+#![allow(dead_code)]
 use std::sync::Arc;
 use std::time::Duration;
 
@@ -136,7 +137,9 @@ async fn seq_with_replicas() {
     let mut test_rollups = test_rollups.into_iter();
 
     let master = test_rollups.next().unwrap();
-    let replicas: Vec<Option<_>> = test_rollups.map(Some).collect();
+    let mut replicas: Vec<Option<_>> = test_rollups.map(Some).collect();
+
+    let mut replica = replicas.pop().unwrap().unwrap();
 
     let (master, state) = setup_test_rollup_with_initial_state(master, &admin).await;
     tokio::time::sleep(Duration::from_secs(2)).await;
@@ -163,20 +166,29 @@ async fn seq_with_replicas() {
         //TestingAction::AcceptTx,
         //TestingAction::QuerySetValue,
     ];
-    let (master, replicas, mut state) =
-        test_actions_against_replicas(&admin, (master, replicas, state), actions).await;
+    //let (master, replicas, mut state) =
+    //   test_actions_against_replicas(&admin, (master, replicas, state), actions).await;
 
-    let replicas = restart_replica(&admin, replicas, &mut state, 0).await;
+    let (master, mut state) =
+        run_actions_against_test_rollup(actions, master, &admin.clone(), state).await;
+
+    tokio::time::sleep(Duration::from_millis(300)).await;
+
+    {
+        let replica = replica.restart().await.unwrap();
+    }
 
     let actions = vec![
         TestingAction::NewDaSlot,
         TestingAction::Sleep { duration_ms: 100 },
+        TestingAction::NewDaSlot,
+        TestingAction::Sleep { duration_ms: 100 },
     ];
 
-    let (master, replicas, mut state) =
-        test_actions_against_replicas(&admin, (master, replicas, state), actions).await;
+    let (master, mut state) =
+        run_actions_against_test_rollup(actions, master, &admin.clone(), state).await;
 
-    let replicas = restart_replica(&admin, replicas, &mut state, 0).await;
+    //let replicas = restart_replica(&admin, replicas, &mut state, 0).await;
     /*
 
     let actions = vec![
