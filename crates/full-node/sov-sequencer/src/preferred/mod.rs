@@ -259,6 +259,9 @@ where
         };
 
         let tx_queue_id = Arc::new(AtomicU64::new(0));
+
+        println!("======= Start next_sequence_number: {next_sequence_number}");
+
         let (synchronized_state, synchronized_state_updator) = create(
             latest_state_update.clone(),
             tx_queue_id.clone(),
@@ -312,6 +315,8 @@ where
         // This will block until the currently stored batches in the DB are replayed onto the
         // state, then yield when it switches to processing postgres events live.
         // This is necessary to prevent conflicts with the update_state task.
+
+        /*
         if config.sequencer_kind_config.is_replica {
             handles.push(
                 spawn_replica_sync_task(
@@ -321,7 +326,7 @@ where
                 )
                 .await,
             );
-        }
+        }*/
         handles.push(tokio::spawn({
             update_state_task(
                 seq.clone(),
@@ -560,7 +565,7 @@ where
         shutdown_receiver: &watch::Receiver<()>,
         current_info: StateUpdateInfo<S::Storage>,
     ) -> anyhow::Result<()> {
-        self.wait_for_node_resync(state_update_receiver, shutdown_receiver, 1, current_info)
+        self.wait_for_node_resync(state_update_receiver, shutdown_receiver, 0, current_info)
             .await
     }
 }

@@ -428,6 +428,13 @@ impl<S: Spec, Rt: Runtime<S>> RollupBlockExecutor<S, Rt> {
             .current_visible_slot_number()
             .advance(visible_increase.get().into());
 
+        if next_visible_slot_number != sanity_check_visible_slot_number_after_increase {
+            tracing::error!(
+                "Sanity check failed: visible slot number calculation was incorrect. This is a bug, please report it. {:?} {:?}",sanity_check_visible_slot_number_after_increase,
+                next_visible_slot_number,
+            );
+        }
+
         assert_eq!(
             next_visible_slot_number,
             sanity_check_visible_slot_number_after_increase,

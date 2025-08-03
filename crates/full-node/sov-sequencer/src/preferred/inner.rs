@@ -1391,6 +1391,13 @@ where
         // Note that we're holding a lock on the sequencer, so this is guaranteed to be up to date.
         let condition_are_there_batches_to_replay = !batches_to_replay.is_empty();
 
+        info!(
+            ?condition_nodes_sequence_number_is_fresher,
+            ?condition_too_close_to_deferred_slots_count_for_comfort,
+            ?condition_node_is_lagging,
+            ?condition_are_there_batches_to_replay,
+        );
+
         let operation = match (
             condition_nodes_sequence_number_is_fresher,
             condition_too_close_to_deferred_slots_count_for_comfort,
@@ -1426,6 +1433,11 @@ where
                 PreferredSeqOperation::RecoverAndCatchUp
             }
             (false, false, false, _) => {
+                info!(
+                    ?condition_nodes_sequence_number_is_fresher,
+                    ?distance,
+                    "Executing ReplaySoftConfirmationsOnTopOfNodeState"
+                );
                 let should_flush_tx_cache = is_startup || is_resync || is_recover;
 
                 if should_flush_tx_cache {

@@ -1,3 +1,5 @@
+#![allow(dead_code)]
+
 use std::num::NonZero;
 use std::pin::Pin;
 use std::str::FromStr;
@@ -228,6 +230,7 @@ where
 
     let mut latest_received_event_id: Option<u64> = None;
     let mut last_fully_processed_batch: Option<SequenceNumber> = None;
+
     loop {
         tokio::select! {
             // Only poll listener if we have capacity
@@ -241,7 +244,10 @@ where
                             .map_err(|e| anyhow!("Failed to parse CSV notification payload: {e}"))?;
 
 
+                        debug!("Parsed notification: {:?}", parsed_notification);
                             let replayed_sequence_number = *replay_receiver.borrow();
+                            println!();
+                            println!("==== === Event: {:?} {:?} ===", parsed_notification, replayed_sequence_number);
                             match replayed_sequence_number {
                                 // Node is not synced yet - ignore all incoming events
                                 None => {
@@ -254,7 +260,8 @@ where
                                 // We are indeed synced. Is the last replayed batch ahead of our event
                                 // stream?
                                 Some(last_replayed_sequence_number) => {
-                                    println!("=== Cool Event: {last_replayed_sequence_number}");
+                                    tokio::time::sleep(Duration::from_millis(1000)).await;
+                                    continue;
                                     if last_fully_processed_batch.is_none_or(|seq| seq < last_replayed_sequence_number) {
                                         // Query the batch_close event with this sequence number to find the event_id
                                         // Set our latest_received_event_id to that event's id so we continue from there
