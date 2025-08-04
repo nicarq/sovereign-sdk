@@ -1,5 +1,6 @@
 #[cfg(feature = "native")]
 use sov_modules_api::capabilities::KernelWithSlotMapping;
+use sov_modules_api::{Gas, GasArray};
 use sov_modules_api::capabilities::RollupHeight;
 use sov_modules_api::da::BlockHeaderTrait;
 use sov_modules_api::macros::config_value;
@@ -364,6 +365,20 @@ impl<S: Spec> ChainState<S> {
         self.gas_info.get(&height, state)
     }
 
+    /// Returns true if admin mode is active at the specified rollup height given the current configuration. 
+    /// Note that the response returned from this method is can change if the admin mode configuration is updated.
+    pub fn is_admin_mode_active<
+    Reader: VersionReader + StateReader<User, Error = E> + StateReader<Kernel, Error = E>,
+        E,
+    >(&self, height: RollupHeight, state: &mut Reader) -> Result<bool, <Reader as StateReader<Kernel>>::Error> {
+        // After the configured termination height, admin mode can never be active.
+        if height.get() >= config_value!("ADMIN_MODE_TERMINATION_HEIGHT") {
+            return Ok(false);
+        }
+        // Before the termination height, we have to check if the admin mode early termination height has been set. If so, respect it. Otherwise, admin mode is active.
+        Ok(self.admin_mode_termination_height.get(state)?.map(|termination_height| height < termination_height).unwrap_or(true))
+    }
+
     /// Returns the base fee per gas accessible at the specified slot height for this state accessor.
     pub fn base_fee_per_gas_at<
         Reader: VersionReader + StateReader<User, Error = E> + StateReader<Kernel, Error = E>,
@@ -376,6 +391,10 @@ impl<S: Spec> ChainState<S> {
         Option<<S::Gas as sov_modules_api::Gas>::Price>,
         <Reader as StateReader<Kernel>>::Error,
     > {
+        if self.is_admin_mode_active(height, state)? {
+            return Ok(Some(<<S::Gas as Gas>::Price>::ZEROED));
+        }
+
         if height <= RollupHeight::ONE {
             return Ok(Some(S::initial_base_fee_per_gas()));
         }

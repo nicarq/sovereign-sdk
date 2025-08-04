@@ -30,6 +30,9 @@ pub struct ChainStateConfig<S: Spec> {
 
     /// The height of the first DA block.
     pub genesis_da_height: u64,
+
+    /// The admin address. This address is allowed to terminate admin mode early.
+    pub admin: Option<S::Address>,
 }
 
 impl<S: Spec> ChainState<S> {
