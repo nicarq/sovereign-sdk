@@ -3,7 +3,7 @@ use std::path::{Path, PathBuf};
 use sov_cli::wallet_state::{KeyIdentifier, WalletState};
 use sov_cli::workflows::keys::KeyWorkflow;
 use sov_cli::workflows::transactions::{TransactionLoadWorkflow, TransactionWorkflow};
-use sov_cli::UnsignedTransactionWithoutNonce;
+use sov_cli::UnsignedTransactionWithoutUniqueness;
 use sov_modules_api::capabilities::UniquenessData;
 use sov_modules_api::cli::{FileNameArg, JsonStringArg};
 use sov_modules_api::transaction::{Transaction, UnsignedTransaction, VersionedTx};
@@ -74,7 +74,7 @@ fn transaction_is_serialized_correctly() {
     let max_fee = TEST_DEFAULT_MAX_FEE;
     let gas_limit = None;
 
-    let unsigned_tx = UnsignedTransactionWithoutNonce::new(
+    let unsigned_tx = UnsignedTransactionWithoutUniqueness::new(
         runtime_call.clone(),
         chain_id,
         <Runtime as RuntimeTrait<TestSpec>>::CHAIN_HASH,
@@ -102,7 +102,7 @@ fn transaction_is_serialized_correctly() {
                 chain_id,
                 max_priority_fee_bips,
                 max_fee,
-                UniquenessData::Nonce(initial_nonce + i as u64),
+                UniquenessData::Generation(initial_nonce + i as u64),
                 gas_limit.clone(),
             ),
         );
@@ -130,7 +130,7 @@ fn transaction_not_signed_without_accounts() {
             RuntimeSubcommand<FileNameArg>,
             RuntimeSubcommand<JsonStringArg>,
         >::FromFile(subcommand),
-        nonce: 11,
+        generation: 11,
         key_nickname: None,
         json_output: false,
     };
@@ -158,13 +158,13 @@ fn transaction_signed_properly_from_file() {
     };
     let runtime_call = RuntimeCall::Bank(call_message_from_file(bank_create_token_path));
 
-    let nonce = 11;
+    let generation = 11;
     let workflow = TransactionWorkflow::Sign {
         transaction: TransactionLoadWorkflow::<
             RuntimeSubcommand<FileNameArg>,
             RuntimeSubcommand<JsonStringArg>,
         >::FromFile(subcommand),
-        nonce,
+        generation,
         key_nickname: None,
         json_output: false,
     };
@@ -202,9 +202,9 @@ fn transaction_signed_properly_from_file() {
 
     let default_pubkey = &wallet_state.addresses.default_address().unwrap().pub_key;
 
-    if let VersionedTx::V1(inner) = &signed_tx.versioned_tx {
+    if let VersionedTx::V0(inner) = &signed_tx.versioned_tx {
         assert_eq!(default_pubkey, &inner.pub_key);
-        assert_eq!(nonce, inner.nonce);
+        assert_eq!(generation, inner.generation);
     } else {
         panic!("Unexpected version of transaction");
     }
@@ -229,7 +229,7 @@ fn transaction_signed_properly_from_json_string() {
             RuntimeSubcommand<FileNameArg>,
             RuntimeSubcommand<JsonStringArg>,
         >::FromString(subcommand),
-        nonce: 13,
+        generation: 13,
         key_nickname: None,
         json_output: false,
     };
@@ -290,7 +290,7 @@ fn transaction_signed_by_account_nickname() {
             RuntimeSubcommand<FileNameArg>,
             RuntimeSubcommand<JsonStringArg>,
         >::FromFile(subcommand),
-        nonce,
+        generation: nonce,
         key_nickname: Some(key2.to_string()),
         json_output: false,
     };
@@ -346,7 +346,7 @@ fn transaction_outputs_json() {
             RuntimeSubcommand<FileNameArg>,
             RuntimeSubcommand<JsonStringArg>,
         >::FromFile(subcommand),
-        nonce: 12,
+        generation: 12,
         key_nickname: None,
         json_output: true,
     };

@@ -453,18 +453,18 @@ impl<R: TransactionCallable, S: Spec> UnsignedTransaction<R, S> {
         signature: <S::CryptoSpec as CryptoSpec>::Signature,
     ) -> Transaction<R, S> {
         match self.uniqueness {
-            UniquenessData::Nonce(nonce) => Transaction::new_with_details_v1(
-                pub_key,
-                self.runtime_call,
-                signature,
-                nonce,
-                self.details,
-            ),
             UniquenessData::Generation(generation) => Transaction::new_with_details_v0(
                 pub_key,
                 self.runtime_call,
                 signature,
                 generation,
+                self.details,
+            ),
+            UniquenessData::Nonce(nonce) => Transaction::new_with_details_v1(
+                pub_key,
+                self.runtime_call,
+                signature,
+                nonce,
                 self.details,
             ),
         }
