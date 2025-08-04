@@ -32,6 +32,8 @@ pub struct ChainStateConfig<S: Spec> {
     pub genesis_da_height: u64,
 
     /// The admin address. This address is allowed to terminate admin mode early.
+    #[serde(default)]
+    #[serde(skip_serializing_if = "Option::is_none")]
     pub admin: Option<S::Address>,
 }
 

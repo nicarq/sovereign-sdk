@@ -253,7 +253,7 @@ where
         let tx = encode_call(
             &preferred_sequencer.user_info.private_key,
             0,
-            &deposit_call(default_balance, preferred_sequencer.da_address.clone()),
+            &deposit_call(default_balance, preferred_sequencer.da_address),
         );
         client
             .accept_tx(&api_types::AcceptTxBody {
@@ -298,7 +298,7 @@ where
 fn value_setter_call(value_to_set: u32) -> <TestRuntime<TestSpec> as DispatchCall>::Decodable {
     <TestRuntime<TestSpec> as DispatchCall>::Decodable::ValueSetter(
         sov_value_setter::CallMessage::SetValue {
-            value: value_to_set as u32,
+            value: value_to_set,
             gas: None,
         },
     )
