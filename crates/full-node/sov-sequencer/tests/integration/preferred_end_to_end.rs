@@ -1,12 +1,6 @@
 //! Integration tests for the preferred sequencer that use [`RollupBuilder`] and
 //! thus test sequencer + node interactions.
 
-use std::collections::HashMap;
-use std::future::Future;
-use std::sync::atomic::AtomicU64;
-use std::sync::Arc;
-use std::time::Duration;
-
 use base64::prelude::BASE64_STANDARD;
 use base64::Engine;
 use borsh::{BorshDeserialize, BorshSerialize};
@@ -17,6 +11,7 @@ use sov_api_spec::types::{
 };
 use sov_api_spec::{Client, WsSubscription};
 use sov_mock_da::storable::layer::StorableMockDaLayer;
+use sov_mock_da::storable::service::StorableMockDaService;
 use sov_mock_da::BlockProducingConfig;
 use sov_mock_zkvm::crypto::private_key::Ed25519PrivateKey;
 use sov_modules_api::prelude::*;
@@ -25,16 +20,23 @@ use sov_modules_stf_blueprint::GenesisParams;
 use sov_node_client::NodeClient;
 use sov_paymaster::{Paymaster, PaymasterConfig};
 use sov_rollup_interface::common::SlotNumber;
+use sov_rollup_interface::execution_mode::Native;
 use sov_rollup_interface::node::ledger_api::IncludeChildren;
 use sov_sequencer::StateUpdateNotification;
 use sov_test_modules::hooks_count::HooksCount;
 use sov_test_utils::runtime::genesis::optimistic::HighLevelOptimisticGenesisConfig;
+use sov_test_utils::test_rollup::FullNodeBlueprint;
 use sov_test_utils::test_rollup::{GenesisSource, RollupBuilder, RollupProverConfig, TestRollup};
 use sov_test_utils::{
     default_test_signed_transaction, generate_optimistic_runtime_with_kernel, RtAgnosticBlueprint,
     TestSpec, TestUser, TEST_FINALIZATION_BLOCKS, TEST_MAX_BATCH_SIZE, TEST_MAX_CONCURRENT_BLOBS,
 };
 use sov_value_setter::{ValueSetter, ValueSetterConfig};
+use std::collections::HashMap;
+use std::future::Future;
+use std::sync::atomic::AtomicU64;
+use std::sync::Arc;
+use std::time::Duration;
 use test_strategy::Arbitrary;
 use tokio::sync::RwLock;
 use tokio::time::sleep;
@@ -77,7 +79,11 @@ pub struct DaLayerWithSubscription {
 }
 
 impl DaLayerWithSubscription {
-    pub async fn new(test_rollup: &TestRollup<TestBlueprint>) -> Self {
+    pub async fn new<
+        R: FullNodeBlueprint<Native, DaService = StorableMockDaService, Spec = TestSpec> + Default,
+    >(
+        test_rollup: &TestRollup<R>,
+    ) -> Self {
         assert!(matches!(test_rollup
             .da_service
             .block_producing(),
@@ -3086,7 +3092,7 @@ async fn query_set_value_helper(
     Ok(())
 }
 
-fn tx_set_value(key: &Ed25519PrivateKey, nonce: u64, value_to_set: u64) -> RawTx {
+pub(super) fn tx_set_value(key: &Ed25519PrivateKey, nonce: u64, value_to_set: u64) -> RawTx {
     tx_set_value_with_gas::<TestRuntime<TestSpec>>(
         key,
         nonce,

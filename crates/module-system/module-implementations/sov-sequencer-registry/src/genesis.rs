@@ -49,7 +49,7 @@ impl<S: Spec> SequencerRegistry<S> {
         config: &<Self as sov_modules_api::Module>::Config,
         state: &mut impl GenesisState<S>,
     ) -> Result<()> {
-        // Set the minimum bond to 0 to allow for registration of sequencers with no bond only during genesis. 
+        // Set the minimum bond to 0 to allow for registration of sequencers with no bond only during genesis.
         // We set the balance to the correct minimum bond after genesis.
         self.minimum_bond.set(&Amount::ZERO, state)?;
         let sequencer_config = &config.sequencer_config;

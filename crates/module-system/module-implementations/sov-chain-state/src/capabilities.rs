@@ -1,6 +1,5 @@
 #[cfg(feature = "native")]
 use sov_modules_api::capabilities::KernelWithSlotMapping;
-use sov_modules_api::{Gas, GasArray};
 use sov_modules_api::capabilities::RollupHeight;
 use sov_modules_api::da::BlockHeaderTrait;
 use sov_modules_api::macros::config_value;
@@ -10,6 +9,7 @@ use sov_modules_api::AccessoryStateReaderAndWriter;
 use sov_modules_api::{
     DaSpec, GasSpec, KernelStateAccessor, PrivilegedKernelAccessor, Spec, StateReader,
 };
+use sov_modules_api::{Gas, GasArray};
 use sov_rollup_interface::common::{SlotNumber, VisibleSlotNumber};
 use sov_state::{Kernel, ProvableNamespace, StateRoot, Storage, User};
 
@@ -365,18 +365,26 @@ impl<S: Spec> ChainState<S> {
         self.gas_info.get(&height, state)
     }
 
-    /// Returns true if admin mode is active at the specified rollup height given the current configuration. 
+    /// Returns true if admin mode is active at the specified rollup height given the current configuration.
     /// Note that the response returned from this method is can change if the admin mode configuration is updated.
     pub fn is_admin_mode_active<
-    Reader: VersionReader + StateReader<User, Error = E> + StateReader<Kernel, Error = E>,
+        Reader: VersionReader + StateReader<User, Error = E> + StateReader<Kernel, Error = E>,
         E,
-    >(&self, height: RollupHeight, state: &mut Reader) -> Result<bool, <Reader as StateReader<Kernel>>::Error> {
+    >(
+        &self,
+        height: RollupHeight,
+        state: &mut Reader,
+    ) -> Result<bool, <Reader as StateReader<Kernel>>::Error> {
         // After the configured termination height, admin mode can never be active.
         if height.get() >= config_value!("ADMIN_MODE_TERMINATION_HEIGHT") {
             return Ok(false);
         }
         // Before the termination height, we have to check if the admin mode early termination height has been set. If so, respect it. Otherwise, admin mode is active.
-        Ok(self.admin_mode_termination_height.get(state)?.map(|termination_height| height < termination_height).unwrap_or(true))
+        Ok(self
+            .admin_mode_termination_height
+            .get(state)?
+            .map(|termination_height| height < termination_height)
+            .unwrap_or(true))
     }
 
     /// Returns the base fee per gas accessible at the specified slot height for this state accessor.

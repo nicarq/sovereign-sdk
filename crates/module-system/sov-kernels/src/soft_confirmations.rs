@@ -117,14 +117,16 @@ impl<S: Spec> sov_modules_api::capabilities::ChainState for SoftConfirmationsKer
     }
 
     fn is_admin_mode_enabled<
-    Reader: VersionReader
-        + StateReader<User, Error = Infallible>
-        + StateReader<Kernel, Error = Infallible>,
+        Reader: VersionReader
+            + StateReader<User, Error = Infallible>
+            + StateReader<Kernel, Error = Infallible>,
     >(
         &self,
-    state: &mut Reader,
+        state: &mut Reader,
     ) -> bool {
-        self.chain_state.is_admin_mode_active(state.rollup_height_to_access(), state).unwrap_infallible()
+        self.chain_state
+            .is_admin_mode_active(state.rollup_height_to_access(), state)
+            .unwrap_infallible()
     }
 
     fn base_fee_per_gas<

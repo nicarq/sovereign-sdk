@@ -8,8 +8,8 @@ use sov_modules_api::sov_universal_wallet::UniversalWallet;
 #[cfg(feature = "native")]
 use sov_modules_api::ApiStateAccessor;
 use sov_modules_api::{
-    AccessoryStateMap, AccessoryStateValue, ModuleRestApi,
-    PrivilegedKernelAccessor, StateCheckpoint, StateMap, VersionReader,
+    AccessoryStateMap, AccessoryStateValue, ModuleRestApi, PrivilegedKernelAccessor,
+    StateCheckpoint, StateMap, VersionReader,
 };
 /// Contains the call methods used by the module
 mod call;
@@ -498,12 +498,16 @@ impl<S: Spec> ChainState<S> {
         provisional_visible_height_increase: u64,
         state: &mut Reader,
     ) -> Result<<<S as Spec>::Gas as Gas>::Price, <Reader as StateReader<Kernel>>::Error> {
-        use sov_modules_api::{GasSpec, GasArray};
+        use sov_modules_api::{GasArray, GasSpec};
         let next_rollup_height = stale_rollup_height.saturating_add(1);
         if self.is_admin_mode_active(next_rollup_height, state)? {
             return Ok(<S::Gas as Gas>::Price::ZEROED);
         }
-        if stale_rollup_height.get() == 0 {
+        // If the previous rollup height either didn't exist or was in admin mode, use the initial base fee per gas rather
+        // than computing based on the previous value. We have to special case admin mode, otherwise we'll end up with a zero price.
+        if stale_rollup_height.get() == 0
+            || self.is_admin_mode_active(stale_rollup_height, state)?
+        {
             return Ok(S::initial_base_fee_per_gas());
         }
         let prev_gas_info =
@@ -521,7 +525,18 @@ impl<S: Spec> ChainState<S> {
     }
 }
 
-#[derive(BorshDeserialize, BorshSerialize, Serialize, Deserialize, Debug, PartialEq, Eq, Clone, JsonSchema, UniversalWallet)]
+#[derive(
+    BorshDeserialize,
+    BorshSerialize,
+    Serialize,
+    Deserialize,
+    Debug,
+    PartialEq,
+    Eq,
+    Clone,
+    JsonSchema,
+    UniversalWallet,
+)]
 /// A message for the chain-state module
 #[schemars(rename = "Event")]
 pub enum CallMessage {
@@ -529,7 +544,17 @@ pub enum CallMessage {
     TerminateAdminMode,
 }
 
-#[derive(BorshDeserialize, BorshSerialize, Serialize, Deserialize, Debug, PartialEq, Eq, Clone, JsonSchema)]
+#[derive(
+    BorshDeserialize,
+    BorshSerialize,
+    Serialize,
+    Deserialize,
+    Debug,
+    PartialEq,
+    Eq,
+    Clone,
+    JsonSchema,
+)]
 #[serde(bound = "S: Spec")]
 #[serde(rename_all = "snake_case")]
 #[schemars(bound = "S: Spec", rename = "Event")]
@@ -574,18 +599,31 @@ impl<S: Spec> Module for ChainState<S> {
         match message {
             CallMessage::TerminateAdminMode => {
                 let Some(allowed_admin) = self.admin_address.get(state)? else {
-                    return Err(anyhow::anyhow!("No admin address set. Admin mode cannot be terminated early."));
+                    return Err(anyhow::anyhow!(
+                        "No admin address set. Admin mode cannot be terminated early."
+                    ));
                 };
-                anyhow::ensure!(context.sender() == &allowed_admin, "Only admins can terminate admin mode");
+                anyhow::ensure!(
+                    context.sender() == &allowed_admin,
+                    "Only admins can terminate admin mode"
+                );
                 if self.admin_mode_termination_height.get(state)?.is_some() {
                     anyhow::bail!("Admin mode cannot be terminated twice.");
                 }
                 let termination_height = state.rollup_height_to_access().saturating_add(1);
-                self.admin_mode_termination_height.set(&termination_height, state)?;
-                self.emit_event(state, Event::AdminModeTerminated {
-                    effective_at_rollup_height: termination_height.get(),
-                    by: context.sender().clone(),
-                });
+                self.admin_mode_termination_height
+                    .set(&termination_height, state)?;
+                self.emit_event(
+                    state,
+                    Event::AdminModeTerminated {
+                        effective_at_rollup_height: termination_height.get(),
+                        by: context.sender().clone(),
+                    },
+                );
+                tracing::debug!(
+                    "Admin mode terminated at height {}",
+                    termination_height.get()
+                );
             }
         }
         Ok(())

@@ -45,8 +45,9 @@ impl<S: Spec> Bank<S> {
         // We need to do the explicit check (outside of a closure) because otherwise `state_checkpoint` would be captured.
         let balance = self
             .get_balance_of(&payer.clone(), config_gas_token_id(), state)
-            .map_err(|e| ReserveGasError::StateAccessError(e.to_string()))?.unwrap_or(Amount::ZERO);
-        
+            .map_err(|e| ReserveGasError::StateAccessError(e.to_string()))?
+            .unwrap_or(Amount::ZERO);
+
         // the signer must be able to afford the transaction
         if balance < tx.0.max_fee {
             return Err(ReserveGasError::InsufficientBalanceToReserveGas);

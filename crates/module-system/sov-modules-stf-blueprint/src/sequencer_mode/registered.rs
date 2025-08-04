@@ -489,23 +489,22 @@ where
                     // This is ensured as it's impossible to accumulate more funds than `TOKEN::total_supply`,
                     // since all rewards and penalties originate from user balances or the sequencer stake.
                     // if !is_admin_mode {
-                        accumulated_reward = accumulated_reward
-                            .checked_add(provisional_reward)
-                            .expect("Total supply of gas token exceeded.");
-                        accumulated_penalty = accumulated_penalty
-                            .checked_add(provisional_penalty)
-                            .expect("Total supply of gas token exceeded");
-                        if is_preferred_sequencer {
-                            // SAFETY: We've already charged this gas amount, so it can't overflow at this point.
-                            // If we're penalizing the preferred sequencer, we need to account for that in the authorizing the next transaction.
-                            sequencer_bond_per_tx = SequencerBondForTx::Preferred(
-                                sequencer_bond_per_tx
-                                    .amount()
-                                    .saturating_sub(gas_used.checked_value(gas_price).unwrap()),
-                            );
-                        }
+                    accumulated_reward = accumulated_reward
+                        .checked_add(provisional_reward)
+                        .expect("Total supply of gas token exceeded.");
+                    accumulated_penalty = accumulated_penalty
+                        .checked_add(provisional_penalty)
+                        .expect("Total supply of gas token exceeded");
+                    if is_preferred_sequencer {
+                        // SAFETY: We've already charged this gas amount, so it can't overflow at this point.
+                        // If we're penalizing the preferred sequencer, we need to account for that in the authorizing the next transaction.
+                        sequencer_bond_per_tx = SequencerBondForTx::Preferred(
+                            sequencer_bond_per_tx
+                                .amount()
+                                .saturating_sub(gas_used.checked_value(gas_price).unwrap()),
+                        );
+                    }
                     // }
-                    
 
                     // In onchain mode, transactions that make the sequencer run out of gas are treated as "ignored".
                     // While they consume gas, their hashes cannot be computed, so they are not indexed in the database.

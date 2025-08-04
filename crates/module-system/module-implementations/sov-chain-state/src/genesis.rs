@@ -48,8 +48,13 @@ impl<S: Spec> ChainState<S> {
             genesis_da_height = %config.genesis_da_height,
             inner_code_commitment = ?config.inner_code_commitment,
             outer_code_commitment = ?config.outer_code_commitment,
+            admin = ?config.admin,
             "Starting chain state genesis...",
         );
+
+        if let Some(admin) = config.admin.as_ref() {
+            self.admin_address.set(admin, state)?;
+        }
 
         self.true_slot_number.set(&SlotNumber::GENESIS, state)?;
         self.next_visible_slot_number
