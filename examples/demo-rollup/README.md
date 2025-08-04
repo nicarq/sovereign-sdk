@@ -337,6 +337,7 @@ Adding the following transaction to batch:
     "max_fee": "100000000",
     "gas_limit": null,
     "chain_id": 4321
+  }
 }
 ```
 
