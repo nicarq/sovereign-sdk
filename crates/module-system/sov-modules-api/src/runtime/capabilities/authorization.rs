@@ -2,6 +2,7 @@
 //! transactions within a rollup.
 
 use borsh::{BorshDeserialize, BorshSerialize};
+use schemars::JsonSchema;
 use serde::{Deserialize, Serialize};
 use sov_rollup_interface::crypto::CredentialId;
 use sov_rollup_interface::da::DaSpec;
@@ -59,6 +60,7 @@ pub trait TransactionAuthorizer<S: Spec> {
     BorshSerialize,
     BorshDeserialize,
     UniversalWallet,
+    JsonSchema,
 )]
 #[serde(rename_all = "snake_case")]
 pub enum UniquenessData {
