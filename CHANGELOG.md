@@ -1,3 +1,8 @@
+# 2025-08-04
+- #1466 Adds `VersionedTx::V1` variant. 
+  Replaces `generation: u64` attribute of `UnsignedTransaction` with `uniqueness: sov_modules_api::capabilities::UniquenessData`
+  Update to client libraries that use `UnsignedTransaction` is needed.
+
 # 2025-08-01
 - #1460 Adds `chain_hash` to the `/rollup/schema` endpoint response, this requires passing the chain hash during endpoint initialization.
 
