@@ -1,4 +1,4 @@
-pub const CHAIN_HASH: [u8; 32] = [62, 140, 96, 211, 154, 207, 0, 62, 241, 210, 243, 201, 23, 146, 171, 107, 142, 31, 149, 183, 214, 152, 30, 247, 151, 211, 66, 117, 96, 214, 158, 99];
+pub const CHAIN_HASH: [u8; 32] = [254, 239, 2, 148, 236, 155, 232, 129, 73, 188, 129, 140, 242, 52, 45, 142, 111, 131, 177, 14, 220, 50, 33, 238, 224, 40, 70, 106, 176, 66, 65, 175];
 
 #[allow(dead_code)]
 pub const SCHEMA_JSON: &str = r#"{
@@ -2732,7 +2732,7 @@ pub const SCHEMA_JSON: &str = r#"{
             "doc": ""
           },
           {
-            "display_name": "generation",
+            "display_name": "nonce",
             "silent": false,
             "value": {
               "Immediate": {
@@ -2770,15 +2770,10 @@ pub const SCHEMA_JSON: &str = r#"{
             "doc": ""
           },
           {
-            "display_name": "generation",
+            "display_name": "uniqueness",
             "silent": false,
             "value": {
-              "Immediate": {
-                "Integer": [
-                  "u64",
-                  "Decimal"
-                ]
-              }
+              "ByIndex": 118
             },
             "doc": ""
           },
@@ -2788,6 +2783,70 @@ pub const SCHEMA_JSON: &str = r#"{
             "value": {
               "ByIndex": 113
             },
+            "doc": ""
+          }
+        ]
+      }
+    },
+    {
+      "Enum": {
+        "type_name": "UniquenessData",
+        "variants": [
+          {
+            "name": "Nonce",
+            "discriminant": 0,
+            "template": null,
+            "value": {
+              "ByIndex": 119
+            }
+          },
+          {
+            "name": "Generation",
+            "discriminant": 1,
+            "template": null,
+            "value": {
+              "ByIndex": 120
+            }
+          }
+        ],
+        "hide_tag": false
+      }
+    },
+    {
+      "Tuple": {
+        "template": null,
+        "peekable": false,
+        "fields": [
+          {
+            "value": {
+              "Immediate": {
+                "Integer": [
+                  "u64",
+                  "Decimal"
+                ]
+              }
+            },
+            "silent": false,
+            "doc": ""
+          }
+        ]
+      }
+    },
+    {
+      "Tuple": {
+        "template": null,
+        "peekable": false,
+        "fields": [
+          {
+            "value": {
+              "Immediate": {
+                "Integer": [
+                  "u64",
+                  "Decimal"
+                ]
+              }
+            },
+            "silent": false,
             "doc": ""
           }
         ]
@@ -3880,7 +3939,7 @@ pub const SCHEMA_JSON: &str = r#"{
           "name": "runtime_call"
         },
         {
-          "name": "generation"
+          "name": "nonce"
         },
         {
           "name": "details"
@@ -3894,12 +3953,31 @@ pub const SCHEMA_JSON: &str = r#"{
           "name": "runtime_call"
         },
         {
-          "name": "generation"
+          "name": "uniqueness"
         },
         {
           "name": "details"
         }
       ]
+    },
+    {
+      "name": "UniquenessData",
+      "fields_or_variants": [
+        {
+          "name": "nonce"
+        },
+        {
+          "name": "generation"
+        }
+      ]
+    },
+    {
+      "name": "",
+      "fields_or_variants": []
+    },
+    {
+      "name": "",
+      "fields_or_variants": []
     }
   ]
 }"#;

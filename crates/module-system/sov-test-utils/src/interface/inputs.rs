@@ -2,7 +2,7 @@ use std::collections::HashMap;
 
 use derivative::Derivative;
 use sov_mock_da::{MockAddress, MockBlob};
-use sov_modules_api::capabilities::TransactionAuthenticator;
+use sov_modules_api::capabilities::{TransactionAuthenticator, UniquenessData};
 use sov_modules_api::transaction::{PriorityFeeBips, Transaction, TxDetails, UnsignedTransaction};
 use sov_modules_api::{Amount, CryptoSpec, DispatchCall, FullyBakedTx, PrivateKey, RawTx, Spec};
 use sov_rollup_interface::da::RelevantBlobs;
@@ -148,7 +148,8 @@ impl<RT: Runtime<S>, S: Spec> TransactionType<RT, S> {
                 details.chain_id,
                 details.max_priority_fee_bips,
                 details.max_fee,
-                nonce,
+                // TODO: It was called a nonce, but was it intended to be used as a nonce?
+                UniquenessData::Nonce(nonce),
                 details.gas_limit,
             ),
         )

@@ -4,6 +4,7 @@ use sov_cli::wallet_state::{KeyIdentifier, WalletState};
 use sov_cli::workflows::keys::KeyWorkflow;
 use sov_cli::workflows::transactions::{TransactionLoadWorkflow, TransactionWorkflow};
 use sov_cli::UnsignedTransactionWithoutNonce;
+use sov_modules_api::capabilities::UniquenessData;
 use sov_modules_api::cli::{FileNameArg, JsonStringArg};
 use sov_modules_api::transaction::{Transaction, UnsignedTransaction, VersionedTx};
 use sov_modules_api::{
@@ -101,7 +102,7 @@ fn transaction_is_serialized_correctly() {
                 chain_id,
                 max_priority_fee_bips,
                 max_fee,
-                initial_nonce + i as u64,
+                UniquenessData::Nonce(initial_nonce + i as u64),
                 gas_limit.clone(),
             ),
         );
@@ -201,15 +202,11 @@ fn transaction_signed_properly_from_file() {
 
     let default_pubkey = &wallet_state.addresses.default_address().unwrap().pub_key;
 
-    match &signed_tx.versioned_tx {
-        VersionedTx::V0(inner) => {
-            assert_eq!(default_pubkey, &inner.pub_key);
-            assert_eq!(nonce, inner.generation);
-        }
-        VersionedTx::V1(inner) => {
-            assert_eq!(default_pubkey, &inner.pub_key);
-            assert_eq!(nonce, inner.generation);
-        }
+    if let VersionedTx::V1(inner) = &signed_tx.versioned_tx {
+        assert_eq!(default_pubkey, &inner.pub_key);
+        assert_eq!(nonce, inner.nonce);
+    } else {
+        panic!("Unexpected version of transaction");
     }
 
     assert_eq!(&runtime_call, signed_tx.runtime_call());

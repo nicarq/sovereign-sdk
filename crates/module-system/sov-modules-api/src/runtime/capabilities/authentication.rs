@@ -8,6 +8,7 @@ use serde::{Deserialize, Serialize};
 use sov_modules_macros::config_value_private;
 use sov_rollup_interface::TxHash;
 use sov_state::User;
+use sov_universal_wallet::UniversalWallet;
 use thiserror::Error;
 
 use crate::capabilities::{AuthorizationData, UniquenessData};

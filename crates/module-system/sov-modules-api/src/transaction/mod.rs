@@ -111,7 +111,6 @@ pub enum VersionedTx<Call, S: Spec> {
 
 #[allow(missing_docs)]
 impl<Call, S: Spec> VersionedTx<Call, S> {
-
     pub fn get_details(&self) -> &TxDetails<S> {
         match self {
             VersionedTx::V0(inner) => &inner.details,
@@ -125,7 +124,13 @@ impl<Call, S: Spec> VersionedTx<Call, S> {
             VersionedTx::V1(inner) => UniquenessData::Generation(inner.nonce),
         }
     }
-    
+
+    pub fn get_pubkey(&self) -> &<S::CryptoSpec as CryptoSpec>::PublicKey {
+        match self {
+            VersionedTx::V0(inner) => &inner.pub_key,
+            VersionedTx::V1(inner) => &inner.pub_key,
+        }
+    }
 }
 
 #[derive(
@@ -216,13 +221,14 @@ impl<R: TransactionCallable, S: Spec> PartialEq for Transaction<R, S> {
                 self_inner.signature == other_inner.signature
                     && self_inner.pub_key == other_inner.pub_key
                     && self_inner.runtime_call == other_inner.runtime_call
-                    && self_inner.generation == other_inner.generation
+                    && self_inner.nonce == other_inner.nonce
                     && self_inner.details == other_inner.details
             }
             _ => false,
         }
     }
 }
+
 impl<R: TransactionCallable, S: Spec> Eq for Transaction<R, S> {}
 
 /// Errors that can be raised by the [`Transaction::verify`] method.
@@ -292,8 +298,11 @@ impl<R: TransactionCallable, S: Spec> Transaction<R, S> {
                     .verify(&inner.pub_key, &serialized_tx, meter)
                     .map_err(TransactionVerificationError::from)?;
             }
-            VersionedTx::V1(_inner) => {
-                todo!("Decide exactly")
+            VersionedTx::V1(inner) => {
+                // TODO: Move out to versioned_tx?
+                MeteredSignature::new::<S>(inner.signature.clone())
+                    .verify(&inner.pub_key, &serialized_tx, meter)
+                    .map_err(TransactionVerificationError::from)?;
             }
         }
         Ok(())
@@ -318,6 +327,25 @@ impl<R: TransactionCallable, S: Spec> Transaction<R, S> {
         }
     }
 
+    /// Creates a new transaction with the provided metadata.
+    pub fn new_with_details_v1(
+        pub_key: <S::CryptoSpec as CryptoSpec>::PublicKey,
+        runtime_call: R::Call,
+        signature: <S::CryptoSpec as CryptoSpec>::Signature,
+        nonce: u64,
+        details: TxDetails<S>,
+    ) -> Self {
+        Self {
+            versioned_tx: VersionedTx::V1(Version1 {
+                signature,
+                pub_key,
+                runtime_call,
+                nonce,
+                details,
+            }),
+        }
+    }
+
     /// Extract the runtime call from the transaction
     pub fn call(self) -> R::Call {
         match self.versioned_tx {
@@ -330,12 +358,12 @@ impl<R: TransactionCallable, S: Spec> Transaction<R, S> {
         match &self.versioned_tx {
             VersionedTx::V0(inner) => UnsignedTransaction::new_with_details(
                 inner.runtime_call.clone(),
-                inner.generation,
+                UniquenessData::Generation(inner.generation),
                 inner.details.clone(),
             ),
             VersionedTx::V1(inner) => UnsignedTransaction::new_with_details(
                 inner.runtime_call.clone(),
-                inner.generation,
+                UniquenessData::Nonce(inner.nonce),
                 inner.details.clone(),
             ),
         }
@@ -368,8 +396,7 @@ impl<R: TransactionCallable, S: Spec> Transaction<R, S> {
 pub struct UnsignedTransaction<R: TransactionCallable, S: Spec> {
     // The runtime call
     runtime_call: R::Call,
-    // The generation number
-    generation: u64,
+    uniqueness: UniquenessData,
     // Data related to fees and gas handling.
     details: TxDetails<S>,
 }
@@ -378,7 +405,7 @@ pub struct UnsignedTransaction<R: TransactionCallable, S: Spec> {
 impl<R: TransactionCallable, S: Spec> PartialEq for UnsignedTransaction<R, S> {
     fn eq(&self, other: &Self) -> bool {
         self.runtime_call == other.runtime_call
-            && self.generation == other.generation
+            && self.uniqueness == other.uniqueness
             && self.details == other.details
     }
 }
@@ -391,12 +418,12 @@ impl<R: TransactionCallable, S: Spec> UnsignedTransaction<R, S> {
         chain_id: u64,
         max_priority_fee_bips: PriorityFeeBips,
         max_fee: Amount,
-        generation: u64,
+        uniqueness: UniquenessData,
         gas_limit: Option<S::Gas>,
     ) -> Self {
         Self {
             runtime_call,
-            generation,
+            uniqueness,
             details: TxDetails {
                 max_priority_fee_bips,
                 max_fee,
@@ -409,12 +436,12 @@ impl<R: TransactionCallable, S: Spec> UnsignedTransaction<R, S> {
     /// Creates a new unsigned transaction with the provided metadata.
     pub const fn new_with_details(
         runtime_call: R::Call,
-        generation: u64,
+        uniqueness: UniquenessData,
         details: TxDetails<S>,
     ) -> Self {
         Self {
             runtime_call,
-            generation,
+            uniqueness,
             details,
         }
     }
@@ -426,13 +453,22 @@ impl<R: TransactionCallable, S: Spec> UnsignedTransaction<R, S> {
         pub_key: <S::CryptoSpec as CryptoSpec>::PublicKey,
         signature: <S::CryptoSpec as CryptoSpec>::Signature,
     ) -> Transaction<R, S> {
-        Transaction::new_with_details_v0(
-            pub_key,
-            self.runtime_call,
-            signature,
-            self.generation,
-            self.details,
-        )
+        match self.uniqueness {
+            UniquenessData::Nonce(nonce) => Transaction::new_with_details_v1(
+                pub_key,
+                self.runtime_call,
+                signature,
+                nonce,
+                self.details,
+            ),
+            UniquenessData::Generation(generation) => Transaction::new_with_details_v0(
+                pub_key,
+                self.runtime_call,
+                signature,
+                generation,
+                self.details,
+            ),
+        }
     }
 }
 

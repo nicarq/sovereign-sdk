@@ -1,7 +1,7 @@
 use std::rc::Rc;
 
 use sov_bank::Bank;
-use sov_modules_api::capabilities::TransactionAuthenticator;
+use sov_modules_api::capabilities::{TransactionAuthenticator, UniquenessData};
 use sov_modules_api::transaction::{Transaction, UnsignedTransaction};
 use sov_modules_api::{Amount, EncodeCall, FullyBakedTx, PrivateKey, RawTx, Runtime};
 use sov_test_utils::generators::bank::BankMessageGenerator;
@@ -84,7 +84,7 @@ pub fn simulate_da_with_bad_serialization(key: TestPrivateKey) -> Vec<FullyBaked
             <IntegTestRuntime<S> as EncodeCall<Bank<S>>>::to_decodable(
                 create_token_message.content,
             ),
-            create_token_message.generation,
+            UniquenessData::Generation(create_token_message.generation),
             create_token_message.details.clone(),
         ),
     );

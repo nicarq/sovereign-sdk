@@ -241,7 +241,7 @@ pub fn create_tx_bad_sig<RT: Runtime<S>>(
         chain_id,
         max_priority_fee_bips,
         TEST_DEFAULT_MAX_FEE,
-        nonce,
+        UniquenessData::Nonce(nonce),
         None,
     );
 
@@ -250,20 +250,27 @@ pub fn create_tx_bad_sig<RT: Runtime<S>>(
     // Create a signature for a different message so it won't verify in the stf.
     let bad_signature = signer.private_key.sign(&[1, 2, 3]);
 
+    let details = TxDetails {
+        max_priority_fee_bips,
+        max_fee: Amount::new(200_000),
+        gas_limit: None,
+        chain_id,
+    };
     match signed_tx.versioned_tx {
         VersionedTx::V0(inner) => Transaction::new_with_details_v0(
             inner.pub_key.clone(),
             inner.runtime_call.clone(),
             bad_signature,
             inner.generation,
-            TxDetails {
-                max_priority_fee_bips,
-                max_fee: Amount::new(200_000),
-                gas_limit: None,
-                chain_id,
-            },
+            details,
         ),
-        VersionedTx::V1(_) => todo!(),
+        VersionedTx::V1(inner) => Transaction::new_with_details_v1(
+            inner.pub_key.clone(),
+            inner.runtime_call.clone(),
+            bad_signature,
+            inner.nonce,
+            details,
+        ),
     }
 }
 
@@ -279,7 +286,7 @@ pub fn create_tx_bad_sender<RT: Runtime<S>>(
         chain_id,
         max_priority_fee_bips,
         Amount::new(200_000),
-        nonce,
+        UniquenessData::Nonce(nonce),
         None,
     );
 
@@ -299,7 +306,7 @@ pub fn create_tx_valid<RT: Runtime<S>>(
         chain_id,
         max_priority_fee_bips,
         TEST_DEFAULT_MAX_FEE,
-        nonce,
+        UniquenessData::Nonce(nonce),
         None,
     );
 
@@ -319,14 +326,14 @@ pub fn create_tx_out_of_gas<RT: Runtime<S>>(
         chain_id,
         max_priority_fee_bips,
         Amount::new(200_000),
-        nonce,
+        UniquenessData::Nonce(nonce),
         Some(<<S as Spec>::Gas as Gas>::zero()),
     );
 
     Transaction::<RT, S>::new_signed_tx(signer.private_key(), &RT::CHAIN_HASH, utx)
 }
 
-use sov_modules_api::capabilities::TransactionAuthenticator;
+use sov_modules_api::capabilities::{TransactionAuthenticator, UniquenessData};
 use sov_modules_api::macros::config_value;
 use sov_modules_api::DispatchCall;
 use sov_value_setter::CallMessage;

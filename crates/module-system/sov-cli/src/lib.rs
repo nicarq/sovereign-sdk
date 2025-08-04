@@ -16,6 +16,7 @@ pub mod wallet_state;
 pub mod workflows;
 
 pub use node_client::NodeClient;
+use sov_modules_api::capabilities::UniquenessData;
 
 const SOV_WALLET_DIR_ENV_VAR: &str = "SOV_WALLET_DIR";
 
@@ -83,7 +84,7 @@ where
             self.details.chain_id,
             self.details.max_priority_fee_bips,
             self.details.max_fee,
-            nonce,
+            UniquenessData::Nonce(nonce),
             self.details.gas_limit.clone(),
         )
     }
