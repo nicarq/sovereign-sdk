@@ -8,7 +8,6 @@ use serde::{Deserialize, Serialize};
 use sov_modules_macros::config_value_private;
 use sov_rollup_interface::TxHash;
 use sov_state::User;
-use sov_universal_wallet::UniversalWallet;
 use thiserror::Error;
 
 use crate::capabilities::{AuthorizationData, UniquenessData};
@@ -17,9 +16,9 @@ use crate::transaction::{
     VersionedTx,
 };
 use crate::{
-    capabilities, metered_credential, CryptoSpec, DispatchCall, FullyBakedTx, GasMeter,
-    GasMeteringError, MeteredBorshDeserialize, MeteredBorshDeserializeError, MeteredHasher,
-    ProvableStateReader, RawTx, Runtime, Spec,
+    capabilities, metered_credential, AuthenticatedTransactionData, CryptoSpec, DispatchCall,
+    FullyBakedTx, GasMeter, GasMeteringError, MeteredBorshDeserialize,
+    MeteredBorshDeserializeError, MeteredHasher, ProvableStateReader, RawTx, Runtime, Spec,
 };
 
 /// The chain ID of the rollup.
@@ -350,6 +349,8 @@ fn verify_and_decode_tx<S: Spec, D: DispatchCall<Spec = S>>(
                 raw_tx_hash,
                 authenticated_tx: AuthenticatedTransactionData(tx_v1.details.clone()),
             };
+
+            let uniqueness = tx.versioned_tx.get_uniqueness();
 
             Ok((
                 tx_and_raw_hash,

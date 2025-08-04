@@ -299,7 +299,6 @@ impl<R: TransactionCallable, S: Spec> Transaction<R, S> {
                     .map_err(TransactionVerificationError::from)?;
             }
             VersionedTx::V1(inner) => {
-                // TODO: Move out to versioned_tx?
                 MeteredSignature::new::<S>(inner.signature.clone())
                     .verify(&inner.pub_key, &serialized_tx, meter)
                     .map_err(TransactionVerificationError::from)?;
