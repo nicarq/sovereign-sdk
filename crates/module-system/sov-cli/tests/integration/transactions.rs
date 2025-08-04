@@ -4,7 +4,6 @@ use sov_cli::wallet_state::{KeyIdentifier, WalletState};
 use sov_cli::workflows::keys::KeyWorkflow;
 use sov_cli::workflows::transactions::{TransactionLoadWorkflow, TransactionWorkflow};
 use sov_cli::UnsignedTransactionWithoutNonce;
-use sov_modules_api::capabilities::UniquenessData;
 use sov_modules_api::cli::{FileNameArg, JsonStringArg};
 use sov_modules_api::transaction::{Transaction, UnsignedTransaction, VersionedTx};
 use sov_modules_api::{
@@ -86,8 +85,8 @@ fn transaction_is_serialized_correctly() {
     wallet_state.unsent_transactions.push(unsigned_tx);
 
     let key = <<TestSpec as Spec>::CryptoSpec as CryptoSpec>::PrivateKey::generate();
-    let initial_nonce = 15;
-    let txs = wallet_state.take_signed_transactions(&key, initial_nonce);
+    let initial_generation = 15;
+    let txs = wallet_state.take_signed_transactions(&key, initial_generation);
 
     let chain_hash = <Runtime as RuntimeTrait<TestSpec>>::CHAIN_HASH;
 
@@ -102,7 +101,7 @@ fn transaction_is_serialized_correctly() {
                 chain_id,
                 max_priority_fee_bips,
                 max_fee,
-                UniquenessData::Nonce(initial_nonce + i as u64),
+                initial_generation + i as u64,
                 gas_limit.clone(),
             ),
         );
@@ -130,7 +129,7 @@ fn transaction_not_signed_without_accounts() {
             RuntimeSubcommand<FileNameArg>,
             RuntimeSubcommand<JsonStringArg>,
         >::FromFile(subcommand),
-        nonce: 11,
+        generation: 11,
         key_nickname: None,
         json_output: false,
     };
@@ -164,7 +163,7 @@ fn transaction_signed_properly_from_file() {
             RuntimeSubcommand<FileNameArg>,
             RuntimeSubcommand<JsonStringArg>,
         >::FromFile(subcommand),
-        nonce,
+        generation: nonce,
         key_nickname: None,
         json_output: false,
     };
@@ -229,7 +228,7 @@ fn transaction_signed_properly_from_json_string() {
             RuntimeSubcommand<FileNameArg>,
             RuntimeSubcommand<JsonStringArg>,
         >::FromString(subcommand),
-        nonce: 13,
+        generation: 13,
         key_nickname: None,
         json_output: false,
     };
@@ -290,7 +289,7 @@ fn transaction_signed_by_account_nickname() {
             RuntimeSubcommand<FileNameArg>,
             RuntimeSubcommand<JsonStringArg>,
         >::FromFile(subcommand),
-        nonce,
+        generation: nonce,
         key_nickname: Some(key2.to_string()),
         json_output: false,
     };
@@ -346,7 +345,7 @@ fn transaction_outputs_json() {
             RuntimeSubcommand<FileNameArg>,
             RuntimeSubcommand<JsonStringArg>,
         >::FromFile(subcommand),
-        nonce: 12,
+        generation: 12,
         key_nickname: None,
         json_output: true,
     };

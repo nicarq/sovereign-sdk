@@ -76,7 +76,7 @@ pub struct Version0<Call, S: Spec> {
     UniversalWallet,
 )]
 #[serde(bound = "Call: serde::Serialize + serde::de::DeserializeOwned")]
-/// V1 transaction, nonce based
+/// V1 transaction, nonce-based
 pub struct Version1<Call, S: Spec> {
     /// The signature of the transaction.
     pub signature: <S::CryptoSpec as CryptoSpec>::Signature,
@@ -357,14 +357,12 @@ impl<R: TransactionCallable, S: Spec> Transaction<R, S> {
         match &self.versioned_tx {
             VersionedTx::V0(inner) => UnsignedTransaction::new_with_details(
                 inner.runtime_call.clone(),
-                UniquenessData::Generation(inner.generation),
+                inner.generation,
                 inner.details.clone(),
             ),
-            VersionedTx::V1(inner) => UnsignedTransaction::new_with_details(
-                inner.runtime_call.clone(),
-                UniquenessData::Nonce(inner.nonce),
-                inner.details.clone(),
-            ),
+            VersionedTx::V1(_inner) => {
+                panic!("UnsignedTransaction does not support V1 transactions")
+            }
         }
     }
 }
@@ -395,7 +393,8 @@ impl<R: TransactionCallable, S: Spec> Transaction<R, S> {
 pub struct UnsignedTransaction<R: TransactionCallable, S: Spec> {
     // The runtime call
     runtime_call: R::Call,
-    uniqueness: UniquenessData,
+    // The generation number
+    generation: u64,
     // Data related to fees and gas handling.
     details: TxDetails<S>,
 }
@@ -404,7 +403,7 @@ pub struct UnsignedTransaction<R: TransactionCallable, S: Spec> {
 impl<R: TransactionCallable, S: Spec> PartialEq for UnsignedTransaction<R, S> {
     fn eq(&self, other: &Self) -> bool {
         self.runtime_call == other.runtime_call
-            && self.uniqueness == other.uniqueness
+            && self.generation == other.generation
             && self.details == other.details
     }
 }
@@ -417,12 +416,12 @@ impl<R: TransactionCallable, S: Spec> UnsignedTransaction<R, S> {
         chain_id: u64,
         max_priority_fee_bips: PriorityFeeBips,
         max_fee: Amount,
-        uniqueness: UniquenessData,
+        generation: u64,
         gas_limit: Option<S::Gas>,
     ) -> Self {
         Self {
             runtime_call,
-            uniqueness,
+            generation,
             details: TxDetails {
                 max_priority_fee_bips,
                 max_fee,
@@ -435,12 +434,12 @@ impl<R: TransactionCallable, S: Spec> UnsignedTransaction<R, S> {
     /// Creates a new unsigned transaction with the provided metadata.
     pub const fn new_with_details(
         runtime_call: R::Call,
-        uniqueness: UniquenessData,
+        generation: u64,
         details: TxDetails<S>,
     ) -> Self {
         Self {
             runtime_call,
-            uniqueness,
+            generation,
             details,
         }
     }
@@ -452,22 +451,13 @@ impl<R: TransactionCallable, S: Spec> UnsignedTransaction<R, S> {
         pub_key: <S::CryptoSpec as CryptoSpec>::PublicKey,
         signature: <S::CryptoSpec as CryptoSpec>::Signature,
     ) -> Transaction<R, S> {
-        match self.uniqueness {
-            UniquenessData::Nonce(nonce) => Transaction::new_with_details_v1(
-                pub_key,
-                self.runtime_call,
-                signature,
-                nonce,
-                self.details,
-            ),
-            UniquenessData::Generation(generation) => Transaction::new_with_details_v0(
-                pub_key,
-                self.runtime_call,
-                signature,
-                generation,
-                self.details,
-            ),
-        }
+        Transaction::new_with_details_v0(
+            pub_key,
+            self.runtime_call,
+            signature,
+            self.generation,
+            self.details,
+        )
     }
 }
 

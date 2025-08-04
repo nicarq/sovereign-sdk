@@ -230,7 +230,7 @@ pub fn create_blob<RT: Runtime<S> + EncodeCall<ValueSetter<S>>>(
 }
 
 pub fn create_tx_bad_sig<RT: Runtime<S>>(
-    nonce: u64,
+    generation: u64,
     max_priority_fee_bips: PriorityFeeBips,
     signer: &TestUser<S>,
     chain_id: u64,
@@ -241,7 +241,7 @@ pub fn create_tx_bad_sig<RT: Runtime<S>>(
         chain_id,
         max_priority_fee_bips,
         TEST_DEFAULT_MAX_FEE,
-        UniquenessData::Nonce(nonce),
+        generation,
         None,
     );
 
@@ -275,7 +275,7 @@ pub fn create_tx_bad_sig<RT: Runtime<S>>(
 }
 
 pub fn create_tx_bad_sender<RT: Runtime<S>>(
-    nonce: u64,
+    generation: u64,
     max_priority_fee_bips: PriorityFeeBips,
     chain_id: u64,
     message: RT::Decodable,
@@ -286,7 +286,7 @@ pub fn create_tx_bad_sender<RT: Runtime<S>>(
         chain_id,
         max_priority_fee_bips,
         Amount::new(200_000),
-        UniquenessData::Nonce(nonce),
+        generation,
         None,
     );
 
@@ -295,7 +295,7 @@ pub fn create_tx_bad_sender<RT: Runtime<S>>(
 }
 
 pub fn create_tx_valid<RT: Runtime<S>>(
-    nonce: u64,
+    generation: u64,
     max_priority_fee_bips: PriorityFeeBips,
     signer: &TestUser<S>,
     chain_id: u64,
@@ -306,7 +306,7 @@ pub fn create_tx_valid<RT: Runtime<S>>(
         chain_id,
         max_priority_fee_bips,
         TEST_DEFAULT_MAX_FEE,
-        UniquenessData::Nonce(nonce),
+        generation,
         None,
     );
 
@@ -315,7 +315,7 @@ pub fn create_tx_valid<RT: Runtime<S>>(
 
 // Transaction with zero gas limit.
 pub fn create_tx_out_of_gas<RT: Runtime<S>>(
-    nonce: u64,
+    generation: u64,
     max_priority_fee_bips: PriorityFeeBips,
     signer: &TestUser<S>,
     chain_id: u64,
@@ -326,14 +326,14 @@ pub fn create_tx_out_of_gas<RT: Runtime<S>>(
         chain_id,
         max_priority_fee_bips,
         Amount::new(200_000),
-        UniquenessData::Nonce(nonce),
+        generation,
         Some(<<S as Spec>::Gas as Gas>::zero()),
     );
 
     Transaction::<RT, S>::new_signed_tx(signer.private_key(), &RT::CHAIN_HASH, utx)
 }
 
-use sov_modules_api::capabilities::{TransactionAuthenticator, UniquenessData};
+use sov_modules_api::capabilities::TransactionAuthenticator;
 use sov_modules_api::macros::config_value;
 use sov_modules_api::DispatchCall;
 use sov_value_setter::CallMessage;

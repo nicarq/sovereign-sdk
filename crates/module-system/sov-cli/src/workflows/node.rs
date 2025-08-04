@@ -159,6 +159,7 @@ impl<S: sov_modules_api::Spec + Serialize + DeserializeOwned> NodeWorkflows<S> {
                     }
                 };
 
+                // It is a mess...
                 let txs = wallet_state.take_signed_transactions(&private_key, nonce);
 
                 for (i, tx) in txs.iter().enumerate() {

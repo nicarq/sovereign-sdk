@@ -15,7 +15,6 @@ pub use sov_db::schema::SchemaBatch;
 pub use sov_mock_da::verifier::MockDaSpec;
 use sov_mock_da::BlockProducingConfig;
 pub use sov_mock_zkvm::{MockZkvm, MockZkvmCryptoSpec};
-use sov_modules_api::capabilities::UniquenessData;
 use sov_modules_api::configurable_spec::ConfigurableSpec;
 use sov_modules_api::default_spec::DefaultSpec;
 use sov_modules_api::macros::config_value;
@@ -217,7 +216,7 @@ pub fn test_signed_transaction<T: TransactionCallable, S: Spec>(
             tx_details.chain_id,
             tx_details.max_priority_fee_bips,
             tx_details.max_fee,
-            UniquenessData::Generation(generation),
+            generation,
             tx_details.gas_limit,
         ),
     )

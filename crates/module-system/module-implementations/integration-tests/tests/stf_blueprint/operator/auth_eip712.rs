@@ -1,7 +1,7 @@
 use sov_address::{EthereumAddress, EvmCryptoSpec};
 use sov_mock_da::{MockBlob, MockDaSpec};
 use sov_mock_zkvm::MockZkvm;
-use sov_modules_api::capabilities::{TransactionAuthenticator, UniquenessData};
+use sov_modules_api::capabilities::TransactionAuthenticator;
 use sov_modules_api::configurable_spec::ConfigurableSpec;
 use sov_modules_api::execution_mode::Native;
 use sov_modules_api::macros::config_value;
@@ -36,7 +36,7 @@ fn setup() -> (TestRunner<RT, S>, TestUser<S>) {
 }
 
 pub fn create_tx_valid<S: Spec, RT: Runtime<S>>(
-    nonce: u64,
+    generation: u64,
     max_priority_fee_bips: PriorityFeeBips,
     signer: &TestUser<S>,
     chain_id: u64,
@@ -47,7 +47,7 @@ pub fn create_tx_valid<S: Spec, RT: Runtime<S>>(
         chain_id,
         max_priority_fee_bips,
         TEST_DEFAULT_MAX_FEE,
-        UniquenessData::Nonce(nonce),
+        generation,
         None,
     );
 

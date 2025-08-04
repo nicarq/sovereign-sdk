@@ -16,7 +16,6 @@ pub mod wallet_state;
 pub mod workflows;
 
 pub use node_client::NodeClient;
-use sov_modules_api::capabilities::UniquenessData;
 
 const SOV_WALLET_DIR_ENV_VAR: &str = "SOV_WALLET_DIR";
 
@@ -77,14 +76,14 @@ where
     }
 
     /// Creates a new [`UnsignedTransaction`] from this [`UnsignedTransactionWithoutNonce`] when
-    /// given a nonce.
-    pub fn with_nonce(&self, nonce: u64) -> UnsignedTransaction<Tx, S> {
+    /// given generation number.
+    pub fn with_generation_number(&self, generation: u64) -> UnsignedTransaction<Tx, S> {
         UnsignedTransaction::new(
             self.tx.clone(),
             self.details.chain_id,
             self.details.max_priority_fee_bips,
             self.details.max_fee,
-            UniquenessData::Nonce(nonce),
+            generation,
             self.details.gas_limit.clone(),
         )
     }

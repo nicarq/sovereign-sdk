@@ -27,9 +27,9 @@ pub enum TransactionWorkflow<File: Subcommand, Json: Subcommand> {
         #[clap(subcommand)]
         /// Transaction to sign.
         transaction: TransactionLoadWorkflow<File, Json>,
-        /// Nonce to use.
+        /// Generation number to use.
         #[clap(short, long)]
-        nonce: u64,
+        generation: u64,
         /// Optional nickname of the imported key.
         #[clap(short, long)]
         key_nickname: Option<String>,
@@ -100,7 +100,7 @@ where
             TransactionWorkflow::Sign {
                 transaction,
                 key_nickname,
-                nonce,
+                generation,
                 json_output,
             } => {
                 let tx: UnsignedTransactionWithoutNonce<S, RT> = transaction.load()?;
@@ -111,11 +111,11 @@ where
                     format!("Unable to load key {}", account.location.display())
                 })?;
 
-                let signed_tx = HexString::new(sign_tx(&private_key, &tx, nonce)?);
+                let signed_tx = HexString::new(sign_tx(&private_key, &tx, generation)?);
 
                 if json_output {
                     let output = SignTransactionOutput {
-                        nonce,
+                        generation,
                         input_tx: tx,
                         signed_tx,
                     };
@@ -125,7 +125,7 @@ where
                     writeln!(
                         &mut out,
                         "Signing the following transaction to batch with address {} nonce {}:",
-                        account.address, nonce
+                        account.address, generation
                     )?;
                     writeln!(&mut out, "{}", serde_json::to_string_pretty(&tx)?)?;
                     writeln!(&mut out, "Signed Transaction (borsh encoded):")?;
@@ -219,7 +219,7 @@ where
 #[derive(serde::Serialize)]
 #[serde(bound = "Tx::Decodable: serde::Serialize + serde::de::DeserializeOwned")]
 struct SignTransactionOutput<S: Spec, Tx: DispatchCall> {
-    nonce: u64,
+    generation: u64,
     input_tx: UnsignedTransactionWithoutNonce<S, Tx>,
     signed_tx: HexString,
 }

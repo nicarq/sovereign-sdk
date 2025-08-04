@@ -240,7 +240,7 @@ fn blob_test_max_allowed_data_size() {
 }
 
 mod helpers {
-    use sov_modules_api::capabilities::UniquenessData;
+    
     use sov_modules_api::FullyBakedTx;
     use sov_modules_stf_blueprint::Runtime;
     use sov_test_utils::TEST_DEFAULT_MAX_FEE;
@@ -284,7 +284,7 @@ mod helpers {
     }
 
     fn create_tx_bad_sender(
-        nonce: u64,
+        generation: u64,
         max_priority_fee_bips: PriorityFeeBips,
         chain_id: u64,
         message: IntegTestRuntimeCall<S>,
@@ -294,7 +294,7 @@ mod helpers {
             chain_id,
             max_priority_fee_bips,
             Amount::new(200_000),
-            UniquenessData::Nonce(nonce),
+            generation,
             None,
         );
 
@@ -308,7 +308,7 @@ mod helpers {
 
     // Creates a forced-registration blob to be sent to the sequencer, the transaction will be reverted.
     fn create_tx_reverted(
-        nonce: u64,
+        generation: u64,
         max_priority_fee_bips: PriorityFeeBips,
         signer: &TestUser<S>,
         da_address: <<S as Spec>::Da as DaSpec>::Address,
@@ -328,7 +328,7 @@ mod helpers {
             chain_id,
             max_priority_fee_bips,
             TEST_DEFAULT_MAX_FEE,
-            UniquenessData::Nonce(nonce),
+            generation,
             None,
         );
 

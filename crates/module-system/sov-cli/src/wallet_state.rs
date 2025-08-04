@@ -122,14 +122,16 @@ This discrepancy may result in data layout inconsistency. Consider one of the fo
     pub fn take_signed_transactions(
         &mut self,
         signing_key: &<S::CryptoSpec as CryptoSpec>::PrivateKey,
-        nonce: u64,
+        generation: u64,
     ) -> Vec<Vec<u8>> {
         mem::take(&mut self.unsent_transactions)
             .into_iter()
             .enumerate()
             .map(|(offset, tx)| {
-                let nonce = nonce.checked_add(offset as u64).expect("Nonce overflow");
-                sign_tx(signing_key, &tx, nonce).expect("Tx signing failed")
+                let generation = generation
+                    .checked_add(offset as u64)
+                    .expect("Nonce overflow");
+                sign_tx(signing_key, &tx, generation).expect("Tx signing failed")
             })
             .collect()
     }
@@ -159,7 +161,7 @@ This discrepancy may result in data layout inconsistency. Consider one of the fo
 pub(crate) fn sign_tx<S, Tx>(
     signing_key: &<S::CryptoSpec as CryptoSpec>::PrivateKey,
     tx: &UnsignedTransactionWithoutNonce<S, Tx>,
-    nonce: u64,
+    generation: u64,
 ) -> anyhow::Result<Vec<u8>>
 where
     S: sov_modules_api::Spec,
@@ -168,7 +170,7 @@ where
     let tx = Transaction::<Tx, S>::new_signed_tx(
         signing_key,
         &tx.chain_hash.into(),
-        tx.with_nonce(nonce),
+        tx.with_generation_number(generation),
     );
     let tx = borsh::to_vec(&tx)?;
     Ok(tx)
