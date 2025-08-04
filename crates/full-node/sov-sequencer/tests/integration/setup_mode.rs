@@ -1,4 +1,4 @@
-//! Tests for gasless "admin mode" transactions
+//! Tests for gasless "setup mode" transactions
 //!
 //! These require special testing in the sequencer because they rely on support from the blob selector.
 
@@ -41,7 +41,7 @@ use sov_value_setter::{ValueSetter, ValueSetterConfig};
 use crate::preferred_end_to_end::DaLayerWithSubscription;
 
 pub(crate) type TestBlueprint = RtAgnosticBlueprint<TestSpec, TestRuntime<TestSpec>>;
-const TEST_ADMIN_MODE_DISABLE_AT_SLOT: u64 = 10;
+const TEST_SETUP_MODE_DISABLE_AT_SLOT: u64 = 10;
 
 generate_optimistic_runtime_with_kernel!(
     TestRuntime <=
@@ -53,13 +53,13 @@ generate_optimistic_runtime_with_kernel!(
 );
 
 #[tokio::test(flavor = "multi_thread")]
-async fn test_gasless_admin_mode_with_explicit_disable() {
-    let disable_admin_mode_fn = |rollup: TestRollup<TestBlueprint>,
+async fn test_gasless_setup_mode_with_explicit_disable() {
+    let disable_setup_mode_fn = |rollup: TestRollup<TestBlueprint>,
                                  mut da_layer: DaLayerWithSubscription,
                                  admin_key: Ed25519PrivateKey| async move {
-        // Send the call to disable admin mode. Should succeed.
+        // Send the call to disable setup mode. Should succeed.
         {
-            let tx = encode_call(&admin_key, 0, &remove_admin_mode_call());
+            let tx = encode_call(&admin_key, 0, &remove_setup_mode_call());
             rollup
                 .client
                 .client
@@ -75,16 +75,16 @@ async fn test_gasless_admin_mode_with_explicit_disable() {
         da_layer.produce_and_wait_for_n_slots(1).await;
         rollup
     };
-    test_gasless_admin_mode(disable_admin_mode_fn).await;
+    test_gasless_setup_mode(disable_setup_mode_fn).await;
 }
 
-/// Test the admin mode without sending any transactions to disable it. It gets disabled automatically after a few slots
+/// Test the setup mode without sending any transactions to disable it. It gets disabled automatically after a few slots
 #[tokio::test(flavor = "multi_thread")]
-async fn test_gasless_admin_mode_with_implicit_disable() {
-    let disable_admin_mode_fn = |rollup: TestRollup<TestBlueprint>,
+async fn test_gasless_setup_mode_with_implicit_disable() {
+    let disable_setup_mode_fn = |rollup: TestRollup<TestBlueprint>,
                                  mut da_layer: DaLayerWithSubscription,
                                  admin_key: Ed25519PrivateKey| async move {
-        for i in 1..=TEST_ADMIN_MODE_DISABLE_AT_SLOT {
+        for i in 1..=TEST_SETUP_MODE_DISABLE_AT_SLOT {
             // Kick off the next slot. Send a tx to ensure that a batch is in progress before force closing.
             let tx = encode_call(&admin_key, i, &value_setter_call(i as u32));
             rollup
@@ -100,18 +100,18 @@ async fn test_gasless_admin_mode_with_implicit_disable() {
         }
         rollup
     };
-    test_gasless_admin_mode(disable_admin_mode_fn).await;
+    test_gasless_setup_mode(disable_setup_mode_fn).await;
 }
 
-async fn test_gasless_admin_mode<F, Fut>(disable_fn: F)
+async fn test_gasless_setup_mode<F, Fut>(disable_fn: F)
 where
     // Note: We pass all the arguments by value because rustc's lifetime analysis on async functions isn't very smart
     F: FnOnce(TestRollup<TestBlueprint>, DaLayerWithSubscription, Ed25519PrivateKey) -> Fut,
     Fut: Future<Output = TestRollup<TestBlueprint>>,
 {
     std::env::set_var(
-        "SOV_TEST_CONST_OVERRIDE_ADMIN_MODE_TERMINATION_HEIGHT",
-        TEST_ADMIN_MODE_DISABLE_AT_SLOT.to_string(),
+        "SOV_TEST_CONST_OVERRIDE_SETUP_MODE_TERMINATION_HEIGHT",
+        TEST_SETUP_MODE_DISABLE_AT_SLOT.to_string(),
     );
 
     let genesis_config =
@@ -265,7 +265,7 @@ where
 
     let test_rollup = disable_fn(test_rollup, da_layer, admin.private_key().clone()).await;
 
-    // Send a transaction with a zero fee. Should fail because admin mode is now disabled.
+    // Send a transaction with a zero fee. Should fail because setup mode is now disabled.
     {
         let tx = encode_zero_gas_tx(&admin.private_key, 100, &value_setter_call(7));
         let err = client
@@ -304,7 +304,7 @@ fn value_setter_call(value_to_set: u32) -> <TestRuntime<TestSpec> as DispatchCal
     )
 }
 
-fn remove_admin_mode_call() -> <TestRuntime<TestSpec> as DispatchCall>::Decodable {
+fn remove_setup_mode_call() -> <TestRuntime<TestSpec> as DispatchCall>::Decodable {
     <TestRuntime<TestSpec> as DispatchCall>::Decodable::ChainState(
         sov_chain_state::CallMessage::TerminateAdminMode,
     )

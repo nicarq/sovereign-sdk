@@ -365,9 +365,9 @@ impl<S: Spec> ChainState<S> {
         self.gas_info.get(&height, state)
     }
 
-    /// Returns true if admin mode is active at the specified rollup height given the current configuration.
-    /// Note that the response returned from this method is can change if the admin mode configuration is updated.
-    pub fn is_admin_mode_active<
+    /// Returns true if setup mode is active at the specified rollup height given the current configuration.
+    /// Note that the response returned from this method is can change if the setup mode configuration is updated.
+    pub fn is_setup_mode_active<
         Reader: VersionReader + StateReader<User, Error = E> + StateReader<Kernel, Error = E>,
         E,
     >(
@@ -375,13 +375,13 @@ impl<S: Spec> ChainState<S> {
         height: RollupHeight,
         state: &mut Reader,
     ) -> Result<bool, <Reader as StateReader<Kernel>>::Error> {
-        // After the configured termination height, admin mode can never be active.
-        if height.get() >= config_value!("ADMIN_MODE_TERMINATION_HEIGHT") {
+        // After the configured termination height, setup mode can never be active.
+        if height.get() >= config_value!("SETUP_MODE_TERMINATION_HEIGHT") {
             return Ok(false);
         }
-        // Before the termination height, we have to check if the admin mode early termination height has been set. If so, respect it. Otherwise, admin mode is active.
+        // Before the termination height, we have to check if the setup mode early termination height has been set. If so, respect it. Otherwise, setup mode is active.
         Ok(self
-            .admin_mode_termination_height
+            .setup_mode_termination_height
             .get(state)?
             .map(|termination_height| height < termination_height)
             .unwrap_or(true))
@@ -399,7 +399,7 @@ impl<S: Spec> ChainState<S> {
         Option<<S::Gas as sov_modules_api::Gas>::Price>,
         <Reader as StateReader<Kernel>>::Error,
     > {
-        if self.is_admin_mode_active(height, state)? {
+        if self.is_setup_mode_active(height, state)? {
             return Ok(Some(<<S::Gas as Gas>::Price>::ZEROED));
         }
 

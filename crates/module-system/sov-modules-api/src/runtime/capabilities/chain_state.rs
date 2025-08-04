@@ -70,8 +70,8 @@ pub trait ChainState {
         state: &mut Reader,
     ) -> Option<<<Self::Spec as Spec>::Gas as Gas>::Price>;
 
-    /// Returns whether admin mode is currently enabled.
-    fn is_admin_mode_enabled<
+    /// Returns whether setup mode is currently enabled.
+    fn is_setup_mode_enabled<
         Reader: VersionReader
             + StateReader<User, Error = Infallible>
             + StateReader<Kernel, Error = Infallible>,

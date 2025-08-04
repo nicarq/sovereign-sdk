@@ -233,11 +233,11 @@ pub struct ChainState<S: Spec> {
     #[state]
     outer_code_commitment: StateValue<CodeCommitmentFor<S::OuterZkvm>, BcsCodec>,
 
-    /// The height at which admin mode will be terminated.
+    /// The height at which setup mode will be terminated.
     #[state]
-    admin_mode_termination_height: StateValue<RollupHeight>,
+    setup_mode_termination_height: StateValue<RollupHeight>,
 
-    /// The admin address. This address is allowed to terminate admin mode early.
+    /// The admin address. This address is allowed to terminate setup mode early.
     #[state]
     admin_address: StateValue<S::Address>,
 }
@@ -500,13 +500,13 @@ impl<S: Spec> ChainState<S> {
     ) -> Result<<<S as Spec>::Gas as Gas>::Price, <Reader as StateReader<Kernel>>::Error> {
         use sov_modules_api::{GasArray, GasSpec};
         let next_rollup_height = stale_rollup_height.saturating_add(1);
-        if self.is_admin_mode_active(next_rollup_height, state)? {
+        if self.is_setup_mode_active(next_rollup_height, state)? {
             return Ok(<S::Gas as Gas>::Price::ZEROED);
         }
-        // If the previous rollup height either didn't exist or was in admin mode, use the initial base fee per gas rather
-        // than computing based on the previous value. We have to special case admin mode, otherwise we'll end up with a zero price.
+        // If the previous rollup height either didn't exist or was in setup mode, use the initial base fee per gas rather
+        // than computing based on the previous value. We have to special case setup mode, otherwise we'll end up with a zero price.
         if stale_rollup_height.get() == 0
-            || self.is_admin_mode_active(stale_rollup_height, state)?
+            || self.is_setup_mode_active(stale_rollup_height, state)?
         {
             return Ok(S::initial_base_fee_per_gas());
         }
@@ -540,7 +540,7 @@ impl<S: Spec> ChainState<S> {
 /// A message for the chain-state module
 #[schemars(rename = "Event")]
 pub enum CallMessage {
-    /// Terminates admin mode as of the next rollup block.
+    /// Terminates setup mode as of the next rollup block.
     TerminateAdminMode,
 }
 
@@ -560,11 +560,11 @@ pub enum CallMessage {
 #[schemars(bound = "S: Spec", rename = "Event")]
 /// An event emitted by the chain-state module
 pub enum Event<S: Spec> {
-    /// Indicates that admin mode has been terminated.
+    /// Indicates that setup mode has been terminated.
     AdminModeTerminated {
-        /// The rollup height at which the admin mode will be terminated.
+        /// The rollup height at which the setup mode will be terminated.
         effective_at_rollup_height: u64,
-        /// The address that terminated admin mode.
+        /// The address that terminated setup mode.
         by: S::Address,
     },
 }
@@ -600,18 +600,18 @@ impl<S: Spec> Module for ChainState<S> {
             CallMessage::TerminateAdminMode => {
                 let Some(allowed_admin) = self.admin_address.get(state)? else {
                     return Err(anyhow::anyhow!(
-                        "No admin address set. Admin mode cannot be terminated early."
+                        "No admin address set. setup mode cannot be terminated early."
                     ));
                 };
                 anyhow::ensure!(
                     context.sender() == &allowed_admin,
-                    "Only admins can terminate admin mode"
+                    "Only admins can terminate setup mode"
                 );
-                if self.admin_mode_termination_height.get(state)?.is_some() {
-                    anyhow::bail!("Admin mode cannot be terminated twice.");
+                if self.setup_mode_termination_height.get(state)?.is_some() {
+                    anyhow::bail!("setup mode cannot be terminated twice.");
                 }
                 let termination_height = state.rollup_height_to_access().saturating_add(1);
-                self.admin_mode_termination_height
+                self.setup_mode_termination_height
                     .set(&termination_height, state)?;
                 self.emit_event(
                     state,
@@ -621,7 +621,7 @@ impl<S: Spec> Module for ChainState<S> {
                     },
                 );
                 tracing::debug!(
-                    "Admin mode terminated at height {}",
+                    "setup mode terminated at height {}",
                     termination_height.get()
                 );
             }

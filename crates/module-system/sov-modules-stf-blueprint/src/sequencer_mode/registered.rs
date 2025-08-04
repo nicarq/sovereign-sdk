@@ -488,7 +488,7 @@ where
                     // SAFETY: This won't overflow because rewards and penalties cannot exceed `TOKEN::total_supply`, which is of type `u128`.
                     // This is ensured as it's impossible to accumulate more funds than `TOKEN::total_supply`,
                     // since all rewards and penalties originate from user balances or the sequencer stake.
-                    // if !is_admin_mode {
+                    // if !is_setup_mode {
                     accumulated_reward = accumulated_reward
                         .checked_add(provisional_reward)
                         .expect("Total supply of gas token exceeded.");

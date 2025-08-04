@@ -116,7 +116,7 @@ impl<S: Spec> sov_modules_api::capabilities::ChainState for SoftConfirmationsKer
         self.chain_state.finalize_chain_state(gas_used, state);
     }
 
-    fn is_admin_mode_enabled<
+    fn is_setup_mode_enabled<
         Reader: VersionReader
             + StateReader<User, Error = Infallible>
             + StateReader<Kernel, Error = Infallible>,
@@ -125,7 +125,7 @@ impl<S: Spec> sov_modules_api::capabilities::ChainState for SoftConfirmationsKer
         state: &mut Reader,
     ) -> bool {
         self.chain_state
-            .is_admin_mode_active(state.rollup_height_to_access(), state)
+            .is_setup_mode_active(state.rollup_height_to_access(), state)
             .unwrap_infallible()
     }
 
