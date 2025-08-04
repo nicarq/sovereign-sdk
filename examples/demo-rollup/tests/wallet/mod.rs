@@ -2,6 +2,7 @@ use std::str::FromStr;
 
 use demo_stf::runtime::{Runtime, RuntimeCall};
 use sov_bank::{CallMessage, Coins, TokenId};
+use sov_modules_api::capabilities::UniquenessData;
 use sov_modules_api::sov_universal_wallet::schema::{ChainData, RollupRoots, Schema};
 use sov_modules_api::transaction::{Transaction, UnsignedTransaction, VersionedTx};
 use sov_modules_api::{Address, Amount, DispatchCall, PrivateKey, Spec};
@@ -33,7 +34,7 @@ fn make_unsigned_tx() -> UnsignedTransaction<Runtime<S>, S> {
         config_value!("CHAIN_ID"),
         TEST_DEFAULT_MAX_PRIORITY_FEE,
         TEST_DEFAULT_MAX_FEE,
-        0,
+        UniquenessData::Generation(0),
         Some(TEST_DEFAULT_GAS_LIMIT.into()),
     )
 }
@@ -126,6 +127,7 @@ fn test_display_signed_tx() {
 
     let signature_display = match signed_tx.versioned_tx {
         VersionedTx::V0(inner) => hex::encode(borsh::to_vec(&inner.signature).unwrap()),
+        VersionedTx::V1(inner) => hex::encode(borsh::to_vec(&inner.signature).unwrap()),
     };
 
     let pubkey_display = hex::encode(borsh::to_vec(&signer.private_key.pub_key()).unwrap());
