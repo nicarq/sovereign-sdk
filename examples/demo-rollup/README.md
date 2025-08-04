@@ -331,13 +331,12 @@ Adding the following transaction to batch:
       }
     }
   },
-  "chain_hash": "0xe88ef8c77a95689ba18bc256ed8e9b09f67ca644f751de9146e047b2c9f23e33",
+  "chain_hash": "0xfeef0294ec9be88149bc818cf2342d8e6f83b10edc3221eee028466ab04241af",
   "details": {
     "max_priority_fee_bips": 0,
     "max_fee": "100000000",
     "gas_limit": null,
     "chain_id": 4321
-  }
 }
 ```
 
