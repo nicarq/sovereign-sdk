@@ -1,4 +1,7 @@
 # 2025-08-01
+- #1474 **BREAKING CHANGE** Adds a new call message to the chain-state module to allow an admin to manually disable `setup_mode` once the rollup is initialized. Adds a new constant `SETUP_MODE_TERMINATION_HEIGHT` to constants.toml. This should be set to zero unless you have unusual requirements that prevent you from using a native gas token.
+
+# 2025-08-01
 - #1460 Adds `chain_hash` to the `/rollup/schema` endpoint response, this requires passing the chain hash during endpoint initialization.
 
 # 2025-07-30

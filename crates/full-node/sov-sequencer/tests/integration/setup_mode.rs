@@ -306,7 +306,7 @@ fn value_setter_call(value_to_set: u32) -> <TestRuntime<TestSpec> as DispatchCal
 
 fn remove_setup_mode_call() -> <TestRuntime<TestSpec> as DispatchCall>::Decodable {
     <TestRuntime<TestSpec> as DispatchCall>::Decodable::ChainState(
-        sov_chain_state::CallMessage::TerminateAdminMode,
+        sov_chain_state::CallMessage::TerminateSetupMode,
     )
 }
 

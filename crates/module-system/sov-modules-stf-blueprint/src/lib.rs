@@ -644,7 +644,6 @@ where
         // most recent version of the visible rollup height.
         let gas_price = runtime.chain_state().base_fee_per_gas(&mut state).expect("The base fee per gas for the current slot should be known at this point! This is a bug. Please report it");
         let block_gas_limit = runtime.chain_state().block_gas_limit(&mut state).expect("The slot gas limit for the current slot should be known at this point! This is a bug. Please report it");
-        // let is_setup_mode_enabled = runtime.chain_state().is_setup_mode_enabled(&mut state);
 
         let preferred_sequencer = runtime
             .sequencer_remuneration()

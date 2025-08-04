@@ -541,7 +541,7 @@ impl<S: Spec> ChainState<S> {
 #[schemars(rename = "Event")]
 pub enum CallMessage {
     /// Terminates setup mode as of the next rollup block.
-    TerminateAdminMode,
+    TerminateSetupMode,
 }
 
 #[derive(
@@ -597,7 +597,7 @@ impl<S: Spec> Module for ChainState<S> {
     ) -> anyhow::Result<()> {
         use sov_modules_api::EventEmitter;
         match message {
-            CallMessage::TerminateAdminMode => {
+            CallMessage::TerminateSetupMode => {
                 let Some(allowed_admin) = self.admin_address.get(state)? else {
                     return Err(anyhow::anyhow!(
                         "No admin address set. setup mode cannot be terminated early."
