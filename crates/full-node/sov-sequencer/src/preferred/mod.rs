@@ -663,7 +663,13 @@ pub(crate) async fn update_api_ledger<S: Spec, Rt: Runtime<S>>(
         slot_number = %info.slot_number,
         latest_finalized_slot_number = %info.latest_finalized_slot_number,
         "Starting LedgerAPI storage update");
-    tokio::task::block_in_place(|| api_ledger_db.replace_reader(info.ledger_reader.clone()));
+    tokio::task::spawn_blocking({
+        let api_ledger_db = api_ledger_db.clone();
+        let ledger_reader = info.ledger_reader.clone();
+        move || api_ledger_db.replace_reader(ledger_reader)
+    })
+    .await
+    .expect("spawn_blocking failed");
     api_ledger_db.send_notifications_for_slot(info.slot_number);
     tracing::trace!(
         time = ?start.elapsed(),
