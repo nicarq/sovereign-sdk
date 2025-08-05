@@ -160,12 +160,14 @@ impl LedgerNotificationService {
             });
     }
 
-    // What is this slot number means? Won't it conflict for finalized/head
-    // Why lock notifications
-    pub(crate) fn send_notifications(&self, slot: SlotNumber, finalize_slot: SlotNumber) {
+    /// Sends all registered notifications:
+    /// * slot notifications sent up to or equal `slot` param.
+    /// * finalized slot notifications sent aup to or equal `finalized_slot` param.
+    /// * proof notifications are sent for all proofs that are registered up to `slot` param.
+    pub(crate) fn send_notifications(&self, slot: SlotNumber, finalized_slot: SlotNumber) {
         tracing::trace!(
             slot_number = %slot,
-            finalize_slot_number = %finalize_slot,
+            finalize_slot_number = %finalized_slot,
             "Start sending LedgerDB notification for slot");
         let start = std::time::Instant::now();
 
@@ -198,7 +200,7 @@ impl LedgerNotificationService {
         });
 
         finalized_slot_notifications.retain(|rollup_height| {
-            if rollup_height.triggered_at_slot <= finalize_slot {
+            if rollup_height.triggered_at_slot <= finalized_slot {
                 let _ = self
                     .finalized_slot_subscriptions
                     .send(rollup_height.notification);
@@ -227,7 +229,7 @@ impl LedgerNotificationService {
             proof_notifications_before.saturating_sub(proof_notifications.len());
         tracing::trace!(
             slot_number = %slot,
-            finalize_slot_number = %finalize_slot,
+            finalize_slot_number = %finalized_slot,
             total_time = ?start.elapsed(),
             ?lock_wait_time,
             send_time = ?send_start.elapsed(),
@@ -475,7 +477,11 @@ impl LedgerDb {
         self.notification_service.send_all_notifications();
     }
 
-    /// Send all notifications for slots <= `slot_num`.
+
+    /// Sends all registered notifications:
+    /// * slot notifications sent up to or equal `slot` param.
+    /// * finalized slot notifications sent aup to or equal `finalized_slot` param.
+    /// * proof notifications are sent for all proofs that are registered up to `slot` param.
     pub fn send_notifications(&self, slot_num: SlotNumber, finalize_slot: SlotNumber) {
         self.notification_service
             .send_notifications(slot_num, finalize_slot);
