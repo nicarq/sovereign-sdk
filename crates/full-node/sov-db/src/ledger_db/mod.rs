@@ -477,7 +477,6 @@ impl LedgerDb {
         self.notification_service.send_all_notifications();
     }
 
-
     /// Sends all registered notifications:
     /// * slot notifications sent up to or equal `slot` param.
     /// * finalized slot notifications sent aup to or equal `finalized_slot` param.
