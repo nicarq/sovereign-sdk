@@ -33,7 +33,6 @@ pub struct ChainStateConfig<S: Spec> {
 
     /// The admin address. This address is allowed to terminate setup mode early.
     #[serde(default)]
-    #[serde(skip_serializing_if = "Option::is_none")]
     pub admin: Option<S::Address>,
 }
 
