@@ -447,7 +447,7 @@ where
 
                 let rollup_exec_config = self.create_bloc_exec_config_for_recovery();
                 self.synchronized_state_updator
-                    .flush_tx_cache_msg(
+                    .force_overite_state_msg(
                         self.api_ledger_db.clone(),
                         self.transaction_cache.write_handle(),
                         info.clone(),
@@ -658,8 +658,18 @@ pub(crate) async fn update_api_ledger<S: Spec, Rt: Runtime<S>>(
     transaction_cache: TxResultWriter<S, Rt>,
     info: &StateUpdateInfo<S::Storage>,
 ) {
+    let start = std::time::Instant::now();
+    tracing::trace!(
+        slot_number = %info.slot_number,
+        latest_finalized_slot_number = %info.latest_finalized_slot_number,
+        "Starting LedgerAPI storage update");
     tokio::task::block_in_place(|| api_ledger_db.replace_reader(info.ledger_reader.clone()));
     api_ledger_db.send_notifications_for_slot(info.slot_number);
+    tracing::trace!(
+        time = ?start.elapsed(),
+        slot_number = %info.slot_number,
+        latest_finalized_slot_number = %info.latest_finalized_slot_number,
+        "LedgerAPI storage updated, notification has been sent");
     prune_transactions_cache(info.next_tx_number, transaction_cache).await;
 }
 
@@ -729,13 +739,13 @@ where
         }
 
         PreferredSeqOperation::ReplaySoftConfirmationsOnTopOfNodeState(
-            is_startup,
+            should_clean_tx_cache,
             time_spent_fetching_batches,
         ) => {
             seq.replay_soft_confirmations_on_top_of_node_state(
                 info,
                 timer_start,
-                is_startup,
+                should_clean_tx_cache,
                 time_spent_fetching_batches,
             )
             .await?;
