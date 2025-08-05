@@ -488,7 +488,6 @@ where
                     // SAFETY: This won't overflow because rewards and penalties cannot exceed `TOKEN::total_supply`, which is of type `u128`.
                     // This is ensured as it's impossible to accumulate more funds than `TOKEN::total_supply`,
                     // since all rewards and penalties originate from user balances or the sequencer stake.
-                    // if !is_setup_mode {
                     accumulated_reward = accumulated_reward
                         .checked_add(provisional_reward)
                         .expect("Total supply of gas token exceeded.");
@@ -504,7 +503,6 @@ where
                                 .saturating_sub(gas_used.checked_value(gas_price).unwrap()),
                         );
                     }
-                    // }
 
                     // In onchain mode, transactions that make the sequencer run out of gas are treated as "ignored".
                     // While they consume gas, their hashes cannot be computed, so they are not indexed in the database.
