@@ -128,6 +128,7 @@ impl<R: FullNodeBlueprint<Native>> RollupBuilder<R> {
             block_producing,
             finalization_blocks,
             Arc::new(tempfile::tempdir().unwrap()),
+            true,
         )
     }
 
@@ -191,12 +192,13 @@ impl<R: FullNodeBlueprint<Native>, StoragePath: AsPath> RollupBuilder<R, Storage
         block_producing: BlockProducingConfig,
         finalization_blocks: u32,
         storage_path: StoragePath,
+        in_memory_da: bool,
     ) -> Self {
         let da_config = MockDaConfig {
             // This will be set later based on the storage path. In case of a bug,
             // SQLite will simply fail to open the file and we'll immediately get a
             // panic, so it's not dangerous.
-            connection_string: MockDaConfig::sqlite_in_memory(),
+            connection_string: if in_memory_da { MockDaConfig::sqlite_in_memory() } else { MockDaConfig::sqlite_in_dir(storage_path.as_path()).unwrap() },
             // This value is important and should match `examples/test-data/genesis/integration-tests/sequencer_registry.json`
             // Otherwise batches are going to be rejected in `examples/demo-rollup` tests.
             sender_address: MockAddress::new([0; 32]),

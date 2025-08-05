@@ -149,6 +149,7 @@ pub async fn setup_rollup(
         DEFAULT_BLOCK_PRODUCING_CONFIG,
         DEFAULT_FINALIZATION_BLOCKS,
         storage_path,
+        true,
     )
     .set_config(|config| {
         config.automatic_batch_production = true;
