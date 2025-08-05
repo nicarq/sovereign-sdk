@@ -16,9 +16,9 @@ use crate::transaction::{
     TxDetails, VersionedTx,
 };
 use crate::{
-    capabilities, metered_credential, AuthenticatedTransactionData, CryptoSpec, DispatchCall,
-    FullyBakedTx, GasMeter, GasMeteringError, MeteredBorshDeserialize,
-    MeteredBorshDeserializeError, MeteredHasher, ProvableStateReader, RawTx, Runtime, Spec,
+    capabilities, metered_credential, CryptoSpec, DispatchCall, FullyBakedTx, GasMeter,
+    GasMeteringError, MeteredBorshDeserialize, MeteredBorshDeserializeError, MeteredHasher,
+    ProvableStateReader, RawTx, Runtime, Spec,
 };
 
 /// The chain ID of the rollup.
@@ -298,37 +298,18 @@ fn verify_and_decode_tx<S: Spec, D: DispatchCall<Spec = S>>(
     chain_hash: &[u8; 32],
     meter: &mut impl GasMeter<Spec = S>,
 ) -> Result<AuthenticationOutput<S, D::Decodable>, AuthenticationError> {
-    match &tx.versioned_tx {
-        VersionedTx::V0(tx_v0) => {
-            verify_chain_id(&tx_v0.details, raw_tx_hash)?;
-            verify_signature(&tx, chain_hash, raw_tx_hash, meter)?;
-            let authorization_data =
-                extract_authorization_data::<S, D>(&tx.versioned_tx, raw_tx_hash, meter)?;
+    let tx_details = tx.versioned_tx.get_details();
+    verify_chain_id(tx_details, raw_tx_hash)?;
+    verify_signature(&tx, chain_hash, raw_tx_hash, meter)?;
+    let authorization_data =
+        extract_authorization_data::<S, D>(&tx.versioned_tx, raw_tx_hash, meter)?;
+    let tx_and_raw_hash = AuthenticatedTransactionAndRawHash {
+        raw_tx_hash,
+        authenticated_tx: tx_details.clone().into(),
+    };
+    let runtime_call = tx.versioned_tx.into_runtime_call();
 
-            let runtime_call = tx_v0.runtime_call.clone();
-            let tx_and_raw_hash = AuthenticatedTransactionAndRawHash {
-                raw_tx_hash,
-                authenticated_tx: tx_v0.details.clone().into(),
-            };
-
-            Ok((tx_and_raw_hash, authorization_data, runtime_call))
-        }
-        VersionedTx::V1(tx_v1) => {
-            verify_chain_id(&tx_v1.details, raw_tx_hash)?;
-            verify_signature(&tx, chain_hash, raw_tx_hash, meter)?;
-
-            let authorization_data =
-                extract_authorization_data::<S, D>(&tx.versioned_tx, raw_tx_hash, meter)?;
-            let runtime_call = tx_v1.runtime_call.clone();
-
-            let tx_and_raw_hash = AuthenticatedTransactionAndRawHash {
-                raw_tx_hash,
-                authenticated_tx: AuthenticatedTransactionData(tx_v1.details.clone()),
-            };
-
-            Ok((tx_and_raw_hash, authorization_data, runtime_call))
-        }
-    }
+    Ok((tx_and_raw_hash, authorization_data, runtime_call))
 }
 
 /// Authenticate raw sov-transaction.

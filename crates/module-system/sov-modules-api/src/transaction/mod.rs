@@ -131,6 +131,13 @@ impl<Call, S: Spec> VersionedTx<Call, S> {
             VersionedTx::V1(inner) => &inner.pub_key,
         }
     }
+
+    pub fn into_runtime_call(self) -> Call {
+        match self {
+            VersionedTx::V0(inner) => inner.runtime_call,
+            VersionedTx::V1(inner) => inner.runtime_call,
+        }
+    }
 }
 
 #[derive(
