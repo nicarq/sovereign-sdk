@@ -664,7 +664,7 @@ pub(crate) async fn update_api_ledger<S: Spec, Rt: Runtime<S>>(
         latest_finalized_slot_number = %info.latest_finalized_slot_number,
         "Starting LedgerAPI storage update");
     api_ledger_db.replace_reader(info.ledger_reader.clone());
-    api_ledger_db.send_notifications_for_slot(info.slot_number);
+    api_ledger_db.send_notifications(info.slot_number, info.latest_finalized_slot_number);
     tracing::trace!(
         time = ?start.elapsed(),
         slot_number = %info.slot_number,

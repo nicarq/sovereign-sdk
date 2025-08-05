@@ -220,7 +220,7 @@ impl LedgerTestService {
             LedgerTestServiceData::Complex => materialize_complex_ledger_db_data(&ledger_db)?,
         };
 
-        ledger_db.send_notifications();
+        ledger_db.send_all_notifications();
         storage_manager.commit(ledger_data);
         let (_, shutdown_receiver) = watch::channel(());
 

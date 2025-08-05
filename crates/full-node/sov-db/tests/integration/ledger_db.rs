@@ -59,7 +59,7 @@ async fn test_slot_subscription() {
             b"state-root",
         )
         .unwrap();
-    ledger_db.send_notifications();
+    ledger_db.send_all_notifications();
 
     assert_eq!(
         slots_subscription.next().await.unwrap(),

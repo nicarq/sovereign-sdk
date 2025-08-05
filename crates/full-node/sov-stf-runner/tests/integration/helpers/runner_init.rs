@@ -207,7 +207,8 @@ pub async fn initialize_runner(
                 let ledger_updates = ledger_updates.clone();
                 async move {
                     ledger_updates.replace_reader(info.ledger_reader);
-                    ledger_updates.send_notifications_for_slot(info.slot_number);
+                    ledger_updates
+                        .send_notifications(info.slot_number, info.latest_finalized_slot_number);
                     Ok(())
                 }
             },

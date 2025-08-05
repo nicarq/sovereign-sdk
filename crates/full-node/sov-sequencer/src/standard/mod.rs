@@ -533,6 +533,7 @@ where
             storage,
             slot_number,
             ledger_reader,
+            latest_finalized_slot_number,
             ..
         } = &state_update_info;
         let checkpoint = StateCheckpoint::new(storage.clone(), &Rt::default().kernel());
@@ -551,7 +552,8 @@ where
         }
 
         self.api_ledger_db.replace_reader(ledger_reader.clone());
-        self.api_ledger_db.send_notifications_for_slot(*slot_number);
+        self.api_ledger_db
+            .send_notifications(*slot_number, *latest_finalized_slot_number);
 
         if self.config.automatic_batch_production {
             match self.produce_batch().await {

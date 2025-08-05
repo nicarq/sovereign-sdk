@@ -358,7 +358,7 @@ pub trait FullNodeBlueprint<M: ExecutionMode>: RollupBlueprint<M> {
                 api_ledger_db.replace_reader(ledger_state);
                 // Clearing notifications that has been produced during genesis.
                 // Rollup is not running yet, so there are no subscribers.
-                ledger_db.send_notifications();
+                ledger_db.send_all_notifications();
                 (
                     prover_storage,
                     genesis_state_root.clone(),

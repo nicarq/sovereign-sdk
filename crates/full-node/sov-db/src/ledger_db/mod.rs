@@ -160,62 +160,86 @@ impl LedgerNotificationService {
             });
     }
 
-    pub(crate) fn send_notifications_for_slot(&self, slot: SlotNumber) {
-        {
-            let mut slot_notifications = self
-                .slot_notifications
-                .lock()
-                .expect("Slot notification lock is poisoned");
+    // What is this slot number means? Won't it conflict for finalized/head
+    // Why lock notifications
+    pub(crate) fn send_notifications(&self, slot: SlotNumber, finalize_slot: SlotNumber) {
+        tracing::trace!(
+            slot_number = %slot,
+            finalize_slot_number = %finalize_slot,
+            "Start sending LedgerDB notification for slot");
+        let start = std::time::Instant::now();
 
-            slot_notifications.retain(|slot_num| {
-                if slot_num.triggered_at_slot <= slot {
-                    let _ = self.slot_subscriptions.send(slot_num.notification);
-                    false
-                } else {
-                    true
-                }
-            });
-        }
+        // Locking all 3 mutexes at once to avoid concurrent sending and dead locks.
+        let mut slot_notifications = self
+            .slot_notifications
+            .lock()
+            .expect("Slot notification lock is poisoned");
+        let slot_notifications_before = slot_notifications.len();
+        let mut finalized_slot_notifications = self
+            .finalized_slot_notifications
+            .lock()
+            .expect("Finalized slot notification lock is poisoned");
+        let finalized_slot_notifications_before = finalized_slot_notifications.len();
+        let mut proof_notifications = self
+            .proof_notifications
+            .lock()
+            .expect("Proof notification lock is poisoned");
+        let proof_notifications_before = proof_notifications.len();
 
-        {
-            let mut finalized_slot_notifications = self
-                .finalized_slot_notifications
-                .lock()
-                .expect("Finalized slot notification lock is poisoned");
+        let lock_wait_time = start.elapsed();
+        let send_start = std::time::Instant::now();
+        slot_notifications.retain(|slot_num| {
+            if slot_num.triggered_at_slot <= slot {
+                let _ = self.slot_subscriptions.send(slot_num.notification);
+                false
+            } else {
+                true
+            }
+        });
 
-            finalized_slot_notifications.retain(|rollup_height| {
-                if rollup_height.triggered_at_slot <= slot {
-                    let _ = self
-                        .finalized_slot_subscriptions
-                        .send(rollup_height.notification);
-                    false
-                } else {
-                    true
-                }
-            });
-        }
+        finalized_slot_notifications.retain(|rollup_height| {
+            if rollup_height.triggered_at_slot <= finalize_slot {
+                let _ = self
+                    .finalized_slot_subscriptions
+                    .send(rollup_height.notification);
+                false
+            } else {
+                true
+            }
+        });
 
-        {
-            let mut proof_notifications = self
-                .proof_notifications
-                .lock()
-                .expect("Proof notification lock is poisoned");
+        proof_notifications.retain(|agg_proof| {
+            if agg_proof.triggered_at_slot <= slot {
+                let _ = self
+                    .proof_subscriptions
+                    .send(agg_proof.notification.clone());
+                false
+            } else {
+                true
+            }
+        });
 
-            proof_notifications.retain(|agg_proof| {
-                if agg_proof.triggered_at_slot <= slot {
-                    let _ = self
-                        .proof_subscriptions
-                        .send(agg_proof.notification.clone());
-                    false
-                } else {
-                    true
-                }
-            });
-        }
+        let slot_notifications_sent =
+            slot_notifications_before.saturating_sub(slot_notifications.len());
+        let finalized_slot_notifications_sent =
+            finalized_slot_notifications_before.saturating_sub(finalized_slot_notifications.len());
+        let proof_notifications_sent =
+            proof_notifications_before.saturating_sub(proof_notifications.len());
+        tracing::trace!(
+            slot_number = %slot,
+            finalize_slot_number = %finalize_slot,
+            total_time = ?start.elapsed(),
+            ?lock_wait_time,
+            send_time = ?send_start.elapsed(),
+            %slot_notifications_sent,
+            %finalized_slot_notifications_sent,
+            %proof_notifications_sent,
+            "Completed sending LedgerDB notification for slot"
+        );
     }
 
-    pub(crate) fn send_notifications(&self) {
-        self.send_notifications_for_slot(SlotNumber::MAX);
+    pub(crate) fn send_all_notifications(&self) {
+        self.send_notifications(SlotNumber::MAX, SlotNumber::MAX);
     }
 }
 
@@ -447,14 +471,14 @@ impl LedgerDb {
     }
 
     /// Sending all previously registered notifications.
-    pub fn send_notifications(&self) {
-        self.notification_service.send_notifications();
+    pub fn send_all_notifications(&self) {
+        self.notification_service.send_all_notifications();
     }
 
     /// Send all notifications for slots <= `slot_num`.
-    pub fn send_notifications_for_slot(&self, slot_num: SlotNumber) {
+    pub fn send_notifications(&self, slot_num: SlotNumber, finalize_slot: SlotNumber) {
         self.notification_service
-            .send_notifications_for_slot(slot_num);
+            .send_notifications(slot_num, finalize_slot);
     }
 
     /// Materializes latest finalized slot and registers notification.

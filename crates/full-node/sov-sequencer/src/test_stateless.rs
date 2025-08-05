@@ -215,8 +215,10 @@ where
 
         self.api_ledger_db
             .replace_reader(update_info.ledger_reader.clone());
-        self.api_ledger_db
-            .send_notifications_for_slot(update_info.slot_number);
+        self.api_ledger_db.send_notifications(
+            update_info.slot_number,
+            update_info.latest_finalized_slot_number,
+        );
 
         let serialized_batch =
             borsh::to_vec::<Vec<FullyBakedTx>>(&self.take_batch().await.inner)?.into();
