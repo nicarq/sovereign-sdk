@@ -258,15 +258,15 @@ pub fn create_tx_bad_sig<RT: Runtime<S>>(
     };
     match signed_tx.versioned_tx {
         VersionedTx::V0(inner) => Transaction::new_with_details_v0(
-            inner.pub_key.clone(),
-            inner.runtime_call.clone(),
+            inner.pub_key,
+            inner.runtime_call,
             bad_signature,
             inner.generation,
             details,
         ),
         VersionedTx::V1(inner) => Transaction::new_with_details_v1(
-            inner.pub_key.clone(),
-            inner.runtime_call.clone(),
+            inner.pub_key,
+            inner.runtime_call,
             bad_signature,
             inner.nonce,
             details,
