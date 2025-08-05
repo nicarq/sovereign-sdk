@@ -202,6 +202,8 @@ impl HyperlaneBuilder {
         let docker_image = env::var("CUSTOM_HLP_DOCKER_IMAGE");
         let has_custom_image = !matches!(docker_image, Err(env::VarError::NotPresent));
 
+        // Current image is based on https://github.com/citizen-stig/hyperlane-monorepo/tree/nikolai/for-test
+        // TODO: Migrate it to https://github.com/Sovereign-Labs/hyperlane-monorepo/ and later to upstream.
         let docker_image =
             docker_image.unwrap_or_else(|_| "ghcr.io/citizen-stig/hyperlane:latest".into());
         let (name, tag) = docker_image
