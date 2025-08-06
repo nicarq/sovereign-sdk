@@ -8,6 +8,7 @@ homepage = { workspace = true }
 repository = { workspace = true }
 
 [dependencies]
+alloy-primitives = { workspace = true }
 arrayvec = { workspace = true, optional = true }
 bech32 = { workspace = true }
 bs58 = { workspace = true }

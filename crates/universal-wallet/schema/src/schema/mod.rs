@@ -26,12 +26,14 @@ use crate::display::{Context as DisplayContext, DisplayVisitor, FormatError};
 #[cfg(feature = "serde")]
 use crate::json_to_borsh::{Context as EncodeContext, EncodeError, EncodeVisitor};
 use crate::ty::byte_display::ByteParseError;
-use crate::ty::{ContainerSerdeMetadata, LinkingScheme, Ty};
+use crate::ty::{sol, ContainerSerdeMetadata, LinkingScheme, Ty};
 
 #[derive(Debug, Error)]
 pub enum SchemaError {
     #[error(transparent)]
     FormatError(#[from] FormatError),
+    #[error(transparent)]
+    SolError(#[from] sol::Error),
     #[error(transparent)]
     BorshError(#[from] borsh::io::Error),
     #[cfg(feature = "serde")]
@@ -283,6 +285,23 @@ impl Schema {
         if !visitor.has_displayed_whole_input() {
             return Err(FormatError::UnusedInput.into());
         }
+        Ok(output)
+    }
+
+    /// Use the schema to display the given type as alloy definitions
+    pub fn into_alloy(&self) -> Result<String, SchemaError> {
+        let mut output = String::new();
+
+        output.push_str("sol! {\n");
+
+        for ty in &self.types {
+            let sol_type = ty.as_definition(&self)?;
+            output.push_str(&sol_type);
+            output.push_str("\n");
+        }
+
+        output.push_str("}\n");
+
         Ok(output)
     }
 

@@ -1,4 +1,5 @@
 pub mod byte_display;
+pub mod sol;
 pub mod visitor;
 use core::panic;
 use std::fmt::Debug;

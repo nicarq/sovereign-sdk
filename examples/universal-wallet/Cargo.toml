@@ -1,0 +1,22 @@
+[package]
+name = "universal-wallet"
+version.workspace = true
+edition.workspace = true
+license.workspace = true
+authors.workspace = true
+homepage.workspace = true
+publish.workspace = true
+repository.workspace = true
+
+[dependencies]
+alloy-sol-types = { workspace = true }
+alloy-primitives = { workspace = true }
+borsh = { workspace = true }
+
+[build-dependencies]
+borsh = { workspace = true }
+sov-rollup-interface = { workspace = true }
+sov-universal-wallet = { workspace = true }
+
+[lints]
+workspace = true
