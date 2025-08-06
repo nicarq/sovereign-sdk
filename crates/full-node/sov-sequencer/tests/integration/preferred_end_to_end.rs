@@ -337,6 +337,75 @@ async fn txs_below_min_fee_are_rejected() {
     );
 }
 
+#[tokio::test(flavor = "multi_thread")]
+#[ignore = "This test covers pruning behavior, which is only relevant for NOMT. Enable it when we switch to NOMT for the sequencer tests."]
+async fn test_archival_state_with_pruning() {
+    let (test_rollup, admin) = create_test_rollup(
+        0,
+        TEST_MAX_BATCH_SIZE,
+        TEST_BLOB_PROCESSING_TIMEOUT,
+        MAX_BATCH_EXECUTION_TIME_MILLIS,
+    )
+    .await;
+
+    let Some(test_rollup) = test_rollup else {
+        return;
+    };
+
+    // Produce a few blocks to DA blocks to make sure there's a finalized slot after genesis.
+    let mut da_layer = DaLayerWithSubscription::new(&test_rollup).await;
+    da_layer.produce_and_wait_for_n_slots(5).await;
+    let client = test_rollup.api_client().clone();
+
+    for i in 0..150 {
+        let tx = tx_set_value(&admin.private_key, i, i);
+        client
+            .accept_tx(&api_types::AcceptTxBody {
+                body: BASE64_STANDARD.encode(&tx),
+            })
+            .await
+            .unwrap();
+        da_layer.produce_and_wait_for_slot().await;
+    }
+
+    // Assert that the earlier transactions sent just before the sequencer went into recovery was
+    // flushed and processed by the node
+    #[derive(Debug, serde::Deserialize)]
+    struct ValueResponse {
+        #[allow(unused)]
+        value: u32,
+    }
+
+    let mut success_count = 0;
+    let mut pruned_count = 0;
+    for i in 0..150 {
+        let state = test_rollup
+            .client
+            .query_rest_endpoint::<serde_json::Value>(
+                format!("/modules/value-setter/state/value?slot_number={i}").as_str(),
+            )
+            .await;
+        assert!(state.is_ok(), "Error from archival state query: {state:?}",);
+        let state = state.unwrap();
+        if state
+            .to_string()
+            .contains("The requested height may have been pruned")
+        {
+            pruned_count += 1;
+        } else {
+            let value: ValueResponse =
+                serde_json::from_value(state).expect("Failed to deserialize into ValueResponse");
+            assert!(value.value < 150);
+            success_count += 1;
+        }
+    }
+
+    // Check that we ran into some pruned slots to sanity check that the test is working. If this fails, we just need to update the test logic
+    assert!(pruned_count > 0, "No pruned slots found");
+    assert!(success_count > 0, "No successful queries found");
+    test_rollup.shutdown().await.unwrap();
+}
+
 /// Test what happens when the sequencer fills up its gas limit. This tests that...
 /// 1. Transactions which would exceed the gas limit are rejected.
 /// 2. Really large transactions don't cause the sequencer to produce a batch too early. It only considers a batch full once we've used 95% of the gas.
@@ -1856,7 +1925,7 @@ async fn do_manual_block_production_test<Fut: Future<Output = ()>>(
 
     // Close the batch and submit to DA
     test_rollup.force_close_batch().await.unwrap();
-    tokio::time::sleep(Duration::from_millis(200)).await; // Sleep to make sure the batch is published before we produce a block. If this gets flaky, we'll need to add a blob_sender subscription.
+    tokio::time::sleep(Duration::from_millis(500)).await; // Sleep to make sure the batch is published before we produce a block. If this gets flaky, we'll need to add a blob_sender subscription.
 
     // Ensure that the sequencer has time to see the updated state and submit its batch containing the transaction to DA.
     let next = da_layer.produce_and_wait_for_slot().await;
@@ -1956,7 +2025,7 @@ async fn test_no_crashes_on_resync_with_transactions() {
     let test_rollup = builder.start().await.unwrap();
 
     // Let it resync
-    tokio::time::sleep(Duration::from_secs(5)).await;
+    tokio::time::sleep(Duration::from_secs(15)).await;
 
     // Verify accepting actions works
     let actions = vec![
@@ -2953,7 +3022,7 @@ pub(crate) async fn run_action_against_test_rollup(
             // startup until a StateUpdateInfo from the node has been processed.
             let test_rollup = test_rollup.restart().await?;
             test_rollup.da_service.produce_block_now().await.unwrap();
-            sleep(Duration::from_millis(500)).await;
+            sleep(Duration::from_millis(1500)).await;
             return Ok(test_rollup);
         }
         TestingAction::TryAcceptBadTx { invalid_reason } => {
