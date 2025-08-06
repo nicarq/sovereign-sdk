@@ -177,13 +177,13 @@ mod tests {
                 .unwrap();
 
         let config = BankConfig::<TestSpec> {
-            gas_token_config: GasTokenConfig {
+            gas_token_config: Some(GasTokenConfig {
                 token_name: "sov-gas-token".to_owned(),
                 token_decimals: None,
                 address_and_balances: vec![(sender_address, Amount::new(100_000_000))],
                 admins: vec![sender_address],
                 supply_cap: None,
-            },
+            }),
             tokens: vec![TokenConfig {
                 token_name: "sov-demo-token".to_owned(),
                 token_decimals: Some(6),
