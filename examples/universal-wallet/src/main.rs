@@ -5,8 +5,6 @@ use alloy_primitives::address;
 use alloy_sol_types::{eip712_domain, Eip712Domain, SolStruct};
 
 mod generated {
-    use alloy_sol_types::sol;
-
     include!(concat!(env!("OUT_DIR"), "/alloy_schema.rs"));
 }
 
@@ -18,6 +16,10 @@ const DOMAIN: Eip712Domain = eip712_domain! {
 };
 
 fn main() {
+    // Print the contents of the generated alloy_schema.rs file
+    let alloy_schema_content = include_str!(concat!(env!("OUT_DIR"), "/alloy_schema.rs"));
+    println!("{alloy_schema_content}");
+
     let value = generated::Outer {
         field: generated::Inner {
             field: Default::default(),
