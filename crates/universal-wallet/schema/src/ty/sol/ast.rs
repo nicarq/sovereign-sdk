@@ -9,20 +9,26 @@ fn indent(levels: u32, f: &mut Formatter<'_>) -> Result {
     Ok(())
 }
 
+#[derive(Debug)]
 pub enum Ty {
+    Bool,
     Uint256,
     Ident(String),
+    Array(Box<Ty>, usize),
 }
 
 impl Display for Ty {
     fn fmt(&self, f: &mut Formatter<'_>) -> Result {
         match self {
+            Ty::Bool => write!(f, "bool"),
             Ty::Uint256 => write!(f, "uint256"),
             Ty::Ident(i) => write!(f, "{i}"),
+            Ty::Array(ty, len) => write!(f, "{ty}[{len}]"),
         }
     }
 }
 
+#[derive(Debug)]
 pub struct Field {
     pub name: String,
     pub ty: Ty,
@@ -34,34 +40,34 @@ impl Display for Field {
     }
 }
 
-pub enum Item {
-    Struct { name: String, fields: Vec<Field> },
+#[derive(Debug)]
+pub struct Struct {
+    pub name: String,
+    pub fields: Vec<Field>,
 }
 
-impl Item {
+impl Struct {
     fn to_string(&self, levels: u32, f: &mut Formatter<'_>) -> Result {
-        match self {
-            Item::Struct { name, fields } => {
-                indent(levels, f)?;
-                writeln!(f, "struct {name} {{")?;
-                for field in fields {
-                    indent(levels + 1, f)?;
-                    writeln!(f, "{field}")?;
-                }
-                indent(levels, f)?;
-                writeln!(f, "}}")
-            }
+        let Struct { name, fields } = self;
+        indent(levels, f)?;
+        writeln!(f, "struct {name} {{")?;
+        for field in fields {
+            indent(levels + 1, f)?;
+            writeln!(f, "{field}")?;
         }
+        indent(levels, f)?;
+        writeln!(f, "}}")
     }
 }
 
-impl Display for Item {
+impl Display for Struct {
     fn fmt(&self, f: &mut Formatter<'_>) -> Result {
         self.to_string(0, f)
     }
 }
 
-pub struct Block(pub Vec<Item>);
+#[derive(Debug)]
+pub struct Block(pub Vec<Struct>);
 
 impl Display for Block {
     fn fmt(&self, f: &mut Formatter<'_>) -> Result {

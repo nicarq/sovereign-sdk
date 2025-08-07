@@ -290,11 +290,12 @@ impl Schema {
 
     /// Use the schema to display the given type as alloy definitions
     pub fn into_alloy(&self) -> Result<sol::ast::Block, SchemaError> {
-        let items = self
+        let root_type_index = 0;
+        let root_type = self
             .types
-            .iter()
-            .map(|ty| ty.as_definition(self))
-            .collect::<Result<Vec<_>, _>>()?;
+            .get(root_type_index)
+            .ok_or(SchemaError::InvalidIndex(root_type_index))?;
+        let items = root_type.as_definition(self)?;
 
         Ok(sol::ast::Block(items))
     }

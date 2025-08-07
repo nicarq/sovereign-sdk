@@ -13964,8 +13964,11 @@ dependencies = [
  "alloy-primitives",
  "alloy-sol-types",
  "borsh",
+ "serde_json",
  "sov-rollup-interface",
+ "sov-test-utils",
  "sov-universal-wallet",
+ "sov-value-setter",
 ]
 
 [[package]]

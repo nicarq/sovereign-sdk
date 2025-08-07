@@ -1,20 +1,10 @@
-#![allow(dead_code)]
-
 use sov_rollup_interface::reexports::anyhow;
-use sov_universal_wallet::{schema::Schema, UniversalWallet};
-
-#[derive(UniversalWallet)]
-struct Inner {
-    field: u8,
-}
-
-#[derive(UniversalWallet)]
-struct Outer {
-    field: Inner,
-}
+use sov_test_utils::TestSpec;
+use sov_universal_wallet::schema::Schema;
+use sov_value_setter::CallMessage;
 
 fn main() -> anyhow::Result<()> {
-    let schema = Schema::of_single_type::<Outer>()?;
+    let schema = Schema::of_single_type::<CallMessage<TestSpec>>()?;
     let alloy_schema = schema.into_alloy()?;
 
     let out_dir = std::env::var("OUT_DIR")?;

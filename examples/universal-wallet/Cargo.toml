@@ -12,11 +12,18 @@ repository.workspace = true
 alloy-sol-types = { workspace = true }
 alloy-primitives = { workspace = true }
 borsh = { workspace = true }
+sov-rollup-interface = { workspace = true }
+sov-universal-wallet = { workspace = true }
+sov-value-setter = { workspace = true }
+sov-test-utils = { workspace = true }
+serde_json = { workspace = true }
 
 [build-dependencies]
 borsh = { workspace = true }
 sov-rollup-interface = { workspace = true }
 sov-universal-wallet = { workspace = true }
+sov-value-setter = { workspace = true }
+sov-test-utils = { workspace = true }
 
 [lints]
 workspace = true
