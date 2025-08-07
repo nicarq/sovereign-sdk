@@ -289,20 +289,14 @@ impl Schema {
     }
 
     /// Use the schema to display the given type as alloy definitions
-    pub fn into_alloy(&self) -> Result<String, SchemaError> {
-        let mut output = String::new();
+    pub fn into_alloy(&self) -> Result<sol::ast::Block, SchemaError> {
+        let items = self
+            .types
+            .iter()
+            .map(|ty| ty.as_definition(self))
+            .collect::<Result<Vec<_>, _>>()?;
 
-        output.push_str("sol! {\n");
-
-        for ty in &self.types {
-            let sol_type = ty.as_definition(&self)?;
-            output.push_str(&sol_type);
-            output.push_str("\n");
-        }
-
-        output.push_str("}\n");
-
-        Ok(output)
+        Ok(sol::ast::Block(items))
     }
 
     /// Use the schema to convert a serde-compatible JSON string of the given type into its borsh

@@ -19,7 +19,7 @@ fn main() -> anyhow::Result<()> {
 
     let out_dir = std::env::var("OUT_DIR")?;
     let dest_path = std::path::Path::new(&out_dir).join("alloy_schema.rs");
-    std::fs::write(dest_path, alloy_schema)?;
+    std::fs::write(dest_path, format!("{alloy_schema}"))?;
 
     Ok(())
 }
