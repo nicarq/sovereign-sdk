@@ -381,6 +381,11 @@ expression = "LicenseRef-Sovereign-Permissionless-Commercial-License"
 license-files = []
 
 [[licenses.clarify]]
+name = "universal-wallet-example"
+expression = "LicenseRef-Sovereign-Permissionless-Commercial-License"
+license-files = []
+
+[[licenses.clarify]]
 name = "full-node-configs"
 expression = "LicenseRef-Sovereign-Permissionless-Commercial-License"
 license-files = []
