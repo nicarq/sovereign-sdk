@@ -4,7 +4,7 @@ static INDENT: &str = "    ";
 
 fn indent(levels: u32, f: &mut Formatter<'_>) -> Result {
     for _ in 0..levels {
-        write!(f, "{}", INDENT)?;
+        write!(f, "{INDENT}")?;
     }
     Ok(())
 }
@@ -43,10 +43,10 @@ impl Item {
         match self {
             Item::Struct { name, fields } => {
                 indent(levels, f)?;
-                writeln!(f, "struct {} {{", name)?;
+                writeln!(f, "struct {name} {{")?;
                 for field in fields {
                     indent(levels + 1, f)?;
-                    writeln!(f, "{}", field)?;
+                    writeln!(f, "{field}")?;
                 }
                 indent(levels + 1, f)?;
                 write!(f, "}}")

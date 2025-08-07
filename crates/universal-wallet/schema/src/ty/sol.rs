@@ -24,7 +24,7 @@ impl Ty<IndexLinking> {
         }
     }
 
-    pub fn as_definition<'t>(&'t self, schema: &Schema) -> Result<ast::Item, Error> {
+    pub fn as_definition(&self, schema: &Schema) -> Result<ast::Item, Error> {
         match self {
             Ty::Struct(s) => {
                 let fields: Vec<_> = s
