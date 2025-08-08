@@ -115,6 +115,10 @@ pub struct Evm<S: Spec> {
     #[state]
     pub(crate) cfg: StateValue<EvmChainConfig, BcsCodec>,
 
+    /// The number of transactions accepted so far by the evm module
+    #[state]
+    pub(crate) tx_number: StateValue<u64, BcsCodec>,
+
     /// Block environment used by the evm. This field is set in `begin_rollup_block_hook`.
     #[state]
     pub(crate) block_env: StateValue<BlockEnv, BcsCodec>,

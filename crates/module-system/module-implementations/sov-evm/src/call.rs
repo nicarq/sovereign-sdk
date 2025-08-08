@@ -4,6 +4,7 @@ use reth_primitives::revm_primitives::{
 use reth_primitives::TransactionSigned;
 use sov_address::{EthereumAddress, FromVmAddress};
 use sov_modules_api::macros::{serialize, UniversalWallet};
+use sov_modules_api::prelude::UnwrapInfallible;
 use sov_modules_api::{Context, Spec, TxState};
 
 use crate::conversions::convert_to_transaction_signed;
@@ -120,6 +121,28 @@ where
 
         self.pending_transactions
             .push(&pending_transaction, state)?;
+
+        let tx_number = self.tx_number.get(state)?.and_then(|v| v.checked_add(1)).unwrap_or(0);
+        self.tx_number.set(&tx_number, state)?;
+
+        #[cfg(feature = "native")] 
+        {
+            self.receipts
+                .push_accessory(&pending_transaction.receipt, state)
+                .unwrap_infallible();
+
+            self.transactions
+                .push_accessory(&pending_transaction.transaction, state)
+                .unwrap_infallible();
+
+            self.transaction_hashes
+                .set(
+                    &pending_transaction.transaction.signed_transaction.hash,
+                    &tx_number,
+                    state,
+                )
+                .unwrap_infallible();
+        }
 
         Ok(())
     }
