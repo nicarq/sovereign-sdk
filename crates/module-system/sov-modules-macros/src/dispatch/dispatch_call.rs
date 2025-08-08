@@ -153,7 +153,7 @@ impl DispatchCallMacro {
                 #[sov_wallet(template_inherit)]
             },
             quote::quote! {
-                #[serde(rename_all = "snake_case")]
+                #[serde(bound = "S: Spec", rename_all = "snake_case")]
             },
             quote::quote! {
                 #[strum_discriminants(derive(

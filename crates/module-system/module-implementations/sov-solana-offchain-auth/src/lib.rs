@@ -1,11 +1,14 @@
-mod capabilities;
+use sov_modules_api::{DaSpec, GenesisState, Module, ModuleId, ModuleInfo, NotInstantiable, Spec};
 
-/// Blob storage contains only address and vector of blobs
+pub mod capabilities;
+
 #[derive(Clone, ModuleInfo)]
 pub struct SolanaOffchainAuth<S: Spec> {
-    /// The ID of blob storage module
     #[id]
     pub(crate) id: ModuleId,
+
+    #[phantom]
+    phantom: std::marker::PhantomData<S>,
 }
 
 /// Empty module implementation

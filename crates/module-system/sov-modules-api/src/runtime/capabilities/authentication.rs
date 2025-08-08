@@ -293,7 +293,12 @@ pub fn extract_authorization_data<S: Spec, D: DispatchCall<Spec = S>>(
     })
 }
 
-fn verify_and_decode_tx<S: Spec, D: DispatchCall<Spec = S>>(
+/// Authenticate and verify deserialized sov-tx. See `authenticate`.
+///
+/// # Errors
+/// Returns an error if gas runs out at any point, if deserialization or hashing fails, or if the
+/// signature cannot be verified.
+pub fn verify_and_decode_tx<S: Spec, D: DispatchCall<Spec = S>>(
     raw_tx_hash: TxHash,
     tx: Transaction<D, S>,
     chain_hash: &[u8; 32],
