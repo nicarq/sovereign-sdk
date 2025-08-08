@@ -1,7 +1,7 @@
-use sov_bank::CallMessage;
 use sov_rollup_interface::reexports::anyhow;
 use sov_test_utils::TestSpec;
 use sov_universal_wallet::schema::Schema;
+use sov_value_setter::CallMessage;
 
 fn main() -> anyhow::Result<()> {
     let schema = Schema::of_single_type::<CallMessage<TestSpec>>()?;
