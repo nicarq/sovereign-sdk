@@ -72,13 +72,16 @@ impl Ty<IndexLinking> {
                     if let Some(ref value) = variant.value {
                         let variant_ty = schema.resolve_or_err(value)?;
                         let nested_definitions = variant_ty.as_definitions(schema)?;
-                        let renamed_definitions =
-                            prepend_context(nested_definitions, &variant.name);
+                        let renamed_definitions = prepend_context(
+                            prepend_context(nested_definitions, &variant.name),
+                            &e.type_name,
+                        );
                         definitions.extend(renamed_definitions);
                     } else {
                         // Solidity does not support empty struct so we convert enum variants with no associated data into `{ bool _phantom }`
                         let field = ast::Field::new("_phantom", ast::Ty::Bool);
-                        definitions.push(ast::Struct::new(&variant.name, [field]));
+                        let definition = ast::Struct::new(&variant.name, [field]);
+                        definitions.push(definition.prepend_context(&e.type_name));
                     }
                 }
             }
@@ -116,13 +119,58 @@ impl Ty<IndexLinking> {
 fn prepend_context(definitions: Vec<ast::Struct>, context: &str) -> Vec<ast::Struct> {
     definitions
         .into_iter()
-        .map(|mut d| {
-            if d.name == "" {
-                d.name = format!("{context}");
-            } else {
-                d.name = format!("{context}_{}", d.name);
-            }
-            d
-        })
+        .map(|d| d.prepend_context(context))
         .collect()
+}
+
+#[cfg(test)]
+mod tests {
+    use sov_universal_wallet::schema::Schema;
+    use sov_universal_wallet::ty::sol::ast::{Block, Field, Struct, Ty::*};
+    use sov_universal_wallet::UniversalWallet;
+
+    // Hack - because the macro is configured to be re-exported from sov_rollup_interface;
+    // but _we_ are a dependency of sov_rollup_interface so we can't import it without causing a cycle
+    // This should not be an issue anywhere else except inside this crate's tests right here
+    mod sov_rollup_interface {
+        pub use sov_universal_wallet;
+    }
+
+    #[derive(UniversalWallet, borsh::BorshSerialize, borsh::BorshDeserialize)]
+    struct TestStruct {
+        field: u8,
+    }
+
+    #[test]
+    fn test_struct() -> anyhow::Result<()> {
+        let schema = Schema::of_single_type::<TestStruct>()?;
+        let definitions = schema.into_alloy()?;
+        let expected = Block(vec![Struct::new(
+            "TestStruct",
+            [Field::new("field", Uint256)],
+        )]);
+        assert_eq!(definitions, expected);
+        Ok(())
+    }
+
+    #[derive(UniversalWallet, borsh::BorshSerialize, borsh::BorshDeserialize)]
+    enum TestEnum {
+        Empty,
+        Tuple(u8),
+        Struct { field: u8 },
+    }
+
+    #[test]
+    fn test_enum() -> anyhow::Result<()> {
+        let schema = Schema::of_single_type::<TestEnum>()?;
+        let definitions = schema.into_alloy()?;
+
+        let expected = Block(vec![
+            Struct::new("TestEnum_Empty", [Field::new("_phantom", Bool)]),
+            Struct::new("TestEnum_Tuple", [Field::new("_0", Uint256)]),
+            Struct::new("TestEnum_Struct", [Field::new("field", Uint256)]),
+        ]);
+        assert_eq!(definitions, expected);
+        Ok(())
+    }
 }

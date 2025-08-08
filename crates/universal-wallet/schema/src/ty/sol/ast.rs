@@ -9,7 +9,7 @@ fn indent(levels: u32, f: &mut Formatter<'_>) -> Result {
     Ok(())
 }
 
-#[derive(Debug)]
+#[derive(Debug, PartialEq, Eq)]
 pub enum Ty {
     Bool,
     Uint256,
@@ -36,7 +36,7 @@ impl Display for Ty {
     }
 }
 
-#[derive(Debug)]
+#[derive(Debug, PartialEq, Eq)]
 pub struct Field {
     pub name: String,
     pub ty: Ty,
@@ -57,7 +57,7 @@ impl Display for Field {
     }
 }
 
-#[derive(Debug)]
+#[derive(Debug, PartialEq, Eq)]
 pub struct Struct {
     pub name: String,
     pub fields: Vec<Field>,
@@ -73,6 +73,15 @@ impl Struct {
             name,
             fields: fields.into_iter().collect(),
         }
+    }
+
+    pub fn prepend_context(mut self, context: &str) -> Self {
+        if self.name == "" {
+            self.name = format!("{context}");
+        } else {
+            self.name = format!("{context}_{}", self.name);
+        }
+        self
     }
 
     fn to_string(&self, levels: u32, f: &mut Formatter<'_>) -> Result {
@@ -94,7 +103,7 @@ impl Display for Struct {
     }
 }
 
-#[derive(Debug)]
+#[derive(Debug, PartialEq, Eq)]
 pub struct Block(pub Vec<Struct>);
 
 impl Display for Block {
