@@ -20,7 +20,7 @@ impl Ty<IndexLinking> {
         let ty = match self {
             Ty::Integer(_, _) => ast::Ty::Uint256,
             Ty::ByteVec { .. } => ast::Ty::Bytes,
-            Ty::String { .. } => ast::Ty::String,
+            Ty::String => ast::Ty::String,
             Ty::Struct(s) => ast::Ty::Ident(s.type_name.clone()),
             Ty::Option { value } => schema.resolve_or_err(value)?.as_inline_type(schema)?, // TODO: For now I resolve Option<T> as T
             Ty::Vec { value } => {

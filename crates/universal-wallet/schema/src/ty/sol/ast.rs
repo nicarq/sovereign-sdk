@@ -85,8 +85,8 @@ impl Struct {
         if !self.synthetic {
             return self;
         }
-        if self.name == "" {
-            self.name = format!("{context}");
+        if self.name.is_empty() {
+            self.name = context.to_string();
         } else {
             self.name = format!("{context}_{}", self.name);
         }
