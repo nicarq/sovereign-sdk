@@ -295,7 +295,7 @@ impl Schema {
             .types
             .get(root_type_index)
             .ok_or(SchemaError::InvalidIndex(root_type_index))?;
-        let items = root_type.as_definition(self)?;
+        let items = root_type.as_definitions(self)?;
 
         Ok(sol::ast::Block(items))
     }

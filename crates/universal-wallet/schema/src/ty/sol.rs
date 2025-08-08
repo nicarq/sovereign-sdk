@@ -34,12 +34,13 @@ impl Ty<IndexLinking> {
                     todo!()
                 }
             }
+            Ty::ByteVec { .. } => ast::Ty::Bytes,
             _ => todo!(),
         };
         Ok(ty)
     }
 
-    pub fn as_definition(&self, schema: &Schema) -> Result<Vec<ast::Struct>, Error> {
+    pub fn as_definitions(&self, schema: &Schema) -> Result<Vec<ast::Struct>, Error> {
         let mut result = vec![];
         match self {
             Ty::Struct(s) => {
@@ -48,38 +49,58 @@ impl Ty<IndexLinking> {
                     .iter()
                     .map(|field| {
                         let value = schema.resolve_or_err(&field.value)?;
-                        Ok::<_, Error>(ast::Field {
-                            name: field.display_name.clone(),
-                            ty: value.as_inline_type(schema)?,
-                        })
+                        let field =
+                            ast::Field::new(&field.display_name, value.as_inline_type(schema)?);
+                        Ok::<_, Error>(field)
                     })
                     .collect::<Result<Vec<_>, _>>()?;
 
-                result.push(ast::Struct {
-                    name: s.type_name.clone(),
-                    fields,
-                });
+                result.push(ast::Struct::new(&s.type_name, fields));
             }
             Ty::Enum(e) => {
                 for variant in &e.variants {
                     if let Some(ref value) = variant.value {
                         let value = schema.resolve_or_err(value)?;
-                        let definitions = value.as_definition(schema)?;
-                        result.extend(definitions);
+                        let definitions = value.as_definitions(schema)?;
+                        let renamed_definitions = prepend_context(definitions, &variant.name);
+                        result.extend(renamed_definitions);
                     } else {
                         // Solidity does not support empty struct so we convert enum variants with no associated data into `{ bool _phantom }`
-                        result.push(ast::Struct {
-                            name: format!("__SovVirtualWallet_CallMessage_{}", variant.name),
-                            fields: vec![ast::Field {
-                                name: "_phantom".into(),
-                                ty: ast::Ty::Bool,
-                            }],
-                        });
+                        let field = ast::Field::new("_phantom", ast::Ty::Bool);
+                        result.push(ast::Struct::new(&variant.name, [field]));
                     }
                 }
             }
-            _ => (),
+            Ty::Tuple(t) => {
+                let fields: Vec<_> = t
+                    .fields
+                    .iter()
+                    .enumerate()
+                    .map(|(idx, field)| {
+                        let value = schema.resolve_or_err(&field.value)?;
+                        let field =
+                            ast::Field::new(format!("_{idx}"), value.as_inline_type(schema)?);
+                        Ok::<_, Error>(field)
+                    })
+                    .collect::<Result<Vec<_>, _>>()?;
+                result.push(ast::Struct::new("", fields));
+            }
+            _ => todo!(),
         };
         Ok(result)
     }
+}
+
+fn prepend_context(definitions: Vec<ast::Struct>, context: &str) -> Vec<ast::Struct> {
+    definitions
+        .into_iter()
+        .map(|mut d| {
+            if d.name == "" {
+                d.name = format!("{context}");
+            } else {
+                d.name = format!("{context}_{}", d.name);
+            }
+            d
+        })
+        .collect()
 }

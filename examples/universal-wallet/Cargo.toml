@@ -19,6 +19,7 @@ sov-test-utils = { workspace = true }
 serde_json = { workspace = true }
 
 [build-dependencies]
+anyhow = { workspace = true }
 borsh = { workspace = true }
 sov-rollup-interface = { workspace = true }
 sov-universal-wallet = { workspace = true }

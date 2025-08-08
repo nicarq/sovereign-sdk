@@ -18,7 +18,7 @@ fn main() {
     let alloy_schema_content = include_str!(concat!(env!("OUT_DIR"), "/alloy_schema.rs"));
     println!("{alloy_schema_content}");
 
-    let value = generated::__SovVirtualWallet_CallMessage_SetValue {
+    let value = generated::SetValue {
         value: U256::ZERO,
         gas: [U256::ZERO, U256::ZERO],
     };

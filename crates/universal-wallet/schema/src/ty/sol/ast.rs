@@ -13,6 +13,7 @@ fn indent(levels: u32, f: &mut Formatter<'_>) -> Result {
 pub enum Ty {
     Bool,
     Uint256,
+    Bytes,
     Ident(String),
     Array(Box<Ty>, usize),
 }
@@ -22,6 +23,7 @@ impl Display for Ty {
         match self {
             Ty::Bool => write!(f, "bool"),
             Ty::Uint256 => write!(f, "uint256"),
+            Ty::Bytes => write!(f, "bytes"),
             Ty::Ident(i) => write!(f, "{i}"),
             Ty::Array(ty, len) => write!(f, "{ty}[{len}]"),
         }
@@ -32,6 +34,15 @@ impl Display for Ty {
 pub struct Field {
     pub name: String,
     pub ty: Ty,
+}
+
+impl Field {
+    pub fn new(name: impl Into<String>, ty: Ty) -> Self {
+        Self {
+            name: name.into(),
+            ty,
+        }
+    }
 }
 
 impl Display for Field {
@@ -47,6 +58,17 @@ pub struct Struct {
 }
 
 impl Struct {
+    pub fn new(name: impl Into<String>, fields: impl IntoIterator<Item = Field>) -> Self {
+        let mut name = name.into();
+        if name.starts_with("__SovVirtualWallet") {
+            name = "".into();
+        }
+        Self {
+            name,
+            fields: fields.into_iter().collect(),
+        }
+    }
+
     fn to_string(&self, levels: u32, f: &mut Formatter<'_>) -> Result {
         let Struct { name, fields } = self;
         indent(levels, f)?;

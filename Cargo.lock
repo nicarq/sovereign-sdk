@@ -13963,6 +13963,7 @@ version = "0.3.0"
 dependencies = [
  "alloy-primitives",
  "alloy-sol-types",
+ "anyhow",
  "borsh",
  "serde_json",
  "sov-rollup-interface",
