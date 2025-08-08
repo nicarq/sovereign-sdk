@@ -50,53 +50,66 @@ impl Ty<IndexLinking> {
     }
 
     pub fn as_definitions(&self, schema: &Schema) -> Result<Vec<ast::Struct>, Error> {
-        let mut result = vec![];
+        let mut definitions = vec![];
         match self {
             Ty::Struct(s) => {
-                let fields: Vec<_> = s
-                    .fields
-                    .iter()
-                    .map(|field| {
-                        let value = schema.resolve_or_err(&field.value)?;
-                        let field =
-                            ast::Field::new(&field.display_name, value.as_inline_type(schema)?);
-                        Ok::<_, Error>(field)
-                    })
-                    .collect::<Result<Vec<_>, _>>()?;
+                let mut fields = vec![];
+                for field in &s.fields {
+                    let field_ty = schema.resolve_or_err(&field.value)?;
 
-                result.push(ast::Struct::new(&s.type_name, fields));
+                    let nested_definitions = field_ty.as_definitions(schema)?;
+                    definitions.extend(nested_definitions);
+
+                    let field =
+                        ast::Field::new(&field.display_name, field_ty.as_inline_type(schema)?);
+                    fields.push(field);
+                }
+                let definition = ast::Struct::new(&s.type_name, fields);
+                definitions.push(definition);
             }
             Ty::Enum(e) => {
                 for variant in &e.variants {
                     if let Some(ref value) = variant.value {
-                        let value = schema.resolve_or_err(value)?;
-                        let definitions = value.as_definitions(schema)?;
-                        let renamed_definitions = prepend_context(definitions, &variant.name);
-                        result.extend(renamed_definitions);
+                        let variant_ty = schema.resolve_or_err(value)?;
+                        let nested_definitions = variant_ty.as_definitions(schema)?;
+                        let renamed_definitions =
+                            prepend_context(nested_definitions, &variant.name);
+                        definitions.extend(renamed_definitions);
                     } else {
                         // Solidity does not support empty struct so we convert enum variants with no associated data into `{ bool _phantom }`
                         let field = ast::Field::new("_phantom", ast::Ty::Bool);
-                        result.push(ast::Struct::new(&variant.name, [field]));
+                        definitions.push(ast::Struct::new(&variant.name, [field]));
                     }
                 }
             }
             Ty::Tuple(t) => {
-                let fields: Vec<_> = t
-                    .fields
-                    .iter()
-                    .enumerate()
-                    .map(|(idx, field)| {
-                        let value = schema.resolve_or_err(&field.value)?;
-                        let field =
-                            ast::Field::new(format!("_{idx}"), value.as_inline_type(schema)?);
-                        Ok::<_, Error>(field)
-                    })
-                    .collect::<Result<Vec<_>, _>>()?;
-                result.push(ast::Struct::new("", fields));
+                let mut fields = vec![];
+                for (idx, field) in t.fields.iter().enumerate() {
+                    let field_ty = schema.resolve_or_err(&field.value)?;
+                    let field =
+                        ast::Field::new(format!("_{idx}"), field_ty.as_inline_type(schema)?);
+                    fields.push(field);
+                }
+                let definition = ast::Struct::new("", fields);
+                definitions.push(definition);
             }
-            _ => todo!(),
+            Ty::Array { value, .. } | Ty::Vec { value } => {
+                let item_ty = schema.resolve_or_err(value)?;
+                let nested_definitions = item_ty.as_definitions(schema)?;
+                definitions.extend(nested_definitions);
+            }
+            Ty::Option { .. } => (), // TODO: Fow now Option<T> is treated as T so no new definitions needed
+            Ty::Integer(_, _)
+            | Ty::ByteArray { .. }
+            | Ty::ByteVec { .. }
+            | Ty::String
+            | Ty::Float32
+            | Ty::Float64
+            | Ty::Boolean
+            | Ty::Skip { .. } => (), // Primitives don't need to be defined
+            Ty::Map { .. } => todo!(),
         };
-        Ok(result)
+        Ok(definitions)
     }
 }
 
