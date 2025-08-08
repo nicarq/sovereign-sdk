@@ -13967,6 +13967,7 @@ dependencies = [
  "anyhow",
  "borsh",
  "serde_json",
+ "sov-accounts",
  "sov-bank",
  "sov-rollup-interface",
  "sov-test-utils",
