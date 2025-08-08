@@ -202,4 +202,23 @@ mod tests {
         assert_eq!(definitions, expected);
         Ok(())
     }
+
+    #[derive(UniversalWallet, borsh::BorshSerialize, borsh::BorshDeserialize)]
+    struct InnerTuple(pub u8);
+
+    #[derive(UniversalWallet, borsh::BorshSerialize, borsh::BorshDeserialize)]
+    struct NestedTuples(pub InnerTuple);
+
+    #[test]
+    fn test_nested_tuples() -> anyhow::Result<()> {
+        let schema = Schema::of_single_type::<NestedTuples>()?;
+        dbg!(&schema);
+        let definitions = schema.into_alloy()?;
+
+        let expected = Block(vec![]);
+        dbg!(&expected);
+        dbg!(&definitions);
+        assert_eq!(definitions, expected);
+        Ok(())
+    }
 }
