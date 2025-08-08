@@ -60,22 +60,31 @@ impl Display for Field {
 #[derive(Debug, PartialEq, Eq)]
 pub struct Struct {
     pub name: String,
+    pub synthetic: bool,
     pub fields: Vec<Field>,
 }
 
 impl Struct {
-    pub fn new(name: impl Into<String>, fields: impl IntoIterator<Item = Field>) -> Self {
-        let mut name = name.into();
-        if name.starts_with("__SovVirtualWallet") {
-            name = "".into();
-        }
+    pub fn native(name: impl Into<String>, fields: impl IntoIterator<Item = Field>) -> Self {
         Self {
-            name,
+            name: name.into(),
+            synthetic: false,
+            fields: fields.into_iter().collect(),
+        }
+    }
+
+    pub fn synthetic(name: impl Into<String>, fields: impl IntoIterator<Item = Field>) -> Self {
+        Self {
+            name: name.into(),
+            synthetic: true,
             fields: fields.into_iter().collect(),
         }
     }
 
     pub fn prepend_context(mut self, context: &str) -> Self {
+        if !self.synthetic {
+            return self;
+        }
         if self.name == "" {
             self.name = format!("{context}");
         } else {
@@ -85,7 +94,7 @@ impl Struct {
     }
 
     fn to_string(&self, levels: u32, f: &mut Formatter<'_>) -> Result {
-        let Struct { name, fields } = self;
+        let Struct { name, fields, .. } = self;
         indent(levels, f)?;
         writeln!(f, "struct {name} {{")?;
         for field in fields {

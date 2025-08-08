@@ -64,7 +64,11 @@ impl Ty<IndexLinking> {
                         ast::Field::new(&field.display_name, field_ty.as_inline_type(schema)?);
                     fields.push(field);
                 }
-                let definition = ast::Struct::new(&s.type_name, fields);
+                let definition = if s.type_name.starts_with("__SovVirtualWallet") {
+                    ast::Struct::synthetic("", fields) // It's caller's responsibility to add context to a name
+                } else {
+                    ast::Struct::native(&s.type_name, fields)
+                };
                 definitions.push(definition);
             }
             Ty::Enum(e) => {
@@ -80,7 +84,7 @@ impl Ty<IndexLinking> {
                     } else {
                         // Solidity does not support empty struct so we convert enum variants with no associated data into `{ bool _phantom }`
                         let field = ast::Field::new("_phantom", ast::Ty::Bool);
-                        let definition = ast::Struct::new(&variant.name, [field]);
+                        let definition = ast::Struct::synthetic(&variant.name, [field]);
                         definitions.push(definition.prepend_context(&e.type_name));
                     }
                 }
@@ -89,11 +93,15 @@ impl Ty<IndexLinking> {
                 let mut fields = vec![];
                 for (idx, field) in t.fields.iter().enumerate() {
                     let field_ty = schema.resolve_or_err(&field.value)?;
+
+                    let nested_definitions = field_ty.as_definitions(schema)?;
+                    definitions.extend(nested_definitions);
+
                     let field =
                         ast::Field::new(format!("_{idx}"), field_ty.as_inline_type(schema)?);
                     fields.push(field);
                 }
-                let definition = ast::Struct::new("", fields);
+                let definition = ast::Struct::synthetic("", fields);
                 definitions.push(definition);
             }
             Ty::Array { value, .. } | Ty::Vec { value } => {
@@ -145,7 +153,7 @@ mod tests {
     fn test_struct() -> anyhow::Result<()> {
         let schema = Schema::of_single_type::<TestStruct>()?;
         let definitions = schema.into_alloy()?;
-        let expected = Block(vec![Struct::new(
+        let expected = Block(vec![Struct::native(
             "TestStruct",
             [Field::new("field", Uint256)],
         )]);
@@ -154,7 +162,7 @@ mod tests {
     }
 
     #[derive(UniversalWallet, borsh::BorshSerialize, borsh::BorshDeserialize)]
-    enum TestEnum {
+    enum Enum {
         Empty,
         Tuple(u8),
         Struct { field: u8 },
@@ -162,13 +170,34 @@ mod tests {
 
     #[test]
     fn test_enum() -> anyhow::Result<()> {
-        let schema = Schema::of_single_type::<TestEnum>()?;
+        let schema = Schema::of_single_type::<Enum>()?;
         let definitions = schema.into_alloy()?;
 
         let expected = Block(vec![
-            Struct::new("TestEnum_Empty", [Field::new("_phantom", Bool)]),
-            Struct::new("TestEnum_Tuple", [Field::new("_0", Uint256)]),
-            Struct::new("TestEnum_Struct", [Field::new("field", Uint256)]),
+            Struct::synthetic("Enum_Empty", [Field::new("_phantom", Bool)]),
+            Struct::synthetic("Enum_Tuple", [Field::new("_0", Uint256)]),
+            Struct::synthetic("Enum_Struct", [Field::new("field", Uint256)]),
+        ]);
+        assert_eq!(definitions, expected);
+        Ok(())
+    }
+
+    #[derive(UniversalWallet, borsh::BorshSerialize, borsh::BorshDeserialize)]
+    enum EnumWithExternalStruct {
+        Struct(TestStruct),
+    }
+
+    #[test]
+    fn test_enum_with_external_struct() -> anyhow::Result<()> {
+        let schema = Schema::of_single_type::<EnumWithExternalStruct>()?;
+        let definitions = schema.into_alloy()?;
+
+        let expected = Block(vec![
+            Struct::native("TestStruct", [Field::new("field", Uint256)]),
+            Struct::synthetic(
+                "EnumWithExternalStruct_Struct",
+                [Field::new("_0", Ident("TestStruct".into()))],
+            ),
         ]);
         assert_eq!(definitions, expected);
         Ok(())
