@@ -20,12 +20,14 @@ impl GenesisMacro {
         &self,
         input: DeriveInput,
     ) -> syn::Result<proc_macro::TokenStream> {
-        let default_attrs = vec![quote::quote! {
-            #[derive(Clone, ::serde::Deserialize, ::serde::Serialize)]
-        },
-        quote::quote! {
-            #[serde(bound = "S: Spec")]
-        }];
+        let default_attrs = vec![
+            quote::quote! {
+                #[derive(Clone, ::serde::Deserialize, ::serde::Serialize)]
+            },
+            quote::quote! {
+                #[serde(bound = "S: sov_modules_api::module::Spec")]
+            },
+        ];
         let config_attributes = get_derived_enum_attrs("genesis", &input, default_attrs)?;
 
         let DeriveInput {

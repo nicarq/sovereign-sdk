@@ -29,7 +29,7 @@ pub trait Spec:
     BorshDeserialize
     + BorshSerialize
     + Serialize
-    + for <'a> Deserialize<'a>
+    + for<'a> Deserialize<'a>
     + Default
     + Debug
     + Clone

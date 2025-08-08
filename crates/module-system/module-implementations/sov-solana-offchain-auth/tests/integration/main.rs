@@ -45,10 +45,10 @@ type RT = SolanaTestRuntime<TestSpec>;
 
 async fn create_test_rollup() -> anyhow::Result<TestRollup<RtAgnosticBlueprint<TestSpec, RT>>> {
     // Create genesis config
-    let genesis_config = 
+    let genesis_config =
         HighLevelOptimisticGenesisConfig::generate().add_accounts_with_default_balance(1);
     let admin = genesis_config.additional_accounts()[0].clone();
-    
+
     let rt_genesis_config = <RT as Runtime<TestSpec>>::GenesisConfig::from_minimal_config(
         genesis_config.clone().into(),
         ValueSetterConfig {
@@ -56,18 +56,18 @@ async fn create_test_rollup() -> anyhow::Result<TestRollup<RtAgnosticBlueprint<T
         },
         PaymasterConfig::default(),
     );
-    
+
     let genesis_params = GenesisParams {
         runtime: rt_genesis_config,
     };
-    
+
     let dir = Arc::new(tempdir()?);
     let seq_da_address = genesis_params
-                .runtime
-                .sequencer_registry
-                .sequencer_config
-                .seq_da_address;
-    
+        .runtime
+        .sequencer_registry
+        .sequencer_config
+        .seq_da_address;
+
     // Build the test rollup
     let rollup = RollupBuilder::<RtAgnosticBlueprint<TestSpec, RT>>::new(
         GenesisSource::CustomParams(genesis_params),
@@ -84,7 +84,7 @@ async fn create_test_rollup() -> anyhow::Result<TestRollup<RtAgnosticBlueprint<T
     .set_persistent_da()
     .start()
     .await?;
-    
+
     Ok(rollup)
 }
 
@@ -92,16 +92,20 @@ async fn create_test_rollup() -> anyhow::Result<TestRollup<RtAgnosticBlueprint<T
 async fn test_rollup_initialization() {
     // Just test that we can create a rollup with the Solana authenticator
     let rollup = create_test_rollup().await;
-    assert!(rollup.is_ok(), "Failed to create test rollup: {:?}", rollup.err());
+    assert!(
+        rollup.is_ok(),
+        "Failed to create test rollup: {:?}",
+        rollup.err()
+    );
 }
 
 #[tokio::test(flavor = "multi_thread")]
 async fn test_submit_solana_offchain_transaction() {
     let _rollup = create_test_rollup().await.expect("Failed to create rollup");
-    
+
     // TODO: This is where we'll submit pre-signed Solana offchain transactions
     // For now, just verify the rollup is running
-    
+
     // Check that the rollup is initialized
     // let latest_block = rollup.get_last_published_slot_number().await;
     // assert_eq!(latest_block, 0, "Expected initial slot to be 0");
@@ -111,12 +115,18 @@ async fn test_submit_solana_offchain_transaction() {
 fn test_auth_wrapper() {
     // Test that the auth wrapper correctly identifies transaction types
     let raw_tx = RawTx::new(vec![1, 2, 3]);
-    
+
     // Test standard auth
     let standard_auth = <RT as Runtime<TestSpec>>::Auth::add_standard_auth(raw_tx.clone());
-    assert!(matches!(standard_auth, SolanaOffchainAuthenticatorInput::Standard(_)));
-    
+    assert!(matches!(
+        standard_auth,
+        SolanaOffchainAuthenticatorInput::Standard(_)
+    ));
+
     // Test Solana offchain auth
     let solana_auth = RT::add_solana_offchain_auth(raw_tx);
-    assert!(matches!(solana_auth, SolanaOffchainAuthenticatorInput::SolanaOffchain(_)));
+    assert!(matches!(
+        solana_auth,
+        SolanaOffchainAuthenticatorInput::SolanaOffchain(_)
+    ));
 }

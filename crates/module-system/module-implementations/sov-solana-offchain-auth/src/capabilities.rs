@@ -86,8 +86,7 @@ fn validate_preamble(
     let expected_length = u16::from_le_bytes(preamble.message_length) as usize;
     if expected_length != actual_message_length {
         return Err(FatalError::DeserializationFailed(format!(
-            "Message length mismatch: expected {}, got {}",
-            expected_length, actual_message_length
+            "Message length mismatch: expected {expected_length}, got {actual_message_length}"
         )));
     }
 
@@ -105,7 +104,7 @@ where
     D: DispatchCall<Spec = S>,
     <D as DispatchCall>::Decodable: Serialize + DeserializeOwned,
 {
-    let raw_tx_hash = calculate_hash::<Accessor, S>(&raw_tx, state)
+    let raw_tx_hash = calculate_hash::<Accessor, S>(raw_tx, state)
         .map_err(|e| AuthenticationError::OutOfGas(e.to_string()))?;
 
     let (signer, signature, json_message) = unpack_solana_message::<S>(raw_tx)
@@ -357,9 +356,10 @@ where
 
 #[cfg(test)]
 mod test {
+    use sov_mock_zkvm::crypto::private_key::Ed25519PrivateKey;
+    use sov_mock_zkvm::crypto::Ed25519Signature;
     use sov_modules_api::PrivateKey;
     use sov_test_utils::TestSpec;
-    use sov_mock_zkvm::crypto::{private_key::Ed25519PrivateKey, Ed25519Signature};
 
     use super::*;
 

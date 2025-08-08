@@ -39,7 +39,7 @@ pub type RT = Runtime<S>;
 
 #[allow(clippy::large_enum_variant)]
 #[derive(Clone, Deserialize, Serialize)]
-#[serde(rename_all = "snake_case")]
+#[serde(bound = "S: Spec", rename_all = "snake_case")]
 pub enum BenchmarkData<S: Spec>
 where
     S::Address: FromVmAddress<EthereumAddress>,
