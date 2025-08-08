@@ -11596,11 +11596,13 @@ version = "0.3.0"
 dependencies = [
  "anyhow",
  "borsh",
+ "bs58",
  "derive_more 1.0.0",
  "hex",
  "schemars",
  "serde",
  "serde_json",
+ "sov-bank",
  "sov-kernels",
  "sov-mock-da",
  "sov-mock-zkvm",

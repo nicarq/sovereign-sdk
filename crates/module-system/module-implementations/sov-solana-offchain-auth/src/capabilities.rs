@@ -20,7 +20,7 @@ pub const APPLICATION_DOMAIN: [u8; 32] = [0u8; 32];
 /// The envelope for a signed spec-compliant solana offchain message, where the signed message
 /// includes the preamble.
 #[derive(BorshSerialize, BorshDeserialize)]
-pub struct SolanaOffchainEnvelope<S: Spec> {
+pub struct SolanaOffchainSpecCompliantMessage<S: Spec> {
     pub signed_message: Vec<u8>,
     pub signature: <S::CryptoSpec as CryptoSpec>::Signature,
 }
@@ -144,7 +144,7 @@ fn unpack_solana_message<S: Spec>(
     // The fifth byte tells us which format we're dealing with
     if raw_tx[4] == 0xff {
         // Spec-compliant message with preamble
-        let envelope: SolanaOffchainEnvelope<S> = borsh::from_slice(raw_tx)
+        let envelope: SolanaOffchainSpecCompliantMessage<S> = borsh::from_slice(raw_tx)
             .map_err(|e| FatalError::DeserializationFailed(e.to_string()))?;
 
         // Verify preamble is present and valid
@@ -200,10 +200,10 @@ where
 /// and provides suitable methods for encoding and decoding solana offchain message transactions.
 #[allow(unused)]
 pub trait SolanaOffchainAuthenticatorTrait<S: Spec>: Runtime<S> {
-    /// Add the Ethereum discriminant to a transaction the runtime.
+    /// Add the Solana offchain discriminant to a transaction the runtime.
     fn add_solana_offchain_auth(tx: RawTx) -> <Self::Auth as TransactionAuthenticator<S>>::Input;
 
-    /// Encode a transaction with the Ethereum discriminant for the runtime.
+    /// Encode a transaction with the Solana offchain discriminant for the runtime.
     fn encode_with_solana_offchain_auth(tx: RawTx) -> FullyBakedTx {
         <Self::Auth as TransactionAuthenticator<S>>::encode_authenticator_input(
             &Self::add_solana_offchain_auth(tx),
@@ -242,6 +242,7 @@ where
     fn decode_serialized_tx(
         tx: &FullyBakedTx,
     ) -> Result<Self::Decodable, sov_modules_api::capabilities::FatalError> {
+        println!("Doing decode_serialized_tx in SolanaOffchainAuthenticator! Bytes: {:?}", tx.data);
         let auth_variant: SolanaOffchainAuthenticatorInput =
             borsh::from_slice(&tx.data).map_err(|e| {
                 sov_modules_api::capabilities::FatalError::DeserializationFailed(e.to_string())
@@ -253,6 +254,7 @@ where
                 Ok(call)
             }
             SolanaOffchainAuthenticatorInput::SolanaOffchain(raw_tx) => {
+                println!("Successfully decoded auth byte, decoding solana json tx...");
                 let call = decode_solana_json_tx::<S, Rt>(&raw_tx.data)?;
                 Ok(call)
             }
@@ -355,31 +357,14 @@ where
 }
 
 #[cfg(test)]
-mod test {
+pub mod test {
     use sov_mock_zkvm::crypto::private_key::Ed25519PrivateKey;
     use sov_mock_zkvm::crypto::Ed25519Signature;
     use sov_modules_api::PrivateKey;
     use sov_test_utils::TestSpec;
 
     use super::*;
-
-    fn message_preamble(pubkey: &[u8; 32], message_length: u16) -> [u8; 85] {
-        let mut header = Vec::<u8>::new();
-        // Signing domain (pre-defined constant)
-        header.extend(b"\xffsolana offchain");
-        // Header version (only 0 is valid)
-        header.push(0);
-        // Application domain
-        header.extend(APPLICATION_DOMAIN);
-        // Message format - 0 is for ASCII, hardware wallet compatible
-        header.push(0);
-        // Signer count
-        header.push(1);
-        header.extend(pubkey);
-        // Message length as little-endian u16
-        header.extend(&message_length.to_le_bytes());
-        return header.try_into().unwrap();
-    }
+    use crate::utils::message_preamble;
 
     #[test]
     fn test_unpack_with_preamble() {
@@ -396,7 +381,7 @@ mod test {
         signed_message.extend_from_slice(&preamble);
         signed_message.extend_from_slice(message);
 
-        let envelope = SolanaOffchainEnvelope::<TestSpec> {
+        let envelope = SolanaOffchainSpecCompliantMessage::<TestSpec> {
             signed_message,
             signature: signature.clone(),
         };
@@ -458,7 +443,7 @@ mod test {
         signed_message.extend_from_slice(&header);
         signed_message.extend_from_slice(message);
 
-        let envelope = SolanaOffchainEnvelope::<TestSpec> {
+        let envelope = SolanaOffchainSpecCompliantMessage::<TestSpec> {
             signed_message,
             signature: signature.clone(),
         };

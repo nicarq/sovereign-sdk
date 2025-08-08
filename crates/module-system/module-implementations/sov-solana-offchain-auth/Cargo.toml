@@ -35,6 +35,8 @@ sov-mock-da = { workspace = true, features = ["native"] }
 sov-test-utils = { workspace = true }
 sov-kernels = { workspace = true, features = ["native", "test-utils"] }
 sov-value-setter = { workspace = true }
+sov-bank = { workspace = true }
+bs58 = { workspace = true }
 sov-paymaster = { workspace = true }
 sov-rollup-interface = { workspace = true }
 sov-modules-stf-blueprint = { workspace = true }
