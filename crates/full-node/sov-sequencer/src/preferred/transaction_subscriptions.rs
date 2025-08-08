@@ -38,6 +38,14 @@ pub struct TxResultWriter<S: Spec, Rt: Runtime<S>> {
     inner: ArcInner<S, Rt>,
 }
 
+impl<S: Spec, Rt: Runtime<S>> Clone for TxResultWriter<S, Rt> {
+    fn clone(&self) -> Self {
+        Self {
+            inner: self.inner.clone(),
+        }
+    }
+}
+
 type ArcInner<S, Rt> = Arc<tokio::sync::RwLock<TransactionCacheInner<S, Rt>>>;
 
 impl<S: Spec, Rt: Runtime<S>> TxResultWriter<S, Rt> {
@@ -82,6 +90,7 @@ impl<S: Spec, Rt: Runtime<S>> TxResultWriter<S, Rt> {
         transaction_cache.next_tx_number = tx_number;
         transaction_cache.cache.clear();
         transaction_cache.tx_hash_index.clear();
+        transaction_cache.event_numbers_index.clear();
     }
 
     pub async fn prune(&self, next_tx_number: u64) {

@@ -17,6 +17,7 @@ use sov_rollup_interface::TxHash;
 use sov_universal_wallet::schema::UniversalWallet;
 use thiserror::Error;
 
+use crate::capabilities::UniquenessData;
 use crate::{
     Amount, DispatchCall, Gas, GasMeter, GasMeteringError, GasSpec, MeteredBorshDeserialize,
     MeteredBorshDeserializeError, MeteredSigVerificationError, MeteredSignature, Spec,
@@ -59,8 +60,8 @@ pub struct Version0<Call, S: Spec> {
         bound = "Call: sov_rollup_interface::sov_universal_wallet::schema::UniversalWallet"
     )]
     pub runtime_call: Call,
-    /// The generation of the transaction (for uniqueness).
-    pub generation: u64,
+    /// Uniqueness identifier of this transaction. see [`UniquenessData`] for more details.
+    pub uniqueness: UniquenessData,
     /// The transaction metadata. Contains gas parameters and the chain ID.
     pub details: TxDetails<S>,
 }
@@ -75,9 +76,8 @@ pub struct Version0<Call, S: Spec> {
     UniversalWallet,
 )]
 #[serde(bound = "Call: serde::Serialize + serde::de::DeserializeOwned")]
-/// Versioned transaction
+#[allow(missing_docs)]
 pub enum VersionedTx<Call, S: Spec> {
-    /// V0 transaction.
     V0(Version0<Call, S>),
 }
 
@@ -162,12 +162,13 @@ impl<R: TransactionCallable, S: Spec> PartialEq for Transaction<R, S> {
                 self_inner.signature == other_inner.signature
                     && self_inner.pub_key == other_inner.pub_key
                     && self_inner.runtime_call == other_inner.runtime_call
-                    && self_inner.generation == other_inner.generation
+                    && self_inner.uniqueness == other_inner.uniqueness
                     && self_inner.details == other_inner.details
             }
         }
     }
 }
+
 impl<R: TransactionCallable, S: Spec> Eq for Transaction<R, S> {}
 
 /// Errors that can be raised by the [`Transaction::verify`] method.
@@ -229,14 +230,7 @@ impl<R: TransactionCallable, S: Spec> Transaction<R, S> {
         })?;
         serialized_tx.extend_from_slice(chain_hash);
 
-        match &self.versioned_tx {
-            VersionedTx::V0(inner) => {
-                MeteredSignature::new::<S>(inner.signature.clone())
-                    .verify(&inner.pub_key, &serialized_tx, meter)
-                    .map_err(TransactionVerificationError::from)?;
-            }
-        }
-        Ok(())
+        self.verify_signature(&serialized_tx, meter)
     }
 
     /// Creates a new transaction with the provided metadata.
@@ -244,7 +238,7 @@ impl<R: TransactionCallable, S: Spec> Transaction<R, S> {
         pub_key: <S::CryptoSpec as CryptoSpec>::PublicKey,
         runtime_call: R::Call,
         signature: <S::CryptoSpec as CryptoSpec>::Signature,
-        generation: u64,
+        uniqueness: UniquenessData,
         details: TxDetails<S>,
     ) -> Self {
         Self {
@@ -252,7 +246,7 @@ impl<R: TransactionCallable, S: Spec> Transaction<R, S> {
                 signature,
                 pub_key,
                 runtime_call,
-                generation,
+                uniqueness,
                 details,
             }),
         }
@@ -261,15 +255,32 @@ impl<R: TransactionCallable, S: Spec> Transaction<R, S> {
     /// Extract the runtime call from the transaction
     pub fn call(self) -> R::Call {
         match self.versioned_tx {
-            VersionedTx::V0(inner) => inner.runtime_call.clone(),
+            VersionedTx::V0(inner) => inner.runtime_call,
         }
     }
 
-    fn to_unsigned_transaction(&self) -> UnsignedTransaction<R, S> {
+    /// Verify the transaction signature against the provided message.
+    pub fn verify_signature(
+        &self,
+        msg: &[u8],
+        meter: &mut impl GasMeter<Spec = S>,
+    ) -> Result<(), TransactionVerificationError<S::Gas>> {
+        match &self.versioned_tx {
+            VersionedTx::V0(inner) => {
+                MeteredSignature::new::<S>(inner.signature.clone())
+                    .verify(&inner.pub_key, msg, meter)
+                    .map_err(TransactionVerificationError::from)?;
+            }
+        }
+        Ok(())
+    }
+
+    /// Converts the transaction to an unsigned transaction.
+    pub fn to_unsigned_transaction(&self) -> UnsignedTransaction<R, S> {
         match &self.versioned_tx {
             VersionedTx::V0(inner) => UnsignedTransaction::new_with_details(
                 inner.runtime_call.clone(),
-                inner.generation,
+                inner.uniqueness,
                 inner.details.clone(),
             ),
         }
@@ -300,19 +311,19 @@ impl<R: TransactionCallable, S: Spec> Transaction<R, S> {
     derive_more::Debug, Serialize, Deserialize, BorshSerialize, BorshDeserialize, UniversalWallet,
 )]
 pub struct UnsignedTransaction<R: TransactionCallable, S: Spec> {
-    // The runtime call
-    runtime_call: R::Call,
-    // The generation number
-    generation: u64,
-    // Data related to fees and gas handling.
-    details: TxDetails<S>,
+    /// The runtime call
+    pub runtime_call: R::Call,
+    /// The uniqueness identifier
+    pub uniqueness: UniquenessData,
+    /// Data related to fees and gas handling.
+    pub details: TxDetails<S>,
 }
 // Manually implemented to ensure correct trait bounds for the same reason as for `Transaction`
 // above
 impl<R: TransactionCallable, S: Spec> PartialEq for UnsignedTransaction<R, S> {
     fn eq(&self, other: &Self) -> bool {
         self.runtime_call == other.runtime_call
-            && self.generation == other.generation
+            && self.uniqueness == other.uniqueness
             && self.details == other.details
     }
 }
@@ -325,12 +336,12 @@ impl<R: TransactionCallable, S: Spec> UnsignedTransaction<R, S> {
         chain_id: u64,
         max_priority_fee_bips: PriorityFeeBips,
         max_fee: Amount,
-        generation: u64,
+        uniqueness: UniquenessData,
         gas_limit: Option<S::Gas>,
     ) -> Self {
         Self {
             runtime_call,
-            generation,
+            uniqueness,
             details: TxDetails {
                 max_priority_fee_bips,
                 max_fee,
@@ -343,12 +354,12 @@ impl<R: TransactionCallable, S: Spec> UnsignedTransaction<R, S> {
     /// Creates a new unsigned transaction with the provided metadata.
     pub const fn new_with_details(
         runtime_call: R::Call,
-        generation: u64,
+        uniqueness: UniquenessData,
         details: TxDetails<S>,
     ) -> Self {
         Self {
             runtime_call,
-            generation,
+            uniqueness,
             details,
         }
     }
@@ -364,7 +375,7 @@ impl<R: TransactionCallable, S: Spec> UnsignedTransaction<R, S> {
             pub_key,
             self.runtime_call,
             signature,
-            self.generation,
+            self.uniqueness,
             self.details,
         )
     }

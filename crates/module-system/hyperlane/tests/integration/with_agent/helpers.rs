@@ -149,6 +149,7 @@ pub async fn setup_rollup(
         DEFAULT_BLOCK_PRODUCING_CONFIG,
         DEFAULT_FINALIZATION_BLOCKS,
         storage_path,
+        true,
     )
     .set_config(|config| {
         config.automatic_batch_production = true;
@@ -202,8 +203,10 @@ impl HyperlaneBuilder {
         let docker_image = env::var("CUSTOM_HLP_DOCKER_IMAGE");
         let has_custom_image = !matches!(docker_image, Err(env::VarError::NotPresent));
 
+        // Current image is based on https://github.com/citizen-stig/hyperlane-monorepo/tree/nikolai/for-test
+        // TODO: Migrate it to https://github.com/Sovereign-Labs/hyperlane-monorepo/ and later to upstream.
         let docker_image =
-            docker_image.unwrap_or_else(|_| "ghcr.io/ross-weir/hyperlane:latest".into());
+            docker_image.unwrap_or_else(|_| "ghcr.io/citizen-stig/hyperlane:uniqueness".into());
         let (name, tag) = docker_image
             .split_once(':')
             .unwrap_or((&docker_image, "latest"));

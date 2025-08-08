@@ -109,13 +109,12 @@ $ make test-create-token
 Once a batch is submitted, the output should also contain the transaction hashes that have been submitted. For example -
 
 ```text
-2025-06-29T19:32:39.786604Z  INFO sov_cli::workflows::node: Executing node workflow
-2025-06-29T19:32:39.823949Z DEBUG sov_node_client: Queried nonce url="http://127.0.0.1:12346/modules/nonces/state/nonces/items/0xf8ad2437a279e1c8932c07358c91dc4fe34864a98c6c25f298e2a0199c1509ff" nonce=0
-2025-06-29T19:32:39.824189Z  INFO sov_cli::workflows::node: Submitting tx index=0 tx_hash=0x1846983d3d7ff20a78e0d514d1f95576bcb8b33971b1ca7eb9e327443085a090
-2025-06-29T19:32:39.824203Z  INFO sov_node_client: Calling `publish_batch` sequencer endpoint txs_included=1
-2025-06-29T19:32:39.826676Z  INFO sov_node_client: Submitted tx hash="0xb9ca0657fdcdc6edc77f9c83511b232f6218d983856836d690503b3f713a526f"
-2025-06-29T19:32:39.826700Z  INFO sov_node_client: Going to wait for batch to be processed max_waiting_time=300s
-2025-06-29T19:32:48.303757Z  INFO sov_node_client: Rollup has processed the submitted batch!
+2025-08-06T10:24:30.667058Z  INFO sov_cli::workflows::node: Executing node workflow
+2025-08-06T10:24:30.687784Z  INFO sov_cli::workflows::node: Submitting tx index=0 tx_hash=0x602b19ac22c94da1874c4521250510dfe5c81d2be94e71f3e7d20c9791697404
+2025-08-06T10:24:30.687803Z  INFO sov_node_client: Calling `publish_batch` sequencer endpoint txs_included=1
+2025-08-06T10:24:30.701577Z  INFO sov_node_client: Submitted tx hash="0x602b19ac22c94da1874c4521250510dfe5c81d2be94e71f3e7d20c9791697404"
+2025-08-06T10:24:30.701604Z  INFO sov_node_client: Going to wait for batch to be processed max_waiting_time=300s
+2025-08-06T10:24:32.758861Z  INFO sov_node_client: Rollup has processed the submitted batch!
 ```
 
 The transaction hash can be used to query the REST API endpoint to fetch events belonging to the transaction, which should in
@@ -123,7 +122,7 @@ this case have the TokenCreated Event
 
 ```sh,test-ci,bashtestmd:compare-output
 $ sleep 5
-$ curl -sS http://127.0.0.1:12346/ledger/txs/0xb9ca0657fdcdc6edc77f9c83511b232f6218d983856836d690503b3f713a526f/events | jq
+$ curl -sS http://127.0.0.1:12346/ledger/txs/0x602b19ac22c94da1874c4521250510dfe5c81d2be94e71f3e7d20c9791697404/events | jq
 [
   {
     "type": "event",
@@ -157,7 +156,7 @@ $ curl -sS http://127.0.0.1:12346/ledger/txs/0xb9ca0657fdcdc6edc77f9c83511b232f6
       "type": "moduleRef",
       "name": "Bank"
     },
-    "tx_hash": "0xb9ca0657fdcdc6edc77f9c83511b232f6218d983856836d690503b3f713a526f"
+    "tx_hash": "0x602b19ac22c94da1874c4521250510dfe5c81d2be94e71f3e7d20c9791697404"
   }
 ]
 ```
@@ -331,7 +330,7 @@ Adding the following transaction to batch:
       }
     }
   },
-  "chain_hash": "0xe88ef8c77a95689ba18bc256ed8e9b09f67ca644f751de9146e047b2c9f23e33",
+  "chain_hash": "0x13bbef5c1b148892ba982c474d8891f3bbee77f7f6f4debc595d7df17b4e45e4",
   "details": {
     "max_priority_fee_bips": 0,
     "max_fee": "100000000",
