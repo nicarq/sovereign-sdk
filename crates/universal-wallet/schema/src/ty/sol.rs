@@ -19,12 +19,20 @@ impl Ty<IndexLinking> {
     pub fn as_inline_type(&self, schema: &Schema) -> Result<ast::Ty, Error> {
         let ty = match self {
             Ty::Integer(_, _) => ast::Ty::Uint256,
+            Ty::ByteVec { .. } => ast::Ty::Bytes,
+            Ty::String { .. } => ast::Ty::String,
             Ty::Struct(s) => ast::Ty::Ident(s.type_name.clone()),
             Ty::Option { value } => schema.resolve_or_err(value)?.as_inline_type(schema)?, // TODO: For now I resolve Option<T> as T
+            Ty::Vec { value } => {
+                let ty = schema.resolve_or_err(value)?.as_inline_type(schema)?;
+                ast::Ty::DynamicArray(Box::new(ty))
+            }
             Ty::Array { len, value } => {
                 let ty = schema.resolve_or_err(value)?.as_inline_type(schema)?;
                 ast::Ty::Array(Box::new(ty), *len)
             }
+            Ty::ByteArray { len, .. } if *len <= 32 => ast::Ty::ByteArray(*len as u8),
+            Ty::ByteArray { .. } => panic!("Solidity only supports byte arrays of len up to 32"),
             Ty::Tuple(t) => {
                 if t.fields.len() == 1 {
                     // TODO: Proper tuple support. For now just supporting the case where (T) is treated as T. One element tuples are used in Gas types
@@ -34,8 +42,9 @@ impl Ty<IndexLinking> {
                     todo!()
                 }
             }
-            Ty::ByteVec { .. } => ast::Ty::Bytes,
-            _ => todo!(),
+            _ => {
+                todo!()
+            }
         };
         Ok(ty)
     }

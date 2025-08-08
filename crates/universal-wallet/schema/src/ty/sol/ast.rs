@@ -13,9 +13,12 @@ fn indent(levels: u32, f: &mut Formatter<'_>) -> Result {
 pub enum Ty {
     Bool,
     Uint256,
+    String,
     Bytes,
+    ByteArray(u8),
     Ident(String),
     Array(Box<Ty>, usize),
+    DynamicArray(Box<Ty>),
 }
 
 impl Display for Ty {
@@ -24,8 +27,11 @@ impl Display for Ty {
             Ty::Bool => write!(f, "bool"),
             Ty::Uint256 => write!(f, "uint256"),
             Ty::Bytes => write!(f, "bytes"),
+            Ty::ByteArray(len) => write!(f, "bytes{len}"),
+            Ty::String => write!(f, "string"),
             Ty::Ident(i) => write!(f, "{i}"),
             Ty::Array(ty, len) => write!(f, "{ty}[{len}]"),
+            Ty::DynamicArray(ty) => write!(f, "{ty}[]"),
         }
     }
 }
