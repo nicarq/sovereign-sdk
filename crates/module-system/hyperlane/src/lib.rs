@@ -6,8 +6,8 @@ use serde::{Deserialize, Serialize};
 #[cfg(feature = "native")]
 use sov_modules_api::rest::HasRestApi;
 use sov_modules_api::{
-    Context, DaSpec, GenesisState, HexHash, HexString, Module, ModuleId, ModuleInfo,
-    ModuleRestApi, Spec, StateMap, StateReader, StateValue, TxState,
+    Context, DaSpec, GenesisState, HexHash, HexString, Module, ModuleId, ModuleInfo, ModuleRestApi,
+    Spec, StateMap, StateReader, StateValue, TxState,
 };
 use sov_state::User;
 #[cfg(feature = "native")]
