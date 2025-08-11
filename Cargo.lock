@@ -11591,6 +11591,20 @@ dependencies = [
 ]
 
 [[package]]
+name = "sov-solana-offchain-auth"
+version = "0.3.0"
+dependencies = [
+ "anyhow",
+ "borsh",
+ "derive_more 1.0.0",
+ "hex",
+ "schemars",
+ "serde",
+ "sov-modules-api",
+ "tracing",
+]
+
+[[package]]
 name = "sov-sp1-adapter"
 version = "0.3.0"
 dependencies = [
