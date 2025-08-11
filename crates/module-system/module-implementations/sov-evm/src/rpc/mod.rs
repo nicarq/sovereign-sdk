@@ -1,6 +1,6 @@
 use std::convert::Infallible;
 
-use alloy_primitives::TxKind;
+use alloy_primitives::{FixedBytes, TxKind};
 use error::ensure_success;
 use jsonrpsee::core::RpcResult;
 use jsonrpsee::types::{ErrorObject, ErrorObjectOwned};
@@ -345,11 +345,25 @@ where
                 .get(number, state)
                 .unwrap_infallible()
                 .expect("Transaction with known hash must be set");
-            let block = self
+            
+            // The block may be `None` for a few seconds after the tx is processed
+            let block = match self
                 .blocks
                 .get(tx.block_number, state)
-                .unwrap_infallible()
-                .expect("Block number for known transaction must be set");
+                .unwrap_infallible() {
+                    Some(block) => MaybeSealedBlock::Sealed(block),
+                    None => {
+                        let current_block_env = self.block_env.get(state).unwrap_infallible().unwrap_or_default();
+                        let block_num: u64 = current_block_env.number.try_into().expect("Block number is too large to fit in a u64. It's over!");
+                        assert_eq!(block_num, tx.block_number, "Transaction is in a block that is not yet sealed, but that block is not yet pending! This is impossible!");
+                        let live_tx_numbers = self.live_tx_numbers.get(state).unwrap_infallible().unwrap_or_default();
+                        MaybeSealedBlock::Pending {
+                            block_number: tx.block_number,
+                            first_tx_number: live_tx_numbers.first_tx_number_of_block,
+                            base_fee_per_gas: current_block_env.basefee.try_into().expect("BaseFee overflowed a u64. This should be unreachable!"),
+                        }
+                    }
+                };
 
             let receipt = self
                 .receipts
@@ -697,9 +711,63 @@ fn get_cfg_env_template() -> CfgEnv {
     cfg_env
 }
 
+pub(crate) enum MaybeSealedBlock {
+    Sealed(SealedBlock),
+    Pending{
+        block_number: u64,
+        first_tx_number: u64,
+        base_fee_per_gas: u64,
+    },
+}
+
+impl MaybeSealedBlock {
+    pub fn hash(&self) -> Option<FixedBytes<32>> {
+        match self {
+            Self::Sealed(block) => Some(block.header.hash()),
+            Self::Pending {.. } => None,
+        }
+    }
+
+    pub fn number(&self) -> u64 {
+        match self {
+            Self::Sealed(block) => block.header.number,
+            Self::Pending {
+                block_number, ..
+            } => *block_number,
+        }
+    }
+
+    pub fn transactions_start(&self) -> u64 {
+        match self {
+            Self::Sealed(block) => block.transactions.start,
+            Self::Pending {
+                first_tx_number, ..
+            } => *first_tx_number,
+        }
+    }
+
+    pub fn timestamp(&self) -> Option<u64> {
+        match self {
+            Self::Sealed(block) => Some(block.header.timestamp),
+            Self::Pending {
+                ..
+            } => None,
+        }
+    }
+
+    pub fn base_fee_per_gas(&self) -> u64 {
+        match self {
+            Self::Sealed(block) => block.header.base_fee_per_gas.expect("Legacy blocks with no base fee are unsupported"),
+            Self::Pending {
+                base_fee_per_gas, ..
+            } => *base_fee_per_gas,
+        }
+    }
+}
+
 // modified from: https://github.com/paradigmxyz/reth many times
 pub(crate) fn build_rpc_receipt(
-    block: SealedBlock,
+    block: MaybeSealedBlock,
     tx: TransactionSignedAndRecovered,
     tx_number: u64,
     receipt: Receipt,
@@ -707,10 +775,11 @@ pub(crate) fn build_rpc_receipt(
     let transaction: TransactionSignedEcRecovered = tx.into();
     let from = transaction.signer();
 
-    let block_hash = Some(block.header.hash());
-    let block_number = Some(block.header.number);
+    let block_hash = block.hash();
+    let block_number = Some(block.number());
     let transaction_hash = Some(transaction.hash);
-    let transaction_index = tx_number - block.transactions.start;
+    // Safety: The transaction cannot have a lower number than the block start
+    let transaction_index = tx_number.checked_sub(block.transactions_start()).expect("Overflow while subtracting block start from tx number. This is a bug!");
 
     let logs: Vec<reth_rpc_types::Log> = receipt
         .receipt
@@ -721,7 +790,7 @@ pub(crate) fn build_rpc_receipt(
             inner: log.clone(),
             block_hash,
             block_number,
-            block_timestamp: Some(block.header.timestamp),
+            block_timestamp: block.timestamp(),
             transaction_hash,
             transaction_index: Some(transaction_index),
             log_index: Some(receipt.log_index_start + tx_log_idx as u64),
@@ -749,7 +818,7 @@ pub(crate) fn build_rpc_receipt(
         block_hash,
         block_number,
         gas_used: receipt.gas_used as u128,
-        effective_gas_price: transaction.effective_gas_price(block.header.base_fee_per_gas),
+        effective_gas_price: transaction.effective_gas_price(Some(block.base_fee_per_gas())),
         blob_gas_used: None,
         blob_gas_price: None,
         from,

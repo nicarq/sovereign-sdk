@@ -11,7 +11,7 @@ use crate::evm::db::EvmDb;
 use crate::evm::executor::{self};
 use crate::evm::primitive_types::{Receipt, TransactionSignedAndRecovered};
 use crate::evm::{EvmChainConfig, RlpEvmTransaction};
-use crate::{Evm, PendingTransaction, SpecId};
+use crate::{Evm, LiveTxNumbers, PendingTransaction, SpecId};
 
 /// EVM call message.
 #[derive(Debug, PartialEq, Eq, Clone, schemars::JsonSchema, UniversalWallet)]
@@ -120,6 +120,35 @@ where
 
         self.pending_transactions
             .push(&pending_transaction, state)?;
+
+        let live_tx_numbers = self.live_tx_numbers.get(state)?;
+        let tx_number = live_tx_numbers.and_then(|v| v.current_tx_number.checked_add(1)).unwrap_or(0);
+        let new_tx_numbers = LiveTxNumbers {
+            first_tx_number_of_block: live_tx_numbers.map(|v| v.first_tx_number_of_block).unwrap_or(0),
+            current_tx_number: tx_number,
+        };
+        self.live_tx_numbers.set(&new_tx_numbers, state)?;
+
+        #[cfg(feature = "native")] 
+        {
+            use sov_modules_api::prelude::UnwrapInfallible;
+
+            self.receipts
+                .push_accessory(&pending_transaction.receipt, state)
+                .unwrap_infallible();
+
+            self.transactions
+                .push_accessory(&pending_transaction.transaction, state)
+                .unwrap_infallible();
+
+            self.transaction_hashes
+                .set(
+                    &pending_transaction.transaction.signed_transaction.hash,
+                    &tx_number,
+                    state,
+                )
+                .unwrap_infallible();
+        }
 
         Ok(())
     }

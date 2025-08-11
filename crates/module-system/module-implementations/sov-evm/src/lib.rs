@@ -91,6 +91,13 @@ impl EncodeLike<(&Address, &U256), AccountStorageKey> for BcsCodec {
     }
 }
 
+
+#[derive(Copy, Clone, Debug, serde::Serialize, serde::Deserialize, Default)]
+pub(crate)  struct LiveTxNumbers {
+    first_tx_number_of_block: u64,
+    current_tx_number: u64,
+}
+
 /// The sov-evm module provides compatibility with the EVM.
 #[allow(dead_code)]
 #[derive(Clone, ModuleInfo)]
@@ -114,6 +121,10 @@ pub struct Evm<S: Spec> {
     /// Chain configuration. This field is set in genesis.
     #[state]
     pub(crate) cfg: StateValue<EvmChainConfig, BcsCodec>,
+
+    /// The number of the current tx, and the first tx number of the current block.
+    #[state]
+    pub(crate) live_tx_numbers: StateValue<LiveTxNumbers, BcsCodec>,
 
     /// Block environment used by the evm. This field is set in `begin_rollup_block_hook`.
     #[state]
