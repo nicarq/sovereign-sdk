@@ -2,6 +2,8 @@
 use std::sync::Arc;
 use std::str::FromStr;
 
+use base64::prelude::BASE64_STANDARD;
+use base64::Engine;
 use sov_bank::{Amount, Coins, TokenId};
 use sov_mock_da::{BlockProducingConfig, MockAddress, MockDaService};
 use sov_mock_zkvm::crypto::Ed25519Signature;
@@ -13,6 +15,7 @@ use sov_modules_api::{FullyBakedTx, RawTx, Runtime, Spec};
 use sov_modules_stf_blueprint::GenesisParams;
 use sov_paymaster::PaymasterConfig;
 use sov_rollup_interface::execution_mode::Native;
+use sov_sequencer::rest_api::AcceptTx;
 use sov_solana_offchain_auth::utils::make_preamble_for_message;
 use sov_solana_offchain_auth::capabilities::{
     SolanaOffchainAuthenticator, SolanaOffchainAuthenticatorInput, SolanaOffchainAuthenticatorTrait, 
@@ -24,6 +27,9 @@ use sov_test_utils::test_rollup::{GenesisSource, RollupBuilder, TestRollup};
 use sov_test_utils::{generate_runtime, RtAgnosticBlueprint, TestSpec, TEST_DEFAULT_GAS_LIMIT, TEST_DEFAULT_MAX_FEE, TEST_DEFAULT_MAX_PRIORITY_FEE};
 use sov_value_setter::{CallMessage, ValueSetterConfig};
 use tempfile::tempdir;
+
+mod blueprint;
+use blueprint::SolanaOffchainAuthBlueprint;
 
 // Generate the test runtime with Solana offchain authenticator
 generate_runtime! {
@@ -49,7 +55,7 @@ impl<S: Spec> SolanaOffchainAuthenticatorTrait<S> for TestRuntime<S> {
 type RT = TestRuntime<TestSpec>;
 type S = TestSpec;
 
-async fn create_test_rollup() -> anyhow::Result<TestRollup<RtAgnosticBlueprint<TestSpec, RT>>> {
+async fn create_test_rollup() -> anyhow::Result<TestRollup<SolanaOffchainAuthBlueprint<TestSpec, RT>>> {
     // Create genesis config
     let genesis_config =
         HighLevelOptimisticGenesisConfig::generate().add_accounts_with_default_balance(1);
@@ -75,7 +81,7 @@ async fn create_test_rollup() -> anyhow::Result<TestRollup<RtAgnosticBlueprint<T
         .seq_da_address;
 
     // Build the test rollup
-    let rollup = RollupBuilder::<RtAgnosticBlueprint<TestSpec, RT>>::new(
+    let rollup = RollupBuilder::<SolanaOffchainAuthBlueprint<TestSpec, RT>>::new(
         GenesisSource::CustomParams(genesis_params),
         BlockProducingConfig::Manual,
         3, // finalization blocks
@@ -143,14 +149,31 @@ async fn test_submit_ledger_signed_transaction() {
         signature
     };
     let raw_tx = RawTx::new(borsh::to_vec(&message).unwrap());
-    println!("Raw tx bytes: {:?}", raw_tx.data);
-    // let fully_baked_tx = RT::encode_with_solana_offchain_auth(raw_tx);
-    // println!("Fully baked tx bytes: {:?}", fully_baked_tx.data);
+    println!("Raw tx bytes length: {}", raw_tx.data.len());
 
-    // TODO: add sequencer API to accept solana offchain txs
-    let res = rollup.client.client.send_tx_to_sequencer(&raw_tx).await;
-    println!("{res:?}");
-    assert!(res.is_ok());
+    // Submit via the custom Solana offchain endpoint
+    let client = rollup.api_client();
+    let request = AcceptTx {
+        body: sov_sequencer::rest_api::Base64Blob { blob: BASE64_STANDARD.encode(&raw_tx).into() },
+    };
+    
+    let response = client.client()
+        .post(format!("{}/sequencer/accept_solana_offchain_tx", client.baseurl()))
+        .json(&request)
+        .send()
+        .await
+        .expect("Failed to send request");
+
+    assert!(response.status().is_success(), "Failed to submit transaction: {:?}", response.text().await);
+    
+    println!("Transaction submitted with response: {:?}", response);
+    // assert_eq!(tx_response.status, "submitted");
+
+    // Produce a block to include the transaction
+    // rollup.produce_block().await.expect("Failed to produce block");
+    
+    // Verify the transaction was included
+    // Note: You may want to add additional verification here to check the value was set correctly
 
     // then assert the state change
 }
