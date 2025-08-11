@@ -6,17 +6,18 @@ use sov_bank::{Amount, Coins, TokenId};
 use sov_mock_da::{BlockProducingConfig, MockAddress, MockDaService};
 use sov_mock_zkvm::crypto::Ed25519Signature;
 use sov_mock_zkvm::MockZkvm;
-use sov_modules_api::capabilities::TransactionAuthenticator;
+use sov_modules_api::capabilities::{TransactionAuthenticator, UniquenessData};
 use sov_modules_api::prelude::*;
 use sov_modules_api::transaction::{Transaction, UnsignedTransaction};
 use sov_modules_api::{FullyBakedTx, RawTx, Runtime, Spec};
 use sov_modules_stf_blueprint::GenesisParams;
 use sov_paymaster::PaymasterConfig;
 use sov_rollup_interface::execution_mode::Native;
-use sov_solana_offchain_auth::utils::message_preamble;
+use sov_solana_offchain_auth::utils::make_preamble_for_message;
 use sov_solana_offchain_auth::capabilities::{
-    SolanaOffchainAuthenticator, SolanaOffchainAuthenticatorInput, SolanaOffchainAuthenticatorTrait, SolanaOffchainSpecCompliantMessage,
+    SolanaOffchainAuthenticator, SolanaOffchainAuthenticatorInput, SolanaOffchainAuthenticatorTrait, 
 };
+use sov_solana_offchain_auth::authentication::SolanaOffchainSpecCompliantMessage;
 use sov_test_utils::runtime::genesis::optimistic::HighLevelOptimisticGenesisConfig;
 use sov_test_utils::runtime::{BankConfig, Runtime as _};
 use sov_test_utils::test_rollup::{GenesisSource, RollupBuilder, TestRollup};
@@ -100,7 +101,7 @@ fn create_mint_tx_json_bytes() -> Vec<u8> {
         config_value!("CHAIN_ID"),
         TEST_DEFAULT_MAX_PRIORITY_FEE,
         TEST_DEFAULT_MAX_FEE,
-        0,
+        UniquenessData::Generation(0),
         Some(TEST_DEFAULT_GAS_LIMIT.into()),
     );
 
@@ -134,7 +135,7 @@ async fn test_submit_ledger_signed_transaction() {
     let pubkey: [u8; 32] = bs58::decode("8YkzDTyLd3buhMw9CMfYYt3FLmcu1BeFr5nMeierYM1v").into_vec().unwrap().try_into().unwrap();
     let signature: Ed25519Signature = bs58::decode("2nZHcKfoYQMiWnQZWPoKE4q7xk1eJ6fwpt5T5QowzzD9ms6znCoCGcJS5t46csv9GAYpFQcVKsUeQWKhbnxUggvZ").into_vec().unwrap().as_slice().try_into().unwrap();
 
-    let mut signed_message = message_preamble(&pubkey, encoded_tx.len() as u16).to_vec();
+    let mut signed_message = make_preamble_for_message(&pubkey, encoded_tx.len() as u16).to_vec();
     signed_message.extend_from_slice(&encoded_tx);
 
     let message = SolanaOffchainSpecCompliantMessage::<S> {

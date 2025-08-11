@@ -1,6 +1,6 @@
-use crate::capabilities::APPLICATION_DOMAIN;
+use crate::authentication::APPLICATION_DOMAIN;
 
-pub fn message_preamble(pubkey: &[u8; 32], message_length: u16) -> [u8; 85] {
+pub fn make_preamble_for_message(pubkey: &[u8; 32], message_length: u16) -> [u8; 85] {
     let mut header = Vec::<u8>::new();
     // Signing domain (pre-defined constant)
     header.extend(b"\xffsolana offchain");
