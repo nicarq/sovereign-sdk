@@ -43,9 +43,10 @@ impl<S, R> RollupBlueprint<Native> for SolanaOffchainAuthBlueprint<S, R>
 where
     S: Spec + PluggableSpec,
     R: RuntimeTrait<S> + HasKernel<S> + HasCapabilities<S>,
+    RtAgnosticBlueprint<S, R>: RollupBlueprint<Native>,
 {
-    type Spec = S;
-    type Runtime = R;
+    type Spec = <RtAgnosticBlueprint<S, R> as RollupBlueprint<Native>>::Spec;
+    type Runtime = <RtAgnosticBlueprint<S, R> as RollupBlueprint<Native>>::Runtime;
 }
 
 #[async_trait]
@@ -58,9 +59,9 @@ where
         + HasKernel<S>
         + SolanaOffchainAuthenticatorTrait<S>
         + 'static,
-    <RtAgnosticBlueprint<S, R> as FullNodeBlueprint<Native>>::DaService:
-        sov_rollup_interface::node::da::DaService<Spec = S::Da, Error = anyhow::Error>,
     RtAgnosticBlueprint<S, R>: FullNodeBlueprint<Native>,
+    // Add constraint that our Runtime is compatible with SolanaOffchainAuthenticatorTrait
+    <RtAgnosticBlueprint<S, R> as RollupBlueprint<Native>>::Runtime: SolanaOffchainAuthenticatorTrait<<RtAgnosticBlueprint<S, R> as RollupBlueprint<Native>>::Spec>,
 {
     type DaService = <RtAgnosticBlueprint<S, R> as FullNodeBlueprint<Native>>::DaService;
     type StorageManager =
@@ -109,7 +110,7 @@ where
         let router = axum::Router::new()
             .route(
                 "/sequencer/accept_solana_offchain_tx",
-                post(accept_solana_offchain_tx::<Seq, Self::Spec, Self::Runtime, Self::DaService>),
+                post(accept_solana_offchain_tx::<Seq>),
             )
             .with_state(sequencer);
 
@@ -161,19 +162,17 @@ where
 }
 
 /// Handler for accepting Solana offchain authenticated transactions
-async fn accept_solana_offchain_tx<Seq, S, R, Da>(
+async fn accept_solana_offchain_tx<Seq>(
     State(sequencer): State<Arc<Seq>>,
     tx: Json<AcceptTx>,
 ) -> ApiResult<TxInfoWithConfirmation<DaBlobHash<<Seq::Da as DaService>::Spec>, Seq::Confirmation>>
 where
-    Seq: Sequencer<Spec = S, Rt = R, Da = Da> + 'static,
-    S: Spec,
-    R: RuntimeTrait<S> + SolanaOffchainAuthenticatorTrait<S>,
-    R::Auth: TransactionAuthenticator<S>,
-    Da: sov_rollup_interface::node::da::DaService,
+    Seq: Sequencer + 'static,
+    Seq::Rt: SolanaOffchainAuthenticatorTrait<Seq::Spec>,
+    <Seq::Rt as RuntimeTrait<Seq::Spec>>::Auth: TransactionAuthenticator<Seq::Spec>,
 {
     let raw_tx = RawTx::new(tx.0.body.blob);
-    let encoded_tx = R::encode_with_solana_offchain_auth(raw_tx);
+    let encoded_tx = Seq::Rt::encode_with_solana_offchain_auth(raw_tx);
 
     // Submit to sequencer (similar to axum_accept_tx but with Solana auth)
     let tx_with_hash = tokio::spawn(async move { sequencer.accept_tx(encoded_tx).await })

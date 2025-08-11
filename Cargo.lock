@@ -11625,6 +11625,7 @@ dependencies = [
  "strum",
  "tempfile",
  "tokio",
+ "tokio-stream",
  "tracing",
 ]
 

@@ -60,7 +60,7 @@ where
     ) -> Result<Self::Decodable, sov_modules_api::capabilities::FatalError> {
         use crate::authentication::decode_solana_json_tx;
 
-        println!("Doing decode_serialized_tx in SolanaOffchainAuthenticator! Bytes: {:?}", tx.data);
+        println!("Doing decode_serialized_tx in SolanaOffchainAuthenticator!");
         let auth_variant: SolanaOffchainAuthenticatorInput =
             borsh::from_slice(&tx.data).map_err(|e| {
                 sov_modules_api::capabilities::FatalError::DeserializationFailed(e.to_string())
@@ -72,7 +72,7 @@ where
                 Ok(call)
             }
             SolanaOffchainAuthenticatorInput::SolanaOffchain(raw_tx) => {
-                println!("Successfully decoded auth byte, decoding solana json tx...");
+                println!("Successfully decoded auth byte, decoding solana json tx. Bytes: {:?}", raw_tx.data);
                 let call = decode_solana_json_tx::<S, Rt>(&raw_tx.data)?;
                 Ok(call)
             }

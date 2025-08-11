@@ -1,5 +1,7 @@
 #![allow(unused_imports)]
 use std::sync::Arc;
+use sov_mock_zkvm::crypto::private_key::Ed25519PrivateKey;
+use tokio_stream::StreamExt;
 use std::str::FromStr;
 
 use base64::prelude::BASE64_STANDARD;
@@ -9,7 +11,7 @@ use sov_mock_da::{BlockProducingConfig, MockAddress, MockDaService};
 use sov_mock_zkvm::crypto::Ed25519Signature;
 use sov_mock_zkvm::MockZkvm;
 use sov_modules_api::capabilities::{TransactionAuthenticator, UniquenessData};
-use sov_modules_api::prelude::*;
+use sov_modules_api::{prelude::*, PrivateKey};
 use sov_modules_api::transaction::{Transaction, UnsignedTransaction};
 use sov_modules_api::{FullyBakedTx, RawTx, Runtime, Spec};
 use sov_modules_stf_blueprint::GenesisParams;
@@ -20,7 +22,7 @@ use sov_solana_offchain_auth::utils::make_preamble_for_message;
 use sov_solana_offchain_auth::capabilities::{
     SolanaOffchainAuthenticator, SolanaOffchainAuthenticatorInput, SolanaOffchainAuthenticatorTrait, 
 };
-use sov_solana_offchain_auth::authentication::SolanaOffchainSpecCompliantMessage;
+use sov_solana_offchain_auth::authentication::{SolanaOffchainRawMessage, SolanaOffchainSpecCompliantMessage};
 use sov_test_utils::runtime::genesis::optimistic::HighLevelOptimisticGenesisConfig;
 use sov_test_utils::runtime::{BankConfig, Runtime as _};
 use sov_test_utils::test_rollup::{GenesisSource, RollupBuilder, TestRollup};
@@ -100,7 +102,7 @@ async fn create_test_rollup() -> anyhow::Result<TestRollup<SolanaOffchainAuthBlu
     Ok(rollup)
 }
 
-fn create_mint_tx_json_bytes() -> Vec<u8> {
+fn create_tx_json_bytes() -> Vec<u8> {
     let msg: TestRuntimeCall<S> = TestRuntimeCall::ValueSetter(CallMessage::SetValue { value: 1234, gas: None });
     let tx = UnsignedTransaction::<RT, S>::new(
         msg,
@@ -115,46 +117,29 @@ fn create_mint_tx_json_bytes() -> Vec<u8> {
     let tx_json_bytes = tx_json_str.as_bytes().to_vec();
 
     // Sanity check - since this JSON was used to create a ledger signature
-    assert_eq!(tx_json_bytes.as_slice(), br#"{"runtime_call":{"value_setter":{"set_value":{"value":1234,"gas":null}}},"generation":0,"details":{"max_priority_fee_bips":0,"max_fee":"100000000000","gas_limit":[1000000000,1000000000],"chain_id":4321}}"#);
+    assert_eq!(tx_json_str, r#"{"runtime_call":{"value_setter":{"set_value":{"value":1234,"gas":null}}},"uniqueness":{"generation":0},"details":{"max_priority_fee_bips":0,"max_fee":"100000000000","gas_limit":[1000000000,1000000000],"chain_id":4321}}"#);
 
     tx_json_bytes
 }
 
-#[tokio::test(flavor = "multi_thread")]
-async fn test_rollup_initialization() {
-    // Just test that we can create a rollup with the Solana authenticator
-    let rollup = create_test_rollup().await;
-    assert!(
-        rollup.is_ok(),
-        "Failed to create test rollup: {:?}",
-        rollup.err()
-    );
-}
+async fn create_rollup_submit_tx_and_assert_state(raw_tx_bytes: Vec<u8>) {
+    let test_rollup = create_test_rollup().await.expect("Failed to create rollup");
 
-#[tokio::test(flavor = "multi_thread")]
-async fn test_submit_ledger_signed_transaction() {
-    let rollup = create_test_rollup().await.expect("Failed to create rollup");
-
-    let encoded_tx = create_mint_tx_json_bytes();
-
-    // Data from a Ledger device
-    let pubkey: [u8; 32] = bs58::decode("8YkzDTyLd3buhMw9CMfYYt3FLmcu1BeFr5nMeierYM1v").into_vec().unwrap().try_into().unwrap();
-    let signature: Ed25519Signature = bs58::decode("2nZHcKfoYQMiWnQZWPoKE4q7xk1eJ6fwpt5T5QowzzD9ms6znCoCGcJS5t46csv9GAYpFQcVKsUeQWKhbnxUggvZ").into_vec().unwrap().as_slice().try_into().unwrap();
-
-    let mut signed_message = make_preamble_for_message(&pubkey, encoded_tx.len() as u16).to_vec();
-    signed_message.extend_from_slice(&encoded_tx);
-
-    let message = SolanaOffchainSpecCompliantMessage::<S> {
-        signed_message,
-        signature
-    };
-    let raw_tx = RawTx::new(borsh::to_vec(&message).unwrap());
-    println!("Raw tx bytes length: {}", raw_tx.data.len());
+    // Set up the rollup the usual way.
+    let mut slot_subscription = test_rollup.api_client().subscribe_slots().await.unwrap();
+    test_rollup
+        .da_service
+        .produce_n_blocks_now(5)
+        .await
+        .unwrap();
+    for _ in 0..5 {
+        let _ = slot_subscription.next().await.unwrap().unwrap();
+    }
 
     // Submit via the custom Solana offchain endpoint
-    let client = rollup.api_client();
+    let client = test_rollup.api_client();
     let request = AcceptTx {
-        body: sov_sequencer::rest_api::Base64Blob { blob: BASE64_STANDARD.encode(&raw_tx).into() },
+        body: sov_sequencer::rest_api::Base64Blob { blob: raw_tx_bytes },
     };
     
     let response = client.client()
@@ -176,6 +161,56 @@ async fn test_submit_ledger_signed_transaction() {
     // Note: You may want to add additional verification here to check the value was set correctly
 
     // then assert the state change
+}
+
+#[tokio::test(flavor = "multi_thread")]
+async fn test_rollup_initialization() {
+    // Just test that we can create a rollup with the Solana authenticator
+    let rollup = create_test_rollup().await;
+    assert!(
+        rollup.is_ok(),
+        "Failed to create test rollup: {:?}",
+        rollup.err()
+    );
+}
+
+#[tokio::test(flavor = "multi_thread")]
+async fn test_submit_ledger_signed_transaction() {
+    let encoded_tx = create_tx_json_bytes();
+
+    // Data from a Ledger device
+    let pubkey: [u8; 32] = bs58::decode("8YkzDTyLd3buhMw9CMfYYt3FLmcu1BeFr5nMeierYM1v").into_vec().unwrap().try_into().unwrap();
+    let signature: Ed25519Signature = bs58::decode("2nZHcKfoYQMiWnQZWPoKE4q7xk1eJ6fwpt5T5QowzzD9ms6znCoCGcJS5t46csv9GAYpFQcVKsUeQWKhbnxUggvZ").into_vec().unwrap().as_slice().try_into().unwrap();
+
+    let mut signed_message = make_preamble_for_message(&pubkey, encoded_tx.len() as u16).to_vec();
+    signed_message.extend_from_slice(&encoded_tx);
+
+    let message = SolanaOffchainSpecCompliantMessage::<S> {
+        signed_message,
+        signature
+    };
+    let raw_tx_bytes = borsh::to_vec(&message).unwrap();
+
+    create_rollup_submit_tx_and_assert_state(raw_tx_bytes).await;
+}
+
+#[tokio::test(flavor = "multi_thread")]
+async fn test_submit_raw_signed_message_transaction() {
+    let encoded_tx = create_tx_json_bytes();
+
+    let signer = Ed25519PrivateKey::generate();
+    let pubkey = signer.pub_key();
+    let signature = signer.sign(&encoded_tx);
+    // let signature: Ed25519Signature = bs58::decode("2nZHcKfoYQMiWnQZWPoKE4q7xk1eJ6fwpt5T5QowzzD9ms6znCoCGcJS5t46csv9GAYpFQcVKsUeQWKhbnxUggvZ").into_vec().unwrap().as_slice().try_into().unwrap();
+
+    let message = SolanaOffchainRawMessage::<S> {
+        signed_message: encoded_tx,
+        pubkey,
+        signature
+    };
+    let raw_tx_bytes = borsh::to_vec(&message).unwrap();
+
+    create_rollup_submit_tx_and_assert_state(raw_tx_bytes).await;
 }
 
 #[test]
