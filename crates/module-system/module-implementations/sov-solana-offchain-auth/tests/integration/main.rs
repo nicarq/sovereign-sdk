@@ -6,28 +6,28 @@ use std::str::FromStr;
 
 use base64::prelude::BASE64_STANDARD;
 use base64::Engine;
-use sov_bank::{Amount, Coins, TokenId};
+use sov_bank::{Amount, CallMessage as BankCallMessage, Coins, TokenId};
 use sov_mock_da::{BlockProducingConfig, MockAddress, MockDaService};
 use sov_mock_zkvm::crypto::Ed25519Signature;
 use sov_mock_zkvm::MockZkvm;
 use sov_modules_api::capabilities::{TransactionAuthenticator, UniquenessData};
-use sov_modules_api::{prelude::*, PrivateKey};
+use sov_modules_api::{prelude::*, PrivateKey, SafeVec};
 use sov_modules_api::transaction::{Transaction, UnsignedTransaction};
 use sov_modules_api::{FullyBakedTx, RawTx, Runtime, Spec};
 use sov_modules_stf_blueprint::GenesisParams;
-use sov_paymaster::PaymasterConfig;
+use sov_paymaster::{AuthorizedSequencers, PayeePolicy, PayerGenesisConfig, PaymasterConfig, PaymasterPolicyInitializer};
 use sov_rollup_interface::execution_mode::Native;
 use sov_sequencer::rest_api::AcceptTx;
 use sov_solana_offchain_auth::utils::make_preamble_for_message;
 use sov_solana_offchain_auth::capabilities::{
     SolanaOffchainAuthenticator, SolanaOffchainAuthenticatorInput, SolanaOffchainAuthenticatorTrait, 
 };
-use sov_solana_offchain_auth::authentication::{SolanaOffchainRawMessage, SolanaOffchainSpecCompliantMessage};
+use sov_solana_offchain_auth::authentication::{SolanaOffchainSimpleMessage, SolanaOffchainSpecCompliantMessage, SolanaOffchainUnsignedTransaction};
 use sov_test_utils::runtime::genesis::optimistic::HighLevelOptimisticGenesisConfig;
 use sov_test_utils::runtime::{BankConfig, Runtime as _};
 use sov_test_utils::test_rollup::{GenesisSource, RollupBuilder, TestRollup};
-use sov_test_utils::{generate_runtime, RtAgnosticBlueprint, TestSpec, TEST_DEFAULT_GAS_LIMIT, TEST_DEFAULT_MAX_FEE, TEST_DEFAULT_MAX_PRIORITY_FEE};
-use sov_value_setter::{CallMessage, ValueSetterConfig};
+use sov_test_utils::{generate_runtime, RtAgnosticBlueprint, TestSpec, TestUser, TEST_DEFAULT_GAS_LIMIT, TEST_DEFAULT_MAX_FEE, TEST_DEFAULT_MAX_PRIORITY_FEE};
+use sov_value_setter::ValueSetterConfig;
 use tempfile::tempdir;
 
 mod blueprint;
@@ -42,6 +42,7 @@ generate_runtime! {
     ],
     operating_mode: sov_modules_api::runtime::OperatingMode::Optimistic,
     minimal_genesis_config_type: sov_test_utils::runtime::genesis::optimistic::config::MinimalOptimisticGenesisConfig<S>,
+    gas_enforcer: paymaster: sov_paymaster::Paymaster<S>,
     runtime_trait_impl_bounds: [],
     kernel_type: sov_kernels::soft_confirmations::SoftConfirmationsKernel<'a, S>,
     auth_type: SolanaOffchainAuthenticator<S, Self>,
@@ -57,10 +58,14 @@ impl<S: Spec> SolanaOffchainAuthenticatorTrait<S> for TestRuntime<S> {
 type RT = TestRuntime<TestSpec>;
 type S = TestSpec;
 
-async fn create_test_rollup() -> anyhow::Result<TestRollup<SolanaOffchainAuthBlueprint<TestSpec, RT>>> {
+async fn create_test_rollup() -> anyhow::Result<(
+    TestRollup<SolanaOffchainAuthBlueprint<TestSpec, RT>>,
+    TestUser<TestSpec>
+)> {
     // Create genesis config
     let genesis_config =
         HighLevelOptimisticGenesisConfig::generate().add_accounts_with_default_balance(1);
+    let sequencer = genesis_config.initial_sequencer.clone();
     let admin = genesis_config.additional_accounts()[0].clone();
 
     let rt_genesis_config = <RT as Runtime<TestSpec>>::GenesisConfig::from_minimal_config(
@@ -68,7 +73,26 @@ async fn create_test_rollup() -> anyhow::Result<TestRollup<SolanaOffchainAuthBlu
         ValueSetterConfig {
             admin: admin.address(),
         },
-        PaymasterConfig::default(),
+        PaymasterConfig {
+            payers: [PayerGenesisConfig {
+                payer_address: admin.address(),
+                policy: PaymasterPolicyInitializer {
+                    default_payee_policy: PayeePolicy::Allow {
+                        max_fee: None,
+                        gas_limit: None,
+                        max_gas_price: None,
+                        transaction_limit: None,
+                    },
+                    payees: SafeVec::new(),
+                    authorized_sequencers: AuthorizedSequencers::All,
+                    authorized_updaters: [admin.address()].as_ref().try_into().unwrap(),
+                },
+                sequencers_to_register: [sequencer.da_address].as_ref().try_into().unwrap(),
+            }]
+            .as_ref()
+            .try_into()
+            .unwrap(),
+        },
     );
 
     let genesis_params = GenesisParams {
@@ -99,35 +123,9 @@ async fn create_test_rollup() -> anyhow::Result<TestRollup<SolanaOffchainAuthBlu
     .start()
     .await?;
 
-    Ok(rollup)
-}
-
-fn create_tx_json_bytes() -> Vec<u8> {
-    let msg: TestRuntimeCall<S> = TestRuntimeCall::ValueSetter(CallMessage::SetValue { value: 1234, gas: None });
-    let tx = UnsignedTransaction::<RT, S>::new(
-        msg,
-        config_value!("CHAIN_ID"),
-        TEST_DEFAULT_MAX_PRIORITY_FEE,
-        TEST_DEFAULT_MAX_FEE,
-        UniquenessData::Generation(0),
-        Some(TEST_DEFAULT_GAS_LIMIT.into()),
-    );
-
-    let tx_json_str = serde_json::to_string(&tx).unwrap();
-    let tx_json_bytes = tx_json_str.as_bytes().to_vec();
-
-    // Sanity check - since this JSON was used to create a ledger signature
-    assert_eq!(tx_json_str, r#"{"runtime_call":{"value_setter":{"set_value":{"value":1234,"gas":null}}},"uniqueness":{"generation":0},"details":{"max_priority_fee_bips":0,"max_fee":"100000000000","gas_limit":[1000000000,1000000000],"chain_id":4321}}"#);
-
-    tx_json_bytes
-}
-
-async fn create_rollup_submit_tx_and_assert_state(raw_tx_bytes: Vec<u8>) {
-    let test_rollup = create_test_rollup().await.expect("Failed to create rollup");
-
     // Set up the rollup the usual way.
-    let mut slot_subscription = test_rollup.api_client().subscribe_slots().await.unwrap();
-    test_rollup
+    let mut slot_subscription = rollup.api_client().subscribe_slots().await.unwrap();
+    rollup
         .da_service
         .produce_n_blocks_now(5)
         .await
@@ -136,8 +134,48 @@ async fn create_rollup_submit_tx_and_assert_state(raw_tx_bytes: Vec<u8>) {
         let _ = slot_subscription.next().await.unwrap().unwrap();
     }
 
-    // Submit via the custom Solana offchain endpoint
-    let client = test_rollup.api_client();
+    Ok((rollup, admin))
+}
+
+fn create_tx_json_bytes() -> Vec<u8> {
+    // let msg: TestRuntimeCall<S> = TestRuntimeCall::ValueSetter(CallMessage::SetValue { value: 1234, gas: None });
+    let msg: TestRuntimeCall<S> = TestRuntimeCall::Bank(BankCallMessage::Transfer {
+        to: <S as Spec>::Address::from_str(
+            "sov1pv9skzctpv9skzctpv9skzctpv9skzctpv9skzctpv9skqm7ehv",
+        )
+        .unwrap(),
+        coins: Coins {
+            amount: Amount::new(10_000),
+            // Use the gas token ID from the config (which is the pre-configured token)
+            token_id: config_value!("GAS_TOKEN_ID"),
+        },
+    });
+    let unsigned_tx = UnsignedTransaction::<RT, S>::new(
+        msg,
+        config_value!("CHAIN_ID"),
+        TEST_DEFAULT_MAX_PRIORITY_FEE,
+        TEST_DEFAULT_MAX_FEE,
+        UniquenessData::Generation(0),
+        Some(TEST_DEFAULT_GAS_LIMIT.into()),
+    );
+    let solana_unsigned_tx = SolanaOffchainUnsignedTransaction::<RT, S> {
+        runtime_call: unsigned_tx.runtime_call,
+        uniqueness: unsigned_tx.uniqueness,
+        details: unsigned_tx.details,
+        chain_hash: RT::CHAIN_HASH
+    };
+
+    let tx_json_str = serde_json::to_string(&solana_unsigned_tx).unwrap();
+    println!("{}", tx_json_str);
+    let tx_json_bytes = tx_json_str.as_bytes().to_vec();
+
+    // Sanity check - since this JSON was used to create a ledger signature
+    assert_eq!(tx_json_str, r#"{"runtime_call":{"bank":{"transfer":{"to":"sov1pv9skzctpv9skzctpv9skzctpv9skzctpv9skzctpv9skqm7ehv","coins":{"amount":"10000","token_id":"token_1nyl0e0yweragfsatygt24zmd8jrr2vqtvdfptzjhxkguz2xxx3vs0y07u7"}}}},"uniqueness":{"generation":0},"details":{"max_priority_fee_bips":0,"max_fee":"100000000000","gas_limit":[1000000000,1000000000],"chain_id":4321},"chain_hash":"0b0b0b0b0b0b0b0b0b0b0b0b0b0b0b0b0b0b0b0b0b0b0b0b0b0b0b0b0b0b0b0b"}"#);
+
+    tx_json_bytes
+}
+
+async fn submit_tx(client: &sov_api_spec::client::Client, raw_tx_bytes: Vec<u8>) {
     let request = AcceptTx {
         body: sov_sequencer::rest_api::Base64Blob { blob: raw_tx_bytes },
     };
@@ -152,6 +190,7 @@ async fn create_rollup_submit_tx_and_assert_state(raw_tx_bytes: Vec<u8>) {
     assert!(response.status().is_success(), "Failed to submit transaction: {:?}", response.text().await);
     
     println!("Transaction submitted with response: {:?}", response);
+    println!("Response body: {:?}", response.text().await);
     // assert_eq!(tx_response.status, "submitted");
 
     // Produce a block to include the transaction
@@ -191,26 +230,52 @@ async fn test_submit_ledger_signed_transaction() {
     };
     let raw_tx_bytes = borsh::to_vec(&message).unwrap();
 
-    create_rollup_submit_tx_and_assert_state(raw_tx_bytes).await;
+    let (test_rollup, _admin) = create_test_rollup().await.expect("Failed to create rollup");
+    let client = test_rollup.api_client();
+    submit_tx(client, raw_tx_bytes).await;
 }
 
 #[tokio::test(flavor = "multi_thread")]
 async fn test_submit_raw_signed_message_transaction() {
-    let encoded_tx = create_tx_json_bytes();
+    let (test_rollup, admin) = create_test_rollup().await.expect("Failed to create rollup");
 
-    let signer = Ed25519PrivateKey::generate();
+    let encoded_tx = create_tx_json_bytes();
+    let signer = admin.private_key();
     let pubkey = signer.pub_key();
     let signature = signer.sign(&encoded_tx);
-    // let signature: Ed25519Signature = bs58::decode("2nZHcKfoYQMiWnQZWPoKE4q7xk1eJ6fwpt5T5QowzzD9ms6znCoCGcJS5t46csv9GAYpFQcVKsUeQWKhbnxUggvZ").into_vec().unwrap().as_slice().try_into().unwrap();
 
-    let message = SolanaOffchainRawMessage::<S> {
+    let message = SolanaOffchainSimpleMessage::<S> {
         signed_message: encoded_tx,
         pubkey,
         signature
     };
     let raw_tx_bytes = borsh::to_vec(&message).unwrap();
 
-    create_rollup_submit_tx_and_assert_state(raw_tx_bytes).await;
+    let client = test_rollup.api_client();
+    submit_tx(client, raw_tx_bytes).await;
+}
+
+#[tokio::test(flavor = "multi_thread")]
+async fn test_submit_invalid_raw_signed_message_transaction() {
+    let (test_rollup, admin) = create_test_rollup().await.expect("Failed to create rollup");
+
+    let encoded_tx = create_tx_json_bytes();
+    let signer = admin.private_key();
+    let pubkey = signer.pub_key();
+    let mut signature_bytes = signer.sign(&encoded_tx).msg_sig.to_bytes();
+    // mutate a random byte to make the signature invalid
+    signature_bytes[5] = signature_bytes[5].wrapping_add(1);
+    let signature: Ed25519Signature = signature_bytes.as_slice().try_into().unwrap();
+    
+    let message = SolanaOffchainSimpleMessage::<S> {
+        signed_message: encoded_tx,
+        pubkey,
+        signature
+    };
+    let raw_tx_bytes = borsh::to_vec(&message).unwrap();
+
+    let client = test_rollup.api_client();
+    submit_tx(client, raw_tx_bytes).await;
 }
 
 #[test]

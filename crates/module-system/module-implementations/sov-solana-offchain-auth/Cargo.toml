@@ -22,6 +22,7 @@ hex = { workspace = true }
 schemars = { workspace = true }
 serde = { workspace = true }
 serde_json = { workspace = true }
+serde_with = { workspace = true, features = ["hex"] }
 
 sov-modules-api = { workspace = true }
 sov-state = { workspace = true }
@@ -48,6 +49,7 @@ sov-stf-runner = { workspace = true }
 sov-modules-rollup-blueprint = { workspace = true }
 sov-sequencer = { workspace = true }
 sov-rest-utils = { workspace = true }
+sov-api-spec = { workspace = true }
 tokio = { workspace = true, features = ["macros", "rt-multi-thread"] }
 jsonrpsee = { workspace = true }
 

@@ -189,6 +189,15 @@ pub enum FatalError {
         /// The actual chain id
         got: u64,
     },
+    /// The chain hash was invalid. Not every type of transaction will be able to throw this (some
+    /// will just implicitly fail signature checks).
+    #[error("Invalid chain hash: expected {expected}, got {got}")]
+    InvalidChainHash {
+        /// The expected chain id
+        expected: String,
+        /// The actual chain id
+        got: String,
+    },
     /// Transaction decoding failed.
     #[error("Transaction decoding error: {0}")]
     MessageDecodingFailed(String),
