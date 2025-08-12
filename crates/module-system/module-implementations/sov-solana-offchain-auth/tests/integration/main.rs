@@ -11,11 +11,11 @@ use sov_bank::{Amount, CallMessage as BankCallMessage, Coins, TokenId};
 use sov_bank::BalanceResponse;
 use sov_mock_da::{BlockProducingConfig, MockAddress, MockDaService};
 use sov_mock_zkvm::crypto::Ed25519Signature;
-use sov_mock_zkvm::MockZkvm;
 use sov_modules_api::capabilities::{TransactionAuthenticator, UniquenessData};
-use sov_modules_api::{prelude::*, PrivateKey, SafeVec};
+use sov_modules_api::{prelude::*, PrivateKey, SafeVec, Base58Address};
 use sov_modules_api::transaction::{Transaction, UnsignedTransaction};
 use sov_modules_api::{FullyBakedTx, RawTx, Runtime, Spec};
+use sov_modules_api::configurable_spec::ConfigurableSpec;
 use sov_modules_stf_blueprint::GenesisParams;
 use sov_paymaster::{AuthorizedSequencers, PayeePolicy, PayerGenesisConfig, PaymasterConfig, PaymasterPolicyInitializer};
 use sov_rollup_interface::execution_mode::Native;
@@ -28,12 +28,28 @@ use sov_solana_offchain_auth::authentication::{SolanaOffchainSimpleMessage, Sola
 use sov_test_utils::runtime::genesis::optimistic::HighLevelOptimisticGenesisConfig;
 use sov_test_utils::runtime::{BankConfig, Runtime as _};
 use sov_test_utils::test_rollup::{GenesisSource, RollupBuilder, TestRollup};
-use sov_test_utils::{generate_runtime, RtAgnosticBlueprint, TestSpec, TestUser, TEST_DEFAULT_GAS_LIMIT, TEST_DEFAULT_MAX_FEE, TEST_DEFAULT_MAX_PRIORITY_FEE};
+use sov_test_utils::{generate_runtime, RtAgnosticBlueprint, TestUser, TEST_DEFAULT_GAS_LIMIT, TEST_DEFAULT_MAX_FEE, TEST_DEFAULT_MAX_PRIORITY_FEE};
+use sov_test_utils::{MockDaSpec, MockZkvm, MockZkvmCryptoSpec, TestHasher, TestStorageSpec};
+use sov_state::{DefaultStorageSpec, ProverStorage};
 use sov_value_setter::ValueSetterConfig;
 use tempfile::tempdir;
 
 mod blueprint;
 use blueprint::SolanaOffchainAuthBlueprint;
+
+// Define a test spec that uses Base58Address instead of the default Address type
+pub type SolanaTestSpec = ConfigurableSpec<
+    MockDaSpec,
+    MockZkvm,
+    MockZkvm,
+    Base58Address,  // Use Base58Address instead of the default Address
+    Native,
+    MockZkvmCryptoSpec,
+    ProverStorage<DefaultStorageSpec<TestHasher>>,
+>;
+
+/// An arbitrary base58 address.
+const RECIPIENT_ADDRESS: &str = "4zdwHNaEa5npHtRtaZ3RL1m6rptuQZ6RBLHG6cAyVHjL";
 
 // Generate the test runtime with Solana offchain authenticator
 generate_runtime! {
@@ -57,20 +73,20 @@ impl<S: Spec> SolanaOffchainAuthenticatorTrait<S> for TestRuntime<S> {
     }
 }
 
-type RT = TestRuntime<TestSpec>;
-type S = TestSpec;
+type RT = TestRuntime<SolanaTestSpec>;
+type S = SolanaTestSpec;
 
 async fn create_test_rollup() -> anyhow::Result<(
-    TestRollup<SolanaOffchainAuthBlueprint<TestSpec, RT>>,
-    TestUser<TestSpec>
+    TestRollup<SolanaOffchainAuthBlueprint<SolanaTestSpec, RT>>,
+    TestUser<SolanaTestSpec>
 )> {
     // Create genesis config
     let genesis_config =
-        HighLevelOptimisticGenesisConfig::generate().add_accounts_with_default_balance(1);
+        HighLevelOptimisticGenesisConfig::<SolanaTestSpec>::generate().add_accounts_with_default_balance(1);
     let sequencer = genesis_config.initial_sequencer.clone();
     let admin = genesis_config.additional_accounts()[0].clone();
 
-    let rt_genesis_config = <RT as Runtime<TestSpec>>::GenesisConfig::from_minimal_config(
+    let rt_genesis_config = <RT as Runtime<SolanaTestSpec>>::GenesisConfig::from_minimal_config(
         genesis_config.clone().into(),
         ValueSetterConfig {
             admin: admin.address(),
@@ -108,8 +124,16 @@ async fn create_test_rollup() -> anyhow::Result<(
         .sequencer_config
         .seq_da_address;
 
+    // The genesis config uses these bytes [172; 32] to generate the default prover and sequencer
+    // addresses.
+    // The RollupBuilder normally defaults to using the bech32 encoding of these bytes as defined
+    // in the constants TEST_DEFAULT_PROVER_ADDRESS and TEST_DEFAULT_SEQUENCER_ADDRESS. We need to
+    // override them with the base58 encoding of the same bytes, since our spec uses Base58Address.
+    let prover_sequencer_bytes = [172; 32];
+    let prover_sequencer_base58 = Base58Address::from(prover_sequencer_bytes);
+
     // Build the test rollup
-    let rollup = RollupBuilder::<SolanaOffchainAuthBlueprint<TestSpec, RT>>::new(
+    let rollup = RollupBuilder::<SolanaOffchainAuthBlueprint<SolanaTestSpec, RT>>::new(
         GenesisSource::CustomParams(genesis_params),
         BlockProducingConfig::Manual,
         3, // finalization blocks
@@ -119,6 +143,9 @@ async fn create_test_rollup() -> anyhow::Result<(
         c.automatic_batch_production = false;
         c.max_batch_size_bytes = 1024 * 1024; // 1MB
         c.blob_processing_timeout_secs = 60;
+        // Override the hardcoded bech32 addresses with base58 equivalents
+        c.prover_address = prover_sequencer_base58.to_string();
+        c.sequencer_address = prover_sequencer_base58.to_string();
     })
     .set_da_config(|c| c.sender_address = seq_da_address)
     .set_persistent_da()
@@ -184,7 +211,7 @@ async fn submit_tx(client: &sov_api_spec::client::Client, raw_tx_bytes: Vec<u8>)
     response
 }
 
-async fn query_balance(client: &NodeClient, address: String) -> Option<Amount> {
+async fn query_balance(client: &NodeClient, address: &str) -> Option<Amount> {
     let gas_token_id: TokenId = config_value!("GAS_TOKEN_ID");
     
     // Query initial balance of recipient (should be 0)
@@ -249,11 +276,10 @@ async fn test_submit_ledger_signed_transaction() {
 async fn test_submit_raw_signed_message_transaction() {
     let (test_rollup, admin) = create_test_rollup().await.expect("Failed to create rollup");
     
-    let recipient_address = "sov1pv9skzctpv9skzctpv9skzctpv9skzctpv9skzctpv9skqm7ehv";
-    let initial_amount = query_balance(&test_rollup.client, recipient_address.to_string()).await;
+    let initial_amount = query_balance(&test_rollup.client, RECIPIENT_ADDRESS).await;
     assert_eq!(initial_amount, None, "Expected recipient to have no initial balance");
 
-    let tx_str = create_transfer_tx_json(Amount(10_000), "sov1pv9skzctpv9skzctpv9skzctpv9skzctpv9skzctpv9skqm7ehv");
+    let tx_str = create_transfer_tx_json(Amount(10_000), RECIPIENT_ADDRESS);
     let encoded_tx = tx_str.as_bytes().to_vec();
     let signer = admin.private_key();
     let pubkey = signer.pub_key();
@@ -270,7 +296,7 @@ async fn test_submit_raw_signed_message_transaction() {
     
     assert!(response.status().is_success(), "Expected transaction to succeed");
     
-    let final_balance = query_balance(&test_rollup.client, recipient_address.to_string()).await;
+    let final_balance = query_balance(&test_rollup.client, RECIPIENT_ADDRESS).await;
     assert_eq!(
         final_balance,
         Some(Amount::new(10_000)), 
@@ -282,7 +308,7 @@ async fn test_submit_raw_signed_message_transaction() {
 async fn test_submit_invalid_raw_signed_message_transaction() {
     let (test_rollup, admin) = create_test_rollup().await.expect("Failed to create rollup");
 
-    let tx_str = create_transfer_tx_json(Amount(10_000), "sov1pv9skzctpv9skzctpv9skzctpv9skzctpv9skzctpv9skqm7ehv");
+    let tx_str = create_transfer_tx_json(Amount(10_000), RECIPIENT_ADDRESS);
     let encoded_tx = tx_str.as_bytes().to_vec();
     let signer = admin.private_key();
     let pubkey = signer.pub_key();
@@ -315,7 +341,7 @@ fn test_auth_wrapper() {
     let raw_tx = RawTx::new(vec![1, 2, 3]);
 
     // Test standard auth
-    let standard_auth = <RT as Runtime<TestSpec>>::Auth::add_standard_auth(raw_tx.clone());
+    let standard_auth = <RT as Runtime<SolanaTestSpec>>::Auth::add_standard_auth(raw_tx.clone());
     assert!(matches!(
         standard_auth,
         SolanaOffchainAuthenticatorInput::Standard(_)
