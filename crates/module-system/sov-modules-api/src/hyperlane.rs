@@ -10,7 +10,7 @@ use crate::{Address, Base58Address};
 pub trait HyperlaneAddress: Sized {
     /// Convert the address to a Hyperlane sender address.
     fn to_sender(&self) -> HexHash;
-    /// Convert a Hyperlane sender address back to the original..
+    /// Convert a Hyperlane sender address back to the original.
     fn from_sender(recipient: HexHash) -> anyhow::Result<Self>;
 }
 
