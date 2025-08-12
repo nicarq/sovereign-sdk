@@ -8,7 +8,8 @@ use std::marker::PhantomData;
 
 pub use metered_utils::{
     metered_credential, MeteredBorshDeserialize, MeteredBorshDeserializeError, MeteredHasher,
-    MeteredSigVerificationError, MeteredSignature,
+    MeteredJsonDeserialize, MeteredJsonDeserializeError, MeteredSigVerificationError,
+    MeteredSignature,
 };
 pub use traits::*;
 

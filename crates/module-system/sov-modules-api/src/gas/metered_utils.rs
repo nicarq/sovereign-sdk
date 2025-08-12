@@ -247,6 +247,67 @@ pub trait MeteredBorshDeserialize<S: Spec>: Sized {
     ) -> Result<Self, MeteredBorshDeserializeError<<S as GasSpec>::Gas>>;
 }
 
+/// Representation of a metered JSON deserialization error.
+#[derive(Debug, Error)]
+pub enum MeteredJsonDeserializeError<GU: Gas> {
+    /// A gas error was raised when trying to deserialize the data.
+    #[error("A gas error was raised when trying to deserialize the data, {0}")]
+    GasError(GasMeteringError<GU>),
+    /// An io error occurred while deserializing the data.
+    #[error("IO error: {0}")]
+    SerdeError(serde_json::Error),
+}
+
+/// Charges gas for deserialization.
+pub trait MeteredJsonDeserialize<S: Spec>: Sized {
+    /// The gas cost bias to deserialize this data structure.
+    fn bias_json_deserialization() -> <S as Spec>::Gas;
+
+    /// The linear gas cost to deserialize this data structure.
+    fn gas_to_charge_per_byte_json_deserialization() -> <S as Spec>::Gas;
+
+    /// Computes the cost to deserialize the given buffer, in `Gas`, and charges it to the provided
+    /// `GasMeter`.
+    ///
+    /// # Errors
+    /// Returns an error if charging the gas for the deserialization operation fails.
+    fn charge_gas_to_deserialize(
+        buf: &[u8],
+        meter: &mut impl GasMeter<Spec = S>,
+    ) -> Result<(), MeteredJsonDeserializeError<<S as GasSpec>::Gas>> {
+        // This is safe to cast here. We won't have data bigger thane 4GB.
+        let buf_len: u32 = as_u32_or_panic(buf.len());
+
+        // Custom gas costs to deserialize this data structure.
+        meter
+            .charge_gas(&Self::bias_json_deserialization())
+            .map_err(MeteredJsonDeserializeError::GasError)?;
+
+        meter
+            .charge_linear_gas(
+                &Self::gas_to_charge_per_byte_json_deserialization(),
+                buf_len,
+            )
+            .map_err(MeteredJsonDeserializeError::GasError)
+
+        // Since JSON is not used often, no common cost to JSON deserialization is defined to
+        // simplify the set of constants.
+    }
+
+    /// Deserializes a type from a byte slice with the provided gas meter. Charge the [`GasSpec::gas_to_charge_per_byte_borsh_deserialization`]
+    /// amount of gas for each byte of the struct to deserialize.
+    fn deserialize(
+        buf: &mut &[u8],
+        meter: &mut impl GasMeter<Spec = S>,
+    ) -> Result<Self, MeteredJsonDeserializeError<<S as GasSpec>::Gas>>;
+
+    #[cfg(feature = "native")]
+    /// Deserialized a type without charging gas.
+    fn unmetered_deserialize(
+        buf: &mut &[u8],
+    ) -> Result<Self, MeteredJsonDeserializeError<<S as GasSpec>::Gas>>;
+}
+
 /// Calculates `CredentialId`
 pub fn metered_credential<S: Spec>(
     pub_key: &<S::CryptoSpec as CryptoSpec>::PublicKey,
