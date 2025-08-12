@@ -2,13 +2,16 @@ use borsh::{BorshDeserialize, BorshSerialize};
 use serde::de::DeserializeOwned;
 use serde::{Deserialize, Serialize};
 use sov_modules_api::capabilities::{
-    calculate_hash_metered, extract_authorization_data, verify_chain_id, AuthenticationError, AuthenticationOutput, FatalError, UniquenessData
+    calculate_hash_metered, extract_authorization_data, verify_chain_id, AuthenticationError,
+    AuthenticationOutput, FatalError, UniquenessData,
 };
 use sov_modules_api::macros::UniversalWallet;
 use sov_modules_api::prelude::serde_json;
-use sov_modules_api::transaction::{self, AuthenticatedTransactionAndRawHash, TransactionCallable, TxDetails, UnsignedTransaction};
+use sov_modules_api::transaction::{
+    self, AuthenticatedTransactionAndRawHash, TransactionCallable, TxDetails, UnsignedTransaction,
+};
 use sov_modules_api::{
-    CryptoSpec, DispatchCall, GasMeter, MeteredSignature, ProvableStateReader, Spec, TxHash
+    CryptoSpec, DispatchCall, GasMeter, MeteredSignature, ProvableStateReader, Spec, TxHash,
 };
 
 /// The application domain for Solana offchain messages (placeholder for now)
@@ -20,9 +23,7 @@ pub const APPLICATION_DOMAIN: [u8; 32] = [0u8; 32];
 /// We duplicate the UnsignedTransaction type rather than wrapping it to ensure the JSON displayed
 /// to the user doesn't get too nested.
 #[serde_with::serde_as]
-#[derive(
-    Debug, Serialize, Deserialize, UniversalWallet,
-)]
+#[derive(Debug, Serialize, Deserialize, UniversalWallet)]
 #[serde(bound = "R::Call: serde::Serialize + serde::de::DeserializeOwned")]
 pub struct SolanaOffchainUnsignedTransaction<R: TransactionCallable, S: Spec> {
     /// The runtime call
@@ -42,7 +43,7 @@ impl<R: TransactionCallable, S: Spec> SolanaOffchainUnsignedTransaction<R, S> {
         UnsignedTransaction {
             runtime_call: self.runtime_call,
             uniqueness: self.uniqueness,
-            details: self.details
+            details: self.details,
         }
     }
 }
@@ -72,7 +73,10 @@ pub struct SolanaOffchainSimpleMessage<S: Spec> {
 pub const PREAMBLE_LEN: usize = std::mem::size_of::<RawSolanaOffchainMessagePreamble>();
 // Sanity check - this will only fail if the format or encoding is changed somehow. In that case,
 // adjust this check, once we're sure the versioning is handled correctly.
-const _: () = assert!(PREAMBLE_LEN == 85, "Preamble size is known to be exactly 85 bytes, unless the format changed");
+const _: () = assert!(
+    PREAMBLE_LEN == 85,
+    "Preamble size is known to be exactly 85 bytes, unless the format changed"
+);
 
 /// The preamble/header required for signing solana offchain messages, supporting a single signer.
 /// See https://docs.anza.xyz/proposals/off-chain-message-signing#message-preamble
@@ -156,14 +160,15 @@ fn verify_solana_signature<S: Spec>(
                 )
             }
             sov_modules_api::MeteredSigVerificationError::GasError(err) => {
-                AuthenticationError::OutOfGas(format!("Signature verification ran out of gas: {}", err))
+                AuthenticationError::OutOfGas(format!(
+                    "Signature verification ran out of gas: {}",
+                    err
+                ))
             }
         })
 }
 
-fn unpack_solana_message<S: Spec>(
-    raw_tx: &[u8],
-) -> Result<UnpackedSolanaMessage<S>, FatalError> {
+fn unpack_solana_message<S: Spec>(raw_tx: &[u8]) -> Result<UnpackedSolanaMessage<S>, FatalError> {
     // First 4 bytes are the length of the Vec<u8> as u32 (borsh encoding)
     if raw_tx.len() < 5 {
         return Err(FatalError::DeserializationFailed(
@@ -203,7 +208,7 @@ fn unpack_solana_message<S: Spec>(
             pub_key: signer,
             signature: envelope.signature,
             json_bytes,
-            signed_bytes: envelope.signed_message
+            signed_bytes: envelope.signed_message,
         })
     } else {
         // Raw message without preamble (should start with ASCII character, typically '{')
@@ -219,7 +224,6 @@ fn unpack_solana_message<S: Spec>(
     }
 }
 
-
 /// Decode bytes as a Sovereign SDK transaction, returning the message and tx info.
 pub fn decode_solana_json_tx<S, D>(raw_tx: &[u8]) -> Result<D::Decodable, FatalError>
 where
@@ -228,8 +232,9 @@ where
     <D as DispatchCall>::Decodable: Serialize + DeserializeOwned,
 {
     let unpacked_message = unpack_solana_message::<S>(raw_tx)?;
-    let solana_unsigned_tx: SolanaOffchainUnsignedTransaction<D, S> = serde_json::from_slice(&unpacked_message.json_bytes)
-        .map_err(|e| FatalError::DeserializationFailed(e.to_string()))?;
+    let solana_unsigned_tx: SolanaOffchainUnsignedTransaction<D, S> =
+        serde_json::from_slice(&unpacked_message.json_bytes)
+            .map_err(|e| FatalError::DeserializationFailed(e.to_string()))?;
     Ok(solana_unsigned_tx.to_unsigned_tx().call())
 }
 
@@ -271,11 +276,17 @@ where
     };
 
     if provided_chain_hash != *runtime_chain_hash {
-        return Err(AuthenticationError::FatalError(FatalError::InvalidChainHash { expected: hex::encode(runtime_chain_hash), got: hex::encode(provided_chain_hash) }, raw_tx_hash));
+        return Err(AuthenticationError::FatalError(
+            FatalError::InvalidChainHash {
+                expected: hex::encode(runtime_chain_hash),
+                got: hex::encode(provided_chain_hash),
+            },
+            raw_tx_hash,
+        ));
     }
 
     verify_chain_id(&reconstructed_tx_v0.details, raw_tx_hash)?;
-    
+
     verify_solana_signature::<S>(
         &reconstructed_tx_v0.pub_key,
         &reconstructed_tx_v0.signature,
@@ -283,15 +294,20 @@ where
         raw_tx_hash,
         state,
     )?;
-    
-    let authorization_data = extract_authorization_data::<S, D>(&reconstructed_tx_v0, raw_tx_hash, state)?;
+
+    let authorization_data =
+        extract_authorization_data::<S, D>(&reconstructed_tx_v0, raw_tx_hash, state)?;
 
     let tx_and_raw_hash = AuthenticatedTransactionAndRawHash {
         raw_tx_hash,
         authenticated_tx: reconstructed_tx_v0.details.clone().into(),
     };
 
-    Ok((tx_and_raw_hash, authorization_data, reconstructed_tx_v0.runtime_call))
+    Ok((
+        tx_and_raw_hash,
+        authorization_data,
+        reconstructed_tx_v0.runtime_call,
+    ))
 }
 
 #[cfg(test)]
@@ -333,7 +349,7 @@ pub mod test {
             pub_key: unpacked_pubkey,
             signature: unpacked_signature,
             json_bytes: unpacked_message,
-            signed_bytes
+            signed_bytes,
         } = result.unwrap();
         assert_eq!(unpacked_pubkey, pubkey);
         assert_eq!(unpacked_signature, signature);
@@ -364,7 +380,7 @@ pub mod test {
             pub_key: unpacked_pubkey,
             signature: unpacked_signature,
             json_bytes: unpacked_message,
-            signed_bytes
+            signed_bytes,
         } = result.unwrap();
         assert_eq!(unpacked_pubkey, pubkey);
         assert_eq!(unpacked_signature, signature);

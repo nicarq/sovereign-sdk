@@ -4,14 +4,10 @@ use borsh::{BorshDeserialize, BorshSerialize};
 use serde::de::DeserializeOwned;
 use serde::Serialize;
 use sov_modules_api::capabilities::{
-    AuthenticationError,
-    BatchFromUnregisteredSequencer, FatalError, TransactionAuthenticator,
+    AuthenticationError, BatchFromUnregisteredSequencer, FatalError, TransactionAuthenticator,
     UnregisteredAuthenticationError,
 };
-use sov_modules_api::{
-    DispatchCall, FullyBakedTx, ProvableStateReader, RawTx, Runtime, Spec,
-};
-
+use sov_modules_api::{DispatchCall, FullyBakedTx, ProvableStateReader, RawTx, Runtime, Spec};
 
 /// Indicates that a runtime supports the `SolanaOffchain` transaction authenticator
 /// and provides suitable methods for encoding and decoding solana offchain message transactions.
@@ -93,7 +89,11 @@ where
         match input {
             SolanaOffchainAuthenticatorInput::SolanaOffchain(tx) => {
                 let (tx_and_raw_hash, auth_data, runtime_call) =
-                    crate::authentication::authenticate::<Accessor, S, Rt>(&tx.data, &Rt::CHAIN_HASH, state)?;
+                    crate::authentication::authenticate::<Accessor, S, Rt>(
+                        &tx.data,
+                        &Rt::CHAIN_HASH,
+                        state,
+                    )?;
 
                 Ok((tx_and_raw_hash, auth_data, runtime_call))
             }
@@ -119,9 +119,7 @@ where
         match input {
             SolanaOffchainAuthenticatorInput::SolanaOffchain(tx)
             | SolanaOffchainAuthenticatorInput::Standard(tx) => {
-                Ok(sov_modules_api::capabilities::calculate_hash::<S>(
-                    &tx.data,
-                ))
+                Ok(sov_modules_api::capabilities::calculate_hash::<S>(&tx.data))
             }
         }
     }

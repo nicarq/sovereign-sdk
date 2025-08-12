@@ -19,8 +19,8 @@ use sov_rest_utils::{errors, ApiResult};
 use sov_rollup_interface::da::DaBlobHash;
 use sov_rollup_interface::node::da::DaService;
 use sov_rollup_interface::TxHash;
-use sov_sequencer::{ProofBlobSender, Sequencer, TxStatus};
 use sov_sequencer::rest_api::{AcceptTx, TxInfoWithConfirmation};
+use sov_sequencer::{ProofBlobSender, Sequencer, TxStatus};
 use sov_stf_runner::RollupConfig;
 use sov_test_utils::RtAgnosticBlueprint;
 
@@ -61,11 +61,13 @@ where
         + 'static,
     RtAgnosticBlueprint<S, R>: FullNodeBlueprint<Native>,
     // Add constraint that our Runtime is compatible with SolanaOffchainAuthenticatorTrait
-    <RtAgnosticBlueprint<S, R> as RollupBlueprint<Native>>::Runtime: SolanaOffchainAuthenticatorTrait<<RtAgnosticBlueprint<S, R> as RollupBlueprint<Native>>::Spec>,
+    <RtAgnosticBlueprint<S, R> as RollupBlueprint<Native>>::Runtime:
+        SolanaOffchainAuthenticatorTrait<
+            <RtAgnosticBlueprint<S, R> as RollupBlueprint<Native>>::Spec,
+        >,
 {
     type DaService = <RtAgnosticBlueprint<S, R> as FullNodeBlueprint<Native>>::DaService;
-    type StorageManager =
-        <RtAgnosticBlueprint<S, R> as FullNodeBlueprint<Native>>::StorageManager;
+    type StorageManager = <RtAgnosticBlueprint<S, R> as FullNodeBlueprint<Native>>::StorageManager;
     type ProverService = <RtAgnosticBlueprint<S, R> as FullNodeBlueprint<Native>>::ProverService;
     type ProofSender = <RtAgnosticBlueprint<S, R> as FullNodeBlueprint<Native>>::ProofSender;
 
@@ -189,7 +191,6 @@ where
         }
         IntoResponse::into_response(e)
     })?;
-
 
     Ok(TxInfoWithConfirmation {
         id: tx_with_hash.tx_hash.into(),

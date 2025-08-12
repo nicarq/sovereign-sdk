@@ -1,36 +1,45 @@
 #![allow(unused_imports)]
-use std::sync::Arc;
 use sov_mock_zkvm::crypto::private_key::Ed25519PrivateKey;
 use sov_node_client::NodeClient;
-use tokio_stream::StreamExt;
 use std::str::FromStr;
+use std::sync::Arc;
+use tokio_stream::StreamExt;
 
 use base64::prelude::BASE64_STANDARD;
 use base64::Engine;
-use sov_bank::{Amount, CallMessage as BankCallMessage, Coins, TokenId};
 use sov_bank::BalanceResponse;
+use sov_bank::{Amount, CallMessage as BankCallMessage, Coins, TokenId};
 use sov_mock_da::{BlockProducingConfig, MockAddress, MockDaService};
 use sov_mock_zkvm::crypto::Ed25519Signature;
 use sov_modules_api::capabilities::{TransactionAuthenticator, UniquenessData};
-use sov_modules_api::{prelude::*, PrivateKey, SafeVec, Base58Address};
-use sov_modules_api::transaction::{Transaction, UnsignedTransaction};
-use sov_modules_api::{FullyBakedTx, RawTx, Runtime, Spec};
 use sov_modules_api::configurable_spec::ConfigurableSpec;
+use sov_modules_api::transaction::{Transaction, UnsignedTransaction};
+use sov_modules_api::{prelude::*, Base58Address, PrivateKey, SafeVec};
+use sov_modules_api::{FullyBakedTx, RawTx, Runtime, Spec};
 use sov_modules_stf_blueprint::GenesisParams;
-use sov_paymaster::{AuthorizedSequencers, PayeePolicy, PayerGenesisConfig, PaymasterConfig, PaymasterPolicyInitializer};
+use sov_paymaster::{
+    AuthorizedSequencers, PayeePolicy, PayerGenesisConfig, PaymasterConfig,
+    PaymasterPolicyInitializer,
+};
 use sov_rollup_interface::execution_mode::Native;
 use sov_sequencer::rest_api::AcceptTx;
-use sov_solana_offchain_auth::utils::make_preamble_for_message;
-use sov_solana_offchain_auth::capabilities::{
-    SolanaOffchainAuthenticator, SolanaOffchainAuthenticatorInput, SolanaOffchainAuthenticatorTrait, 
+use sov_solana_offchain_auth::authentication::{
+    SolanaOffchainSimpleMessage, SolanaOffchainSpecCompliantMessage,
+    SolanaOffchainUnsignedTransaction,
 };
-use sov_solana_offchain_auth::authentication::{SolanaOffchainSimpleMessage, SolanaOffchainSpecCompliantMessage, SolanaOffchainUnsignedTransaction};
+use sov_solana_offchain_auth::capabilities::{
+    SolanaOffchainAuthenticator, SolanaOffchainAuthenticatorInput, SolanaOffchainAuthenticatorTrait,
+};
+use sov_solana_offchain_auth::utils::make_preamble_for_message;
+use sov_state::{DefaultStorageSpec, ProverStorage};
 use sov_test_utils::runtime::genesis::optimistic::HighLevelOptimisticGenesisConfig;
 use sov_test_utils::runtime::{BankConfig, Runtime as _};
 use sov_test_utils::test_rollup::{GenesisSource, RollupBuilder, TestRollup};
-use sov_test_utils::{generate_runtime, RtAgnosticBlueprint, TestUser, TEST_DEFAULT_GAS_LIMIT, TEST_DEFAULT_MAX_FEE, TEST_DEFAULT_MAX_PRIORITY_FEE};
+use sov_test_utils::{
+    generate_runtime, RtAgnosticBlueprint, TestUser, TEST_DEFAULT_GAS_LIMIT, TEST_DEFAULT_MAX_FEE,
+    TEST_DEFAULT_MAX_PRIORITY_FEE,
+};
 use sov_test_utils::{MockDaSpec, MockZkvm, MockZkvmCryptoSpec, TestHasher, TestStorageSpec};
-use sov_state::{DefaultStorageSpec, ProverStorage};
 use sov_value_setter::ValueSetterConfig;
 use tempfile::tempdir;
 
@@ -42,7 +51,7 @@ pub type SolanaTestSpec = ConfigurableSpec<
     MockDaSpec,
     MockZkvm,
     MockZkvm,
-    Base58Address,  // Use Base58Address instead of the default Address
+    Base58Address, // Use Base58Address instead of the default Address
     Native,
     MockZkvmCryptoSpec,
     ProverStorage<DefaultStorageSpec<TestHasher>>,
@@ -78,11 +87,11 @@ type S = SolanaTestSpec;
 
 async fn create_test_rollup() -> anyhow::Result<(
     TestRollup<SolanaOffchainAuthBlueprint<SolanaTestSpec, RT>>,
-    TestUser<SolanaTestSpec>
+    TestUser<SolanaTestSpec>,
 )> {
     // Create genesis config
-    let genesis_config =
-        HighLevelOptimisticGenesisConfig::<SolanaTestSpec>::generate().add_accounts_with_default_balance(1);
+    let genesis_config = HighLevelOptimisticGenesisConfig::<SolanaTestSpec>::generate()
+        .add_accounts_with_default_balance(1);
     let sequencer = genesis_config.initial_sequencer.clone();
     let admin = genesis_config.additional_accounts()[0].clone();
 
@@ -154,11 +163,7 @@ async fn create_test_rollup() -> anyhow::Result<(
 
     // Set up the rollup the usual way.
     let mut slot_subscription = rollup.api_client().subscribe_slots().await.unwrap();
-    rollup
-        .da_service
-        .produce_n_blocks_now(5)
-        .await
-        .unwrap();
+    rollup.da_service.produce_n_blocks_now(5).await.unwrap();
     for _ in 0..5 {
         let _ = slot_subscription.next().await.unwrap().unwrap();
     }
@@ -168,10 +173,7 @@ async fn create_test_rollup() -> anyhow::Result<(
 
 fn create_transfer_tx_json(amount: Amount, recipient: &str) -> String {
     let msg: TestRuntimeCall<S> = TestRuntimeCall::Bank(BankCallMessage::Transfer {
-        to: <S as Spec>::Address::from_str(
-            recipient,
-        )
-        .unwrap(),
+        to: <S as Spec>::Address::from_str(recipient).unwrap(),
         coins: Coins {
             amount,
             // Use the gas token ID from the config (which is the pre-configured token)
@@ -190,19 +192,26 @@ fn create_transfer_tx_json(amount: Amount, recipient: &str) -> String {
         runtime_call: unsigned_tx.runtime_call,
         uniqueness: unsigned_tx.uniqueness,
         details: unsigned_tx.details,
-        chain_hash: RT::CHAIN_HASH
+        chain_hash: RT::CHAIN_HASH,
     };
 
     serde_json::to_string(&solana_unsigned_tx).unwrap()
 }
 
-async fn submit_tx(client: &sov_api_spec::client::Client, raw_tx_bytes: Vec<u8>) -> reqwest::Response {
+async fn submit_tx(
+    client: &sov_api_spec::client::Client,
+    raw_tx_bytes: Vec<u8>,
+) -> reqwest::Response {
     let request = AcceptTx {
         body: sov_sequencer::rest_api::Base64Blob { blob: raw_tx_bytes },
     };
-    
-    let response = client.client()
-        .post(format!("{}/sequencer/accept_solana_offchain_tx", client.baseurl()))
+
+    let response = client
+        .client()
+        .post(format!(
+            "{}/sequencer/accept_solana_offchain_tx",
+            client.baseurl()
+        ))
         .json(&request)
         .send()
         .await
@@ -213,13 +222,12 @@ async fn submit_tx(client: &sov_api_spec::client::Client, raw_tx_bytes: Vec<u8>)
 
 async fn query_balance(client: &NodeClient, address: &str) -> Option<Amount> {
     let gas_token_id: TokenId = config_value!("GAS_TOKEN_ID");
-    
+
     // Query initial balance of recipient (should be 0)
     let response = client
         .query_rest_endpoint::<BalanceResponse>(&format!(
-            "/modules/bank/tokens/{}/balances/{}", 
-            gas_token_id, 
-            address
+            "/modules/bank/tokens/{}/balances/{}",
+            gas_token_id, address
         ))
         .await
         .expect("Failed to query balance");
@@ -256,12 +264,15 @@ async fn test_submit_ledger_signed_transaction() {
         let message = SolanaOffchainSimpleMessage::<S> {
             signed_message: encoded_tx,
             pubkey,
-            signature
+            signature,
         };
         let raw_tx_bytes = borsh::to_vec(&message).unwrap();
 
         let response = submit_tx(test_rollup.api_client(), raw_tx_bytes).await;
-        assert!(response.status().is_success(), "Expected funding transaction to succeed");
+        assert!(
+            response.status().is_success(),
+            "Expected funding transaction to succeed"
+        );
     }
 
     // Now we can have the Ledger account transfer part of its balance
@@ -269,35 +280,52 @@ async fn test_submit_ledger_signed_transaction() {
     // Sanity check - if this changes, the test will need to be re-signed with a Ledger device.
     // (If a different Ledger device or account is used, the public key above would also need to be
     // updated.)
-    assert_eq!(transfer_json_tx, r#"{"runtime_call":{"bank":{"transfer":{"to":"4zdwHNaEa5npHtRtaZ3RL1m6rptuQZ6RBLHG6cAyVHjL","coins":{"amount":"5000","token_id":"token_1nyl0e0yweragfsatygt24zmd8jrr2vqtvdfptzjhxkguz2xxx3vs0y07u7"}}}},"uniqueness":{"generation":0},"details":{"max_priority_fee_bips":0,"max_fee":"100000000000","gas_limit":[1000000000,1000000000],"chain_id":4321},"chain_hash":"0b0b0b0b0b0b0b0b0b0b0b0b0b0b0b0b0b0b0b0b0b0b0b0b0b0b0b0b0b0b0b0b"}"#);
+    assert_eq!(
+        transfer_json_tx,
+        r#"{"runtime_call":{"bank":{"transfer":{"to":"4zdwHNaEa5npHtRtaZ3RL1m6rptuQZ6RBLHG6cAyVHjL","coins":{"amount":"5000","token_id":"token_1nyl0e0yweragfsatygt24zmd8jrr2vqtvdfptzjhxkguz2xxx3vs0y07u7"}}}},"uniqueness":{"generation":0},"details":{"max_priority_fee_bips":0,"max_fee":"100000000000","gas_limit":[1000000000,1000000000],"chain_id":4321},"chain_hash":"0b0b0b0b0b0b0b0b0b0b0b0b0b0b0b0b0b0b0b0b0b0b0b0b0b0b0b0b0b0b0b0b"}"#
+    );
     let encoded_tx = transfer_json_tx.as_bytes().to_vec();
-    let pubkey: [u8; 32] = bs58::decode(LEDGER_ADDRESS).into_vec().unwrap().try_into().unwrap();
-    let signature: Ed25519Signature = bs58::decode("5K7i3PTJM1DDACVEuke2jXrkSutGEKb5ByyiNwBXQXiERZi8hFxnFARdnH21qr4yGgdmZygY9SyJQc6SPbJbZCrX").into_vec().unwrap().as_slice().try_into().unwrap();
+    let pubkey: [u8; 32] = bs58::decode(LEDGER_ADDRESS)
+        .into_vec()
+        .unwrap()
+        .try_into()
+        .unwrap();
+    let signature: Ed25519Signature = bs58::decode(
+        "5K7i3PTJM1DDACVEuke2jXrkSutGEKb5ByyiNwBXQXiERZi8hFxnFARdnH21qr4yGgdmZygY9SyJQc6SPbJbZCrX",
+    )
+    .into_vec()
+    .unwrap()
+    .as_slice()
+    .try_into()
+    .unwrap();
 
     let mut signed_message = make_preamble_for_message(&pubkey, encoded_tx.len() as u16).to_vec();
     signed_message.extend_from_slice(&encoded_tx);
 
     let message = SolanaOffchainSpecCompliantMessage::<S> {
         signed_message,
-        signature
+        signature,
     };
 
     let raw_tx_bytes = borsh::to_vec(&message).unwrap();
 
     let response = submit_tx(test_rollup.api_client(), raw_tx_bytes).await;
-    assert!(response.status().is_success(), "Expected Ledger transaction to succeed");
+    assert!(
+        response.status().is_success(),
+        "Expected Ledger transaction to succeed"
+    );
 
     let ledger_balance = query_balance(&test_rollup.client, LEDGER_ADDRESS).await;
     assert_eq!(
         ledger_balance,
-        Some(Amount::new(8_000)), 
+        Some(Amount::new(8_000)),
         "Expected ledger account to have received 8,000 tokens remaining"
     );
 
     let recipient_balance = query_balance(&test_rollup.client, RECIPIENT_ADDRESS).await;
     assert_eq!(
         recipient_balance,
-        Some(Amount::new(5_000)), 
+        Some(Amount::new(5_000)),
         "Expected recipient to have received 5,000 tokens"
     );
 }
@@ -305,9 +333,12 @@ async fn test_submit_ledger_signed_transaction() {
 #[tokio::test(flavor = "multi_thread")]
 async fn test_submit_raw_signed_message_transaction() {
     let (test_rollup, admin) = create_test_rollup().await.expect("Failed to create rollup");
-    
+
     let initial_amount = query_balance(&test_rollup.client, RECIPIENT_ADDRESS).await;
-    assert_eq!(initial_amount, None, "Expected recipient to have no initial balance");
+    assert_eq!(
+        initial_amount, None,
+        "Expected recipient to have no initial balance"
+    );
 
     let tx_str = create_transfer_tx_json(Amount(10_000), RECIPIENT_ADDRESS);
     let encoded_tx = tx_str.as_bytes().to_vec();
@@ -318,18 +349,21 @@ async fn test_submit_raw_signed_message_transaction() {
     let message = SolanaOffchainSimpleMessage::<S> {
         signed_message: encoded_tx,
         pubkey,
-        signature
+        signature,
     };
     let raw_tx_bytes = borsh::to_vec(&message).unwrap();
 
     let response = submit_tx(test_rollup.api_client(), raw_tx_bytes).await;
-    
-    assert!(response.status().is_success(), "Expected transaction to succeed");
-    
+
+    assert!(
+        response.status().is_success(),
+        "Expected transaction to succeed"
+    );
+
     let final_balance = query_balance(&test_rollup.client, RECIPIENT_ADDRESS).await;
     assert_eq!(
         final_balance,
-        Some(Amount::new(10_000)), 
+        Some(Amount::new(10_000)),
         "Expected recipient to have received 10,000 tokens"
     );
 }
@@ -346,23 +380,30 @@ async fn test_submit_invalid_raw_signed_message_transaction() {
     // mutate a random byte to make the signature invalid
     signature_bytes[5] = signature_bytes[5].wrapping_add(1);
     let signature: Ed25519Signature = signature_bytes.as_slice().try_into().unwrap();
-    
+
     let message = SolanaOffchainSimpleMessage::<S> {
         signed_message: encoded_tx,
         pubkey,
-        signature
+        signature,
     };
     let raw_tx_bytes = borsh::to_vec(&message).unwrap();
 
     let client = test_rollup.api_client();
     let response = submit_tx(client, raw_tx_bytes).await;
-    
-    assert_eq!(response.status(), 400, "Expected 400 status for invalid signature");
+
+    assert_eq!(
+        response.status(),
+        400,
+        "Expected 400 status for invalid signature"
+    );
     let response_text = response.text().await.expect("Failed to read response body");
-    
-    assert!(response_text.contains("Signature verification failed") || 
-            response_text.contains("Verification equation was not satisfied"),
-            "Expected signature verification error, got: {}", response_text);
+
+    assert!(
+        response_text.contains("Signature verification failed")
+            || response_text.contains("Verification equation was not satisfied"),
+        "Expected signature verification error, got: {}",
+        response_text
+    );
 }
 
 // Sanity check of the wrapper implementation

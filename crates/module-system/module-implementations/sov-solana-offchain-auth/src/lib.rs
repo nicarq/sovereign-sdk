@@ -1,8 +1,8 @@
 use sov_modules_api::{DaSpec, GenesisState, Module, ModuleId, ModuleInfo, NotInstantiable, Spec};
 
+pub mod authentication;
 pub mod capabilities;
 pub mod utils;
-pub mod authentication;
 
 #[derive(Clone, ModuleInfo)]
 pub struct SolanaOffchainAuth<S: Spec> {
