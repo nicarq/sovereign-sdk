@@ -1,3 +1,4 @@
+use itertools::Itertools;
 use std::any::TypeId;
 use std::collections::HashMap;
 use std::fmt::Debug;
@@ -297,7 +298,7 @@ impl Schema {
             .ok_or(SchemaError::InvalidIndex(root_type_index))?;
         let items = root_type.as_definitions(self)?;
 
-        Ok(sol::ast::Block(items))
+        Ok(sol::ast::Block(items.into_iter().unique().collect()))
     }
 
     /// Use the schema to convert a serde-compatible JSON string of the given type into its borsh

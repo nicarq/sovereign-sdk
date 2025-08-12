@@ -1,3 +1,5 @@
+use std::iter;
+
 use crate::{
     schema::{IndexLinking, Schema},
     ty::{
@@ -35,13 +37,14 @@ impl Ty<IndexLinking> {
             Ty::ByteArray { .. } => panic!("Solidity only supports byte arrays of len up to 32"),
             Ty::Tuple(t) => {
                 if t.fields.len() == 1 {
-                    // TODO: Proper tuple support. For now just supporting the case where (T) is treated as T. One element tuples are used in Gas types
-                    let field_type = schema.resolve_or_err(&t.fields[0].value)?;
-                    field_type.as_inline_type(schema)?
+                    schema
+                        .resolve_or_err(&t.fields[0].value)?
+                        .as_inline_type(schema)?
                 } else {
-                    todo!()
+                    unimplemented!("We don't support multi-element tuples. Please use structs")
                 }
             }
+            Ty::Enum(_) => unimplemented!("Enums are only supported on the top level"),
             _ => {
                 todo!()
             }
@@ -49,67 +52,75 @@ impl Ty<IndexLinking> {
         Ok(ty)
     }
 
-    pub fn as_definitions(&self, schema: &Schema) -> Result<Vec<ast::Struct>, Error> {
-        let mut definitions = vec![];
+    pub fn as_definitions(&self, schema: &Schema) -> Result<Definitions, Error> {
         match self {
             Ty::Struct(s) => {
+                let mut auxilary = vec![];
                 let mut fields = vec![];
                 for field in &s.fields {
                     let field_ty = schema.resolve_or_err(&field.value)?;
 
                     let nested_definitions = field_ty.as_definitions(schema)?;
-                    definitions.extend(nested_definitions);
+                    auxilary.extend(nested_definitions);
 
                     let field =
                         ast::Field::new(&field.display_name, field_ty.as_inline_type(schema)?);
                     fields.push(field);
                 }
-                let definition = if s.type_name.starts_with("__SovVirtualWallet") {
-                    ast::Struct::synthetic("", fields) // It's caller's responsibility to add context to a name
-                } else {
-                    ast::Struct::native(&s.type_name, fields)
-                };
-                definitions.push(definition);
+                let definition = ast::Struct::new(&s.type_name, fields);
+                Ok(Definitions::new([definition], auxilary))
             }
             Ty::Enum(e) => {
+                let mut auxilary = vec![];
+                let mut top_level = vec![];
                 for variant in &e.variants {
                     if let Some(ref value) = variant.value {
                         let variant_ty = schema.resolve_or_err(value)?;
-                        let nested_definitions = variant_ty.as_definitions(schema)?;
-                        let renamed_definitions = prepend_context(
-                            prepend_context(nested_definitions, &variant.name),
-                            &e.type_name,
-                        );
-                        definitions.extend(renamed_definitions);
+                        let mut definitions = variant_ty.as_definitions(schema)?;
+                        if definitions.top_level.len() == 0 {
+                            let fields =
+                                vec![ast::Field::new("_0", variant_ty.as_inline_type(schema)?)];
+                            let definition = ast::Struct::new(
+                                format!("{}_{}", e.type_name, variant.name),
+                                fields,
+                            );
+                            top_level.push(definition);
+                        } else if definitions.top_level.len() == 1 {
+                            definitions.top_level.iter_mut().for_each(|def| {
+                                def.name = format!("{}_{}", e.type_name, variant.name)
+                            });
+                        } else {
+                            definitions.top_level.iter_mut().for_each(|def| {
+                                def.prepend_context(&format!("{}_{}", e.type_name, variant.name))
+                            });
+                        }
+
+                        top_level.extend(definitions.top_level);
+                        auxilary.extend(definitions.auxilary);
                     } else {
                         // Solidity does not support empty struct so we convert enum variants with no associated data into `{ bool _phantom }`
-                        let field = ast::Field::new("_phantom", ast::Ty::Bool);
-                        let definition = ast::Struct::synthetic(&variant.name, [field]);
-                        definitions.push(definition.prepend_context(&e.type_name));
-                    }
+                        let fields = vec![ast::Field::new("_phantom", ast::Ty::Bool)];
+                        let definition =
+                            ast::Struct::new(format!("{}_{}", e.type_name, variant.name), fields);
+                        top_level.push(definition);
+                    };
                 }
+                Ok(Definitions::new(top_level, auxilary))
             }
             Ty::Tuple(t) => {
-                let mut fields = vec![];
-                for (idx, field) in t.fields.iter().enumerate() {
-                    let field_ty = schema.resolve_or_err(&field.value)?;
-
-                    let nested_definitions = field_ty.as_definitions(schema)?;
-                    definitions.extend(nested_definitions);
-
-                    let field =
-                        ast::Field::new(format!("_{idx}"), field_ty.as_inline_type(schema)?);
-                    fields.push(field);
+                if t.fields.len() == 1 {
+                    schema
+                        .resolve_or_err(&t.fields[0].value)?
+                        .as_definitions(schema)
+                } else {
+                    unimplemented!("We don't support multi-element tuples. Please use structs")
                 }
-                let definition = ast::Struct::synthetic("", fields);
-                definitions.push(definition);
             }
             Ty::Array { value, .. } | Ty::Vec { value } => {
                 let item_ty = schema.resolve_or_err(value)?;
-                let nested_definitions = item_ty.as_definitions(schema)?;
-                definitions.extend(nested_definitions);
+                item_ty.as_definitions(schema)
             }
-            Ty::Option { .. } => (), // TODO: Fow now Option<T> is treated as T so no new definitions needed
+            Ty::Option { .. } => Ok(Definitions::default()), // TODO: Fow now Option<T> is treated as T so no new definitions needed
             Ty::Integer(_, _)
             | Ty::ByteArray { .. }
             | Ty::ByteVec { .. }
@@ -117,18 +128,37 @@ impl Ty<IndexLinking> {
             | Ty::Float32
             | Ty::Float64
             | Ty::Boolean
-            | Ty::Skip { .. } => (), // Primitives don't need to be defined
+            | Ty::Skip { .. } => Ok(Definitions::default()), // Primitives don't need to be defined
             Ty::Map { .. } => todo!(),
-        };
-        Ok(definitions)
+        }
     }
 }
 
-fn prepend_context(definitions: Vec<ast::Struct>, context: &str) -> Vec<ast::Struct> {
-    definitions
-        .into_iter()
-        .map(|d| d.prepend_context(context))
-        .collect()
+#[derive(Clone, Debug, Default, Eq, PartialEq)]
+pub struct Definitions {
+    top_level: Vec<ast::Struct>,
+    auxilary: Vec<ast::Struct>,
+}
+
+impl Definitions {
+    fn new(
+        top_level: impl IntoIterator<Item = ast::Struct>,
+        auxilary: impl IntoIterator<Item = ast::Struct>,
+    ) -> Self {
+        Self {
+            top_level: top_level.into_iter().collect(),
+            auxilary: auxilary.into_iter().collect(),
+        }
+    }
+}
+
+impl IntoIterator for Definitions {
+    type Item = ast::Struct;
+    type IntoIter = iter::Chain<std::vec::IntoIter<ast::Struct>, std::vec::IntoIter<ast::Struct>>;
+
+    fn into_iter(self) -> Self::IntoIter {
+        self.top_level.into_iter().chain(self.auxilary.into_iter())
+    }
 }
 
 #[cfg(test)]
@@ -153,7 +183,7 @@ mod tests {
     fn test_struct() -> anyhow::Result<()> {
         let schema = Schema::of_single_type::<TestStruct>()?;
         let definitions = schema.into_alloy()?;
-        let expected = Block(vec![Struct::native(
+        let expected = Block(vec![Struct::new(
             "TestStruct",
             [Field::new("field", Uint256)],
         )]);
@@ -174,9 +204,9 @@ mod tests {
         let definitions = schema.into_alloy()?;
 
         let expected = Block(vec![
-            Struct::synthetic("Enum_Empty", [Field::new("_phantom", Bool)]),
-            Struct::synthetic("Enum_Tuple", [Field::new("_0", Uint256)]),
-            Struct::synthetic("Enum_Struct", [Field::new("field", Uint256)]),
+            Struct::new("Enum_Empty", [Field::new("_phantom", Bool)]),
+            Struct::new("Enum_Tuple", [Field::new("_0", Uint256)]),
+            Struct::new("Enum_Struct", [Field::new("field", Uint256)]),
         ]);
         assert_eq!(definitions, expected);
         Ok(())
@@ -192,13 +222,10 @@ mod tests {
         let schema = Schema::of_single_type::<EnumWithExternalStruct>()?;
         let definitions = schema.into_alloy()?;
 
-        let expected = Block(vec![
-            Struct::native("TestStruct", [Field::new("field", Uint256)]),
-            Struct::synthetic(
-                "EnumWithExternalStruct_Struct",
-                [Field::new("_0", Ident("TestStruct".into()))],
-            ),
-        ]);
+        let expected = Block(vec![Struct::new(
+            "EnumWithExternalStruct_Struct",
+            [Field::new("field", Uint256)],
+        )]);
         assert_eq!(definitions, expected);
         Ok(())
     }
@@ -212,12 +239,36 @@ mod tests {
     #[test]
     fn test_nested_tuples() -> anyhow::Result<()> {
         let schema = Schema::of_single_type::<NestedTuples>()?;
-        dbg!(&schema);
         let definitions = schema.into_alloy()?;
 
         let expected = Block(vec![]);
-        dbg!(&expected);
-        dbg!(&definitions);
+        assert_eq!(definitions, expected);
+        Ok(())
+    }
+
+    #[derive(UniversalWallet, borsh::BorshSerialize, borsh::BorshDeserialize)]
+    enum Inner {
+        Yes,
+        No,
+    }
+
+    #[derive(UniversalWallet, borsh::BorshSerialize, borsh::BorshDeserialize)]
+    enum Call {
+        Bank(Inner),
+        ValueSetter(Inner),
+    }
+
+    #[test]
+    fn test_enum_within_enum() -> anyhow::Result<()> {
+        let schema = Schema::of_single_type::<Call>()?;
+        let definitions = schema.into_alloy()?;
+
+        let expected = Block(vec![
+            Struct::new("Call_Bank_Inner_Yes", [Field::new("_phantom", Bool)]),
+            Struct::new("Call_Bank_Inner_No", [Field::new("_phantom", Bool)]),
+            Struct::new("Call_ValueSetter_Inner_Yes", [Field::new("_phantom", Bool)]),
+            Struct::new("Call_ValueSetter_Inner_No", [Field::new("_phantom", Bool)]),
+        ]);
         assert_eq!(definitions, expected);
         Ok(())
     }

@@ -1,3 +1,4 @@
+use super::Definitions;
 use std::fmt::{Display, Formatter, Result};
 
 static INDENT: &str = "    ";
@@ -9,7 +10,7 @@ fn indent(levels: u32, f: &mut Formatter<'_>) -> Result {
     Ok(())
 }
 
-#[derive(Debug, PartialEq, Eq)]
+#[derive(Debug, Clone, Hash, PartialEq, Eq)]
 pub enum Ty {
     Bool,
     Uint256,
@@ -36,7 +37,7 @@ impl Display for Ty {
     }
 }
 
-#[derive(Debug, PartialEq, Eq)]
+#[derive(Debug, Clone, Hash, PartialEq, Eq)]
 pub struct Field {
     pub name: String,
     pub ty: Ty,
@@ -57,40 +58,26 @@ impl Display for Field {
     }
 }
 
-#[derive(Debug, PartialEq, Eq)]
+#[derive(Debug, Clone, Hash, PartialEq, Eq)]
 pub struct Struct {
     pub name: String,
-    pub synthetic: bool,
     pub fields: Vec<Field>,
 }
 
 impl Struct {
-    pub fn native(name: impl Into<String>, fields: impl IntoIterator<Item = Field>) -> Self {
+    pub fn new(name: impl Into<String>, fields: impl IntoIterator<Item = Field>) -> Self {
         Self {
             name: name.into(),
-            synthetic: false,
             fields: fields.into_iter().collect(),
         }
     }
 
-    pub fn synthetic(name: impl Into<String>, fields: impl IntoIterator<Item = Field>) -> Self {
-        Self {
-            name: name.into(),
-            synthetic: true,
-            fields: fields.into_iter().collect(),
-        }
-    }
-
-    pub fn prepend_context(mut self, context: &str) -> Self {
-        if !self.synthetic {
-            return self;
-        }
+    pub fn prepend_context(&mut self, context: &str) {
         if self.name.is_empty() {
             self.name = context.to_string();
         } else {
             self.name = format!("{context}_{}", self.name);
         }
-        self
     }
 
     fn to_string(&self, levels: u32, f: &mut Formatter<'_>) -> Result {
@@ -112,7 +99,7 @@ impl Display for Struct {
     }
 }
 
-#[derive(Debug, PartialEq, Eq)]
+#[derive(Debug, Clone, Hash, PartialEq, Eq)]
 pub struct Block(pub Vec<Struct>);
 
 impl Display for Block {
@@ -125,5 +112,11 @@ impl Display for Block {
         }
         writeln!(f, "}}")?;
         Ok(())
+    }
+}
+
+impl From<Definitions> for Block {
+    fn from(definitions: Definitions) -> Block {
+        Self(definitions.into_iter().collect())
     }
 }
