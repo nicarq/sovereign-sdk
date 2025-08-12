@@ -5,5 +5,6 @@ mod prover;
 mod rest_api;
 mod restart;
 mod resync;
+mod sol;
 mod test_helpers;
 mod wallet;
