@@ -49,9 +49,11 @@ sov-stf-runner = { workspace = true }
 sov-modules-rollup-blueprint = { workspace = true }
 sov-sequencer = { workspace = true }
 sov-rest-utils = { workspace = true }
+sov-node-client = { workspace = true }
 sov-api-spec = { workspace = true }
 tokio = { workspace = true, features = ["macros", "rt-multi-thread"] }
 jsonrpsee = { workspace = true }
+reqwest = { workspace = true }
 
 [features]
 default = []

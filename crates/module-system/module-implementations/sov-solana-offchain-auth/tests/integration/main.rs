@@ -1,12 +1,14 @@
 #![allow(unused_imports)]
 use std::sync::Arc;
 use sov_mock_zkvm::crypto::private_key::Ed25519PrivateKey;
+use sov_node_client::NodeClient;
 use tokio_stream::StreamExt;
 use std::str::FromStr;
 
 use base64::prelude::BASE64_STANDARD;
 use base64::Engine;
 use sov_bank::{Amount, CallMessage as BankCallMessage, Coins, TokenId};
+use sov_bank::BalanceResponse;
 use sov_mock_da::{BlockProducingConfig, MockAddress, MockDaService};
 use sov_mock_zkvm::crypto::Ed25519Signature;
 use sov_mock_zkvm::MockZkvm;
@@ -137,15 +139,14 @@ async fn create_test_rollup() -> anyhow::Result<(
     Ok((rollup, admin))
 }
 
-fn create_tx_json_bytes() -> Vec<u8> {
-    // let msg: TestRuntimeCall<S> = TestRuntimeCall::ValueSetter(CallMessage::SetValue { value: 1234, gas: None });
+fn create_transfer_tx_json(amount: Amount, recipient: &str) -> String {
     let msg: TestRuntimeCall<S> = TestRuntimeCall::Bank(BankCallMessage::Transfer {
         to: <S as Spec>::Address::from_str(
-            "sov1pv9skzctpv9skzctpv9skzctpv9skzctpv9skzctpv9skqm7ehv",
+            recipient,
         )
         .unwrap(),
         coins: Coins {
-            amount: Amount::new(10_000),
+            amount,
             // Use the gas token ID from the config (which is the pre-configured token)
             token_id: config_value!("GAS_TOKEN_ID"),
         },
@@ -165,17 +166,10 @@ fn create_tx_json_bytes() -> Vec<u8> {
         chain_hash: RT::CHAIN_HASH
     };
 
-    let tx_json_str = serde_json::to_string(&solana_unsigned_tx).unwrap();
-    println!("{}", tx_json_str);
-    let tx_json_bytes = tx_json_str.as_bytes().to_vec();
-
-    // Sanity check - since this JSON was used to create a ledger signature
-    assert_eq!(tx_json_str, r#"{"runtime_call":{"bank":{"transfer":{"to":"sov1pv9skzctpv9skzctpv9skzctpv9skzctpv9skzctpv9skqm7ehv","coins":{"amount":"10000","token_id":"token_1nyl0e0yweragfsatygt24zmd8jrr2vqtvdfptzjhxkguz2xxx3vs0y07u7"}}}},"uniqueness":{"generation":0},"details":{"max_priority_fee_bips":0,"max_fee":"100000000000","gas_limit":[1000000000,1000000000],"chain_id":4321},"chain_hash":"0b0b0b0b0b0b0b0b0b0b0b0b0b0b0b0b0b0b0b0b0b0b0b0b0b0b0b0b0b0b0b0b"}"#);
-
-    tx_json_bytes
+    serde_json::to_string(&solana_unsigned_tx).unwrap()
 }
 
-async fn submit_tx(client: &sov_api_spec::client::Client, raw_tx_bytes: Vec<u8>) {
+async fn submit_tx(client: &sov_api_spec::client::Client, raw_tx_bytes: Vec<u8>) -> reqwest::Response {
     let request = AcceptTx {
         body: sov_sequencer::rest_api::Base64Blob { blob: raw_tx_bytes },
     };
@@ -187,19 +181,23 @@ async fn submit_tx(client: &sov_api_spec::client::Client, raw_tx_bytes: Vec<u8>)
         .await
         .expect("Failed to send request");
 
-    assert!(response.status().is_success(), "Failed to submit transaction: {:?}", response.text().await);
-    
-    println!("Transaction submitted with response: {:?}", response);
-    println!("Response body: {:?}", response.text().await);
-    // assert_eq!(tx_response.status, "submitted");
+    response
+}
 
-    // Produce a block to include the transaction
-    // rollup.produce_block().await.expect("Failed to produce block");
+async fn query_balance(client: &NodeClient, address: String) -> Option<Amount> {
+    let gas_token_id: TokenId = config_value!("GAS_TOKEN_ID");
     
-    // Verify the transaction was included
-    // Note: You may want to add additional verification here to check the value was set correctly
+    // Query initial balance of recipient (should be 0)
+    let response = client
+        .query_rest_endpoint::<BalanceResponse>(&format!(
+            "/modules/bank/tokens/{}/balances/{}", 
+            gas_token_id, 
+            address
+        ))
+        .await
+        .expect("Failed to query balance");
 
-    // then assert the state change
+    response.amount
 }
 
 #[tokio::test(flavor = "multi_thread")]
@@ -215,7 +213,13 @@ async fn test_rollup_initialization() {
 
 #[tokio::test(flavor = "multi_thread")]
 async fn test_submit_ledger_signed_transaction() {
-    let encoded_tx = create_tx_json_bytes();
+    let tx_json_str = create_transfer_tx_json(Amount(10_000), "sov1pv9skzctpv9skzctpv9skzctpv9skzctpv9skzctpv9skqm7ehv");
+
+    println!("{}", tx_json_str);
+    // Sanity check - since this JSON was used to create a ledger signature
+    assert_eq!(tx_json_str, r#"{"runtime_call":{"bank":{"transfer":{"to":"sov1pv9skzctpv9skzctpv9skzctpv9skzctpv9skzctpv9skqm7ehv","coins":{"amount":"10000","token_id":"token_1nyl0e0yweragfsatygt24zmd8jrr2vqtvdfptzjhxkguz2xxx3vs0y07u7"}}}},"uniqueness":{"generation":0},"details":{"max_priority_fee_bips":0,"max_fee":"100000000000","gas_limit":[1000000000,1000000000],"chain_id":4321},"chain_hash":"0b0b0b0b0b0b0b0b0b0b0b0b0b0b0b0b0b0b0b0b0b0b0b0b0b0b0b0b0b0b0b0b"}"#);
+
+    let encoded_tx = tx_json_str.as_bytes().to_vec();
 
     // Data from a Ledger device
     let pubkey: [u8; 32] = bs58::decode("8YkzDTyLd3buhMw9CMfYYt3FLmcu1BeFr5nMeierYM1v").into_vec().unwrap().try_into().unwrap();
@@ -232,14 +236,25 @@ async fn test_submit_ledger_signed_transaction() {
 
     let (test_rollup, _admin) = create_test_rollup().await.expect("Failed to create rollup");
     let client = test_rollup.api_client();
-    submit_tx(client, raw_tx_bytes).await;
+    let _response = submit_tx(client, raw_tx_bytes).await;
+
+    // TODO: re-sign from ledger
+    // set up transfer to ledger's address
+    // then transfer from ledger's address to some random address
+    // assert state balances: that ledger has remaining balance and new address has the transferred
+    // balance
 }
 
 #[tokio::test(flavor = "multi_thread")]
 async fn test_submit_raw_signed_message_transaction() {
     let (test_rollup, admin) = create_test_rollup().await.expect("Failed to create rollup");
+    
+    let recipient_address = "sov1pv9skzctpv9skzctpv9skzctpv9skzctpv9skzctpv9skqm7ehv";
+    let initial_amount = query_balance(&test_rollup.client, recipient_address.to_string()).await;
+    assert_eq!(initial_amount, None, "Expected recipient to have no initial balance");
 
-    let encoded_tx = create_tx_json_bytes();
+    let tx_str = create_transfer_tx_json(Amount(10_000), "sov1pv9skzctpv9skzctpv9skzctpv9skzctpv9skzctpv9skqm7ehv");
+    let encoded_tx = tx_str.as_bytes().to_vec();
     let signer = admin.private_key();
     let pubkey = signer.pub_key();
     let signature = signer.sign(&encoded_tx);
@@ -251,15 +266,24 @@ async fn test_submit_raw_signed_message_transaction() {
     };
     let raw_tx_bytes = borsh::to_vec(&message).unwrap();
 
-    let client = test_rollup.api_client();
-    submit_tx(client, raw_tx_bytes).await;
+    let response = submit_tx(test_rollup.api_client(), raw_tx_bytes).await;
+    
+    assert!(response.status().is_success(), "Expected transaction to succeed");
+    
+    let final_balance = query_balance(&test_rollup.client, recipient_address.to_string()).await;
+    assert_eq!(
+        final_balance,
+        Some(Amount::new(10_000)), 
+        "Expected recipient to have received 10,000 tokens"
+    );
 }
 
 #[tokio::test(flavor = "multi_thread")]
 async fn test_submit_invalid_raw_signed_message_transaction() {
     let (test_rollup, admin) = create_test_rollup().await.expect("Failed to create rollup");
 
-    let encoded_tx = create_tx_json_bytes();
+    let tx_str = create_transfer_tx_json(Amount(10_000), "sov1pv9skzctpv9skzctpv9skzctpv9skzctpv9skzctpv9skqm7ehv");
+    let encoded_tx = tx_str.as_bytes().to_vec();
     let signer = admin.private_key();
     let pubkey = signer.pub_key();
     let mut signature_bytes = signer.sign(&encoded_tx).msg_sig.to_bytes();
@@ -275,12 +299,19 @@ async fn test_submit_invalid_raw_signed_message_transaction() {
     let raw_tx_bytes = borsh::to_vec(&message).unwrap();
 
     let client = test_rollup.api_client();
-    submit_tx(client, raw_tx_bytes).await;
+    let response = submit_tx(client, raw_tx_bytes).await;
+    
+    assert_eq!(response.status(), 400, "Expected 400 status for invalid signature");
+    let response_text = response.text().await.expect("Failed to read response body");
+    
+    assert!(response_text.contains("Signature verification failed") || 
+            response_text.contains("Verification equation was not satisfied"),
+            "Expected signature verification error, got: {}", response_text);
 }
 
+// Sanity check of the wrapper implementation
 #[test]
 fn test_auth_wrapper() {
-    // Test that the auth wrapper correctly identifies transaction types
     let raw_tx = RawTx::new(vec![1, 2, 3]);
 
     // Test standard auth
