@@ -84,8 +84,6 @@ fn test_transfer_template() {
 #[test]
 fn test_display_unsigned_tx() {
     let unsigned_tx = make_unsigned_tx();
-    let json_str = serde_json::to_string(&unsigned_tx).unwrap();
-    println!("{json_str}");
     let unsigned_data = borsh::to_vec(&unsigned_tx).unwrap();
     let schema = Schema::of_rollup_types_with_chain_data::<
         Transaction<Runtime<S>, S>,
