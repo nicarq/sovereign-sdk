@@ -345,7 +345,7 @@ where
                 .get(number, state)
                 .unwrap_infallible()
                 .expect("Transaction with known hash must be set");
-            
+ 
             // The block may be `None` for a few seconds after the tx is processed
             let block = match self
                 .blocks
@@ -713,7 +713,7 @@ fn get_cfg_env_template() -> CfgEnv {
 
 pub(crate) enum MaybeSealedBlock {
     Sealed(SealedBlock),
-    Pending{
+    Pending {
         block_number: u64,
         first_tx_number: u64,
         base_fee_per_gas: u64,
@@ -724,16 +724,14 @@ impl MaybeSealedBlock {
     pub fn hash(&self) -> Option<FixedBytes<32>> {
         match self {
             Self::Sealed(block) => Some(block.header.hash()),
-            Self::Pending {.. } => None,
+            Self::Pending { .. } => None,
         }
     }
 
     pub fn number(&self) -> u64 {
         match self {
             Self::Sealed(block) => block.header.number,
-            Self::Pending {
-                block_number, ..
-            } => *block_number,
+            Self::Pending { block_number, .. } => *block_number,
         }
     }
 
@@ -749,15 +747,16 @@ impl MaybeSealedBlock {
     pub fn timestamp(&self) -> Option<u64> {
         match self {
             Self::Sealed(block) => Some(block.header.timestamp),
-            Self::Pending {
-                ..
-            } => None,
+            Self::Pending { .. } => None,
         }
     }
 
     pub fn base_fee_per_gas(&self) -> u64 {
         match self {
-            Self::Sealed(block) => block.header.base_fee_per_gas.expect("Legacy blocks with no base fee are unsupported"),
+            Self::Sealed(block) => block
+                .header
+                .base_fee_per_gas
+                .expect("Legacy blocks with no base fee are unsupported"),
             Self::Pending {
                 base_fee_per_gas, ..
             } => *base_fee_per_gas,
@@ -779,7 +778,9 @@ pub(crate) fn build_rpc_receipt(
     let block_number = Some(block.number());
     let transaction_hash = Some(transaction.hash);
     // Safety: The transaction cannot have a lower number than the block start
-    let transaction_index = tx_number.checked_sub(block.transactions_start()).expect("Overflow while subtracting block start from tx number. This is a bug!");
+    let transaction_index = tx_number
+        .checked_sub(block.transactions_start())
+        .expect("Overflow while subtracting block start from tx number. This is a bug!");
 
     let logs: Vec<reth_rpc_types::Log> = receipt
         .receipt

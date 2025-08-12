@@ -91,9 +91,8 @@ impl EncodeLike<(&Address, &U256), AccountStorageKey> for BcsCodec {
     }
 }
 
-
 #[derive(Copy, Clone, Debug, serde::Serialize, serde::Deserialize, Default)]
-pub(crate)  struct LiveTxNumbers {
+pub(crate) struct LiveTxNumbers {
     first_tx_number_of_block: u64,
     current_tx_number: u64,
 }

@@ -2,13 +2,13 @@ use alloy_primitives::{Address, AddressError};
 use borsh::{BorshDeserialize, BorshSerialize};
 use k256::elliptic_curve::sec1::ToEncodedPoint;
 use serde::{Deserialize, Serialize};
+use sov_modules_api::hyperlane::HyperlaneAddress;
 use sov_modules_api::macros::UniversalWallet;
 #[cfg(feature = "evm")]
 use sov_modules_api::HexHash;
 use sov_rollup_interface::common::HexString;
 use sov_rollup_interface::crypto::CredentialId;
 use sov_rollup_interface::BasicAddress;
-use sov_modules_api::hyperlane::{HyperlaneAddress};
 
 use crate::evm::public_key::EthereumPublicKey;
 use crate::{MultiAddress, Not28Bytes};
@@ -133,7 +133,6 @@ impl schemars::JsonSchema for EthereumAddress {
         .unwrap()
     }
 }
-
 
 impl HyperlaneAddress for EthereumAddress {
     fn to_sender(&self) -> HexHash {

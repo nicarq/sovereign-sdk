@@ -26,8 +26,12 @@ impl<S: Spec> BlockHooks for Evm<S> {
         let pre_state_user_root: [u8; 32] =
             pre_state_user_root.namespace_root(ProvableNamespace::User);
 
-        let mut live_tx_numbers = self.live_tx_numbers.get(state).unwrap_infallible().unwrap_or_default();
-        live_tx_numbers.first_tx_number_of_block = parent_block.transactions.end; 
+        let mut live_tx_numbers = self
+            .live_tx_numbers
+            .get(state)
+            .unwrap_infallible()
+            .unwrap_or_default();
+        live_tx_numbers.first_tx_number_of_block = parent_block.transactions.end;
 
         // Here we set the parent's state root to the previous state root
         parent_block.header.state_root =

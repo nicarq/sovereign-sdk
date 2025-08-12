@@ -5,14 +5,17 @@ use std::collections::HashMap;
 
 use arbitrary::Arbitrary;
 use reth_primitives::{
-    sign_message, Bytes, Transaction, TransactionSigned, TxEip1559, TxEip2930, TxEip4844, TxKind, TxLegacy, U256
+    sign_message, Bytes, Transaction, TransactionSigned, TxEip1559, TxEip2930, TxEip4844, TxKind,
+    TxLegacy, U256,
 };
 use reth_rpc_types::{transaction::EIP1559TransactionRequest, AccessList, TypedTransactionRequest};
 use revm::primitives::{Address, B256};
-use secp256k1::{rand::{RngCore, SeedableRng}, PublicKey};
-pub use secp256k1::{SecretKey};
+pub use secp256k1::SecretKey;
+use secp256k1::{
+    rand::{RngCore, SeedableRng},
+    PublicKey,
+};
 use sha2::Digest;
-
 
 /// Ethereum transaction signer.
 #[derive(Clone)]
@@ -79,8 +82,6 @@ impl DevSigner {
     pub fn signers(&self) -> Vec<Address> {
         self.signers.keys().copied().collect()
     }
-
-
 }
 
 /// Transfer generator.
@@ -91,7 +92,6 @@ pub struct TransferGenerator {
     target_buffer_size: usize,
     salt: u128,
 }
-
 
 /// Get a Vec of `num` bytes, seeded by `num` and  a salt value
 pub fn get_random_bytes(num: usize, salt: u128) -> Vec<u8> {
@@ -129,12 +129,8 @@ impl TransferGenerator {
         setup_harness(salt, key)
     }
 
-
     /// Generate a transfer transaction.
-    pub fn generate(
-        &mut self,
-        nonce: u64,
-    ) -> TransactionSigned {
+    pub fn generate(&mut self, nonce: u64) -> TransactionSigned {
         for _ in 0..20 {
             if self.has_enough_randomness() {
                 let u =
@@ -170,9 +166,12 @@ impl TransferGenerator {
     }
 
     /// Generate a transfer transaction.
-    fn generate_min_transfer(&self, nonce: u64, u: &mut arbitrary::Unstructured<'_>) -> Result<TransactionSigned, arbitrary::Error> {
-
-        let to: [u8;20] = Arbitrary::arbitrary(u)?;
+    fn generate_min_transfer(
+        &self,
+        nonce: u64,
+        u: &mut arbitrary::Unstructured<'_>,
+    ) -> Result<TransactionSigned, arbitrary::Error> {
+        let to: [u8; 20] = Arbitrary::arbitrary(u)?;
         let value = 1;
         let request = TypedTransactionRequest::EIP1559(EIP1559TransactionRequest {
             chain_id: 4321,
@@ -186,8 +185,7 @@ impl TransferGenerator {
             access_list: AccessList::default(),
         });
 
-        let transaction =
-            to_primitive_transaction(request).expect("Invalid transaction request");
+        let transaction = to_primitive_transaction(request).expect("Invalid transaction request");
         let tx_signature_hash = transaction.signature_hash();
         let signer = self.key;
 
@@ -198,7 +196,6 @@ impl TransferGenerator {
             transaction,
             signature,
         ))
-
     }
 }
 

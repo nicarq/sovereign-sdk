@@ -6,8 +6,8 @@ use serde::{Deserialize, Serialize};
 #[cfg(feature = "native")]
 use sov_modules_api::rest::HasRestApi;
 use sov_modules_api::{
-    Context, DaSpec, GenesisState, HexHash, HexString, Module, ModuleId, ModuleInfo,
-    ModuleRestApi, Spec, StateMap, StateReader, StateValue, TxState,
+    Context, DaSpec, GenesisState, HexHash, HexString, Module, ModuleId, ModuleInfo, ModuleRestApi,
+    Spec, StateMap, StateReader, StateValue, TxState,
 };
 use sov_state::User;
 #[cfg(feature = "native")]
@@ -36,9 +36,9 @@ pub use igp::{
 };
 pub use ism::Ism;
 pub use merkle::{Event as MerkleTreeEvent, MerkleTreeHook};
+pub use sov_modules_api::hyperlane::HyperlaneAddress;
 pub use types::{EthAddress, Message, StorageLocation, ValidatorSignature};
 pub use warp::{CallMessage as WarpCallMessage, Event as WarpEvent, Warp};
-pub use sov_modules_api::hyperlane::HyperlaneAddress;
 
 /// A fixed assumed address of mailbox contract on sovereign rollup.
 ///
@@ -192,7 +192,6 @@ impl<S: Spec, R: Recipient<S>> Mailbox<S, R> {
         }
     }
 }
-
 
 /// A module that can receive messages via the hyperlane protocol.
 ///
