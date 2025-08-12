@@ -77,7 +77,7 @@ impl Ty<IndexLinking> {
                     if let Some(ref value) = variant.value {
                         let variant_ty = schema.resolve_or_err(value)?;
                         let mut definitions = variant_ty.as_definitions(schema)?;
-                        if definitions.top_level.len() == 0 {
+                        if definitions.top_level.is_empty() {
                             let fields =
                                 vec![ast::Field::new("_0", variant_ty.as_inline_type(schema)?)];
                             let definition = ast::Struct::new(
@@ -157,7 +157,7 @@ impl IntoIterator for Definitions {
     type IntoIter = iter::Chain<std::vec::IntoIter<ast::Struct>, std::vec::IntoIter<ast::Struct>>;
 
     fn into_iter(self) -> Self::IntoIter {
-        self.top_level.into_iter().chain(self.auxilary.into_iter())
+        self.top_level.into_iter().chain(self.auxilary)
     }
 }
 
