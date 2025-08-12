@@ -24,7 +24,7 @@ impl Ty<IndexLinking> {
             Ty::ByteVec { .. } => ast::Ty::Bytes,
             Ty::String => ast::Ty::String,
             Ty::Struct(s) => ast::Ty::Ident(s.type_name.clone()),
-            Ty::Option { value } => schema.resolve_or_err(value)?.as_inline_type(schema)?, // TODO: For now I resolve Option<T> as T
+            Ty::Option { .. } => unimplemented!("Options are not supported"),
             Ty::Vec { value } => {
                 let ty = schema.resolve_or_err(value)?.as_inline_type(schema)?;
                 ast::Ty::DynamicArray(Box::new(ty))
@@ -120,7 +120,7 @@ impl Ty<IndexLinking> {
                 let item_ty = schema.resolve_or_err(value)?;
                 item_ty.as_definitions(schema)
             }
-            Ty::Option { .. } => Ok(Definitions::default()), // TODO: Fow now Option<T> is treated as T so no new definitions needed
+            Ty::Option { .. } => unimplemented!("Options are not supported"),
             Ty::Integer(_, _)
             | Ty::ByteArray { .. }
             | Ty::ByteVec { .. }

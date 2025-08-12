@@ -1,4 +1,4 @@
-use alloy_primitives::{address, U256};
+use alloy_primitives::{address, B256, U256};
 
 use alloy_sol_types::{eip712_domain, Eip712Domain, SolStruct};
 
@@ -18,9 +18,12 @@ fn main() {
     let alloy_schema_content = include_str!(concat!(env!("OUT_DIR"), "/alloy_schema.rs"));
     println!("{alloy_schema_content}");
 
-    let value = generated::CallMessage_SetValue {
-        value: U256::ZERO,
-        gas: [U256::ZERO, U256::ZERO],
+    let value = generated::CallMessage_Mint {
+        coins: generated::Coins {
+            amount: U256::ZERO,
+            token_id: B256::ZERO,
+        },
+        mint_to_address: Default::default(),
     };
     let hash = value.eip712_signing_hash(&DOMAIN);
     dbg!(&hash);
