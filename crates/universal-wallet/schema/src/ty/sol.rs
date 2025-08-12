@@ -78,6 +78,7 @@ impl Ty<IndexLinking> {
                         let variant_ty = schema.resolve_or_err(value)?;
                         let mut definitions = variant_ty.as_definitions(schema)?;
                         if definitions.top_level.is_empty() {
+                            // If no top-level definitions were produced - then this enum variant contains a nameable type
                             let fields =
                                 vec![ast::Field::new("_0", variant_ty.as_inline_type(schema)?)];
                             let definition = ast::Struct::new(
@@ -86,10 +87,20 @@ impl Ty<IndexLinking> {
                             );
                             top_level.push(definition);
                         } else if definitions.top_level.len() == 1 {
+                            // If a single top-level definition is produced - we rename it with the proper context. This is the case where we rename: __SovVirtualWallet_Enum_Variant into Enum_Variant
                             definitions.top_level.iter_mut().for_each(|def| {
                                 def.name = format!("{}_{}", e.type_name, variant.name)
                             });
                         } else {
+                            // This is the case for enum within an enum. We can't represent an inner enum as inline type because it's multiple types
+                            // Therefore we extend each types name with the context from this enum.
+                            // Example: [
+                            //     InnerEnum_Variant0,
+                            //     InnerEnum_Variant1
+                            // ] => [
+                            //     OuterEnum_Variant0_InnerEnum_Variant0,
+                            //     OuterEnum_Variant0_InnerEnum_Variant1
+                            // ]
                             definitions.top_level.iter_mut().for_each(|def| {
                                 def.prepend_context(&format!("{}_{}", e.type_name, variant.name))
                             });
