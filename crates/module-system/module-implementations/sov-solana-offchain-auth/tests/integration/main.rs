@@ -240,17 +240,39 @@ async fn test_rollup_initialization() {
 
 #[tokio::test(flavor = "multi_thread")]
 async fn test_submit_ledger_signed_transaction() {
-    let tx_json_str = create_transfer_tx_json(Amount(10_000), "sov1pv9skzctpv9skzctpv9skzctpv9skzctpv9skzctpv9skqm7ehv");
+    // From the test Ledger device used to generate this
+    const LEDGER_ADDRESS: &str = "8YkzDTyLd3buhMw9CMfYYt3FLmcu1BeFr5nMeierYM1v";
 
-    println!("{}", tx_json_str);
-    // Sanity check - since this JSON was used to create a ledger signature
-    assert_eq!(tx_json_str, r#"{"runtime_call":{"bank":{"transfer":{"to":"sov1pv9skzctpv9skzctpv9skzctpv9skzctpv9skzctpv9skqm7ehv","coins":{"amount":"10000","token_id":"token_1nyl0e0yweragfsatygt24zmd8jrr2vqtvdfptzjhxkguz2xxx3vs0y07u7"}}}},"uniqueness":{"generation":0},"details":{"max_priority_fee_bips":0,"max_fee":"100000000000","gas_limit":[1000000000,1000000000],"chain_id":4321},"chain_hash":"0b0b0b0b0b0b0b0b0b0b0b0b0b0b0b0b0b0b0b0b0b0b0b0b0b0b0b0b0b0b0b0b"}"#);
+    let (test_rollup, admin) = create_test_rollup().await.expect("Failed to create rollup");
 
-    let encoded_tx = tx_json_str.as_bytes().to_vec();
+    // First we must fund the Ledger account, using the basic/raw signature type
+    {
+        let funding_json_str = create_transfer_tx_json(Amount(13_000), LEDGER_ADDRESS);
+        let encoded_tx = funding_json_str.as_bytes().to_vec();
+        let signer = admin.private_key();
+        let pubkey = signer.pub_key();
+        let signature = signer.sign(&encoded_tx);
 
-    // Data from a Ledger device
-    let pubkey: [u8; 32] = bs58::decode("8YkzDTyLd3buhMw9CMfYYt3FLmcu1BeFr5nMeierYM1v").into_vec().unwrap().try_into().unwrap();
-    let signature: Ed25519Signature = bs58::decode("2nZHcKfoYQMiWnQZWPoKE4q7xk1eJ6fwpt5T5QowzzD9ms6znCoCGcJS5t46csv9GAYpFQcVKsUeQWKhbnxUggvZ").into_vec().unwrap().as_slice().try_into().unwrap();
+        let message = SolanaOffchainSimpleMessage::<S> {
+            signed_message: encoded_tx,
+            pubkey,
+            signature
+        };
+        let raw_tx_bytes = borsh::to_vec(&message).unwrap();
+
+        let response = submit_tx(test_rollup.api_client(), raw_tx_bytes).await;
+        assert!(response.status().is_success(), "Expected funding transaction to succeed");
+    }
+
+    // Now we can have the Ledger account transfer part of its balance
+    let transfer_json_tx = create_transfer_tx_json(Amount(5_000), RECIPIENT_ADDRESS);
+    // Sanity check - if this changes, the test will need to be re-signed with a Ledger device.
+    // (If a different Ledger device or account is used, the public key above would also need to be
+    // updated.)
+    assert_eq!(transfer_json_tx, r#"{"runtime_call":{"bank":{"transfer":{"to":"4zdwHNaEa5npHtRtaZ3RL1m6rptuQZ6RBLHG6cAyVHjL","coins":{"amount":"5000","token_id":"token_1nyl0e0yweragfsatygt24zmd8jrr2vqtvdfptzjhxkguz2xxx3vs0y07u7"}}}},"uniqueness":{"generation":0},"details":{"max_priority_fee_bips":0,"max_fee":"100000000000","gas_limit":[1000000000,1000000000],"chain_id":4321},"chain_hash":"0b0b0b0b0b0b0b0b0b0b0b0b0b0b0b0b0b0b0b0b0b0b0b0b0b0b0b0b0b0b0b0b"}"#);
+    let encoded_tx = transfer_json_tx.as_bytes().to_vec();
+    let pubkey: [u8; 32] = bs58::decode(LEDGER_ADDRESS).into_vec().unwrap().try_into().unwrap();
+    let signature: Ed25519Signature = bs58::decode("5K7i3PTJM1DDACVEuke2jXrkSutGEKb5ByyiNwBXQXiERZi8hFxnFARdnH21qr4yGgdmZygY9SyJQc6SPbJbZCrX").into_vec().unwrap().as_slice().try_into().unwrap();
 
     let mut signed_message = make_preamble_for_message(&pubkey, encoded_tx.len() as u16).to_vec();
     signed_message.extend_from_slice(&encoded_tx);
@@ -259,17 +281,25 @@ async fn test_submit_ledger_signed_transaction() {
         signed_message,
         signature
     };
+
     let raw_tx_bytes = borsh::to_vec(&message).unwrap();
 
-    let (test_rollup, _admin) = create_test_rollup().await.expect("Failed to create rollup");
-    let client = test_rollup.api_client();
-    let _response = submit_tx(client, raw_tx_bytes).await;
+    let response = submit_tx(test_rollup.api_client(), raw_tx_bytes).await;
+    assert!(response.status().is_success(), "Expected Ledger transaction to succeed");
 
-    // TODO: re-sign from ledger
-    // set up transfer to ledger's address
-    // then transfer from ledger's address to some random address
-    // assert state balances: that ledger has remaining balance and new address has the transferred
-    // balance
+    let ledger_balance = query_balance(&test_rollup.client, LEDGER_ADDRESS).await;
+    assert_eq!(
+        ledger_balance,
+        Some(Amount::new(8_000)), 
+        "Expected ledger account to have received 8,000 tokens remaining"
+    );
+
+    let recipient_balance = query_balance(&test_rollup.client, RECIPIENT_ADDRESS).await;
+    assert_eq!(
+        recipient_balance,
+        Some(Amount::new(5_000)), 
+        "Expected recipient to have received 5,000 tokens"
+    );
 }
 
 #[tokio::test(flavor = "multi_thread")]
