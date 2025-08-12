@@ -46,3 +46,11 @@ and then
 WARNING: `prevrandao` value is predictable up to `DEFERRED_SLOTS_COUNT` in advance,
 Users should follow the same best practice that they would on Ethereum and use future randomness.
 See: `<https://eips.ethereum.org/EIPS/eip-4399#tips-for-application-developers>`
+
+## Integration Details
+
+The EVM provides has its own nonce mechanism that's less flexible than the one provided by the SDK. Since we have native account abstraction, we simulate the EVM nonce handling 
+by tracking one nonce per EVM *account* in the EVM module. Separately, we track a deduplicator (nonce and/or generation number) per *credential* in the SDK. When accepting EVM transactions,
+we use the Sovereign SDK's native deduplicator to check the transaction. Once the tx has passed all pre-flight checks, we silently overwrite the nonce field seen by the EVM with the 
+globally unique `nonce` tracked by the EVM module. This means that you can safely use the SDK's native account abstraction to have multiple private keys control your account using
+separate nonces, and the EVM will still behave as expected (i.e. any repeated calls to the `CREATE` opcode will always generate unique addresses).

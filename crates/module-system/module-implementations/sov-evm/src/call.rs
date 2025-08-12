@@ -1,10 +1,14 @@
+use std::convert::Infallible;
+
 use reth_primitives::revm_primitives::{
-    Address, BlockEnv, CfgEnv, CfgEnvWithHandlerCfg, EVMError, HandlerCfg,
+    Address, BlockEnv, CfgEnv, CfgEnvWithHandlerCfg, HandlerCfg,
 };
-use reth_primitives::TransactionSigned;
+use reth_primitives::{Transaction, TransactionSigned};
 use sov_address::{EthereumAddress, FromVmAddress};
 use sov_modules_api::macros::{serialize, UniversalWallet};
-use sov_modules_api::{Context, Spec, TxState};
+use sov_modules_api::prelude::UnwrapInfallible;
+use sov_modules_api::{Context, Spec, StateReader, TxState};
+use sov_state::User;
 
 use crate::conversions::convert_to_transaction_signed;
 use crate::evm::db::EvmDb;
@@ -43,7 +47,7 @@ where
                 "EVM transaction must be authenticated by the EVM authenticator"
             ))?;
 
-        let evm_tx: TransactionSigned = convert_to_transaction_signed(message.rlp)?;
+        let mut evm_tx: TransactionSigned = convert_to_transaction_signed(message.rlp)?;
 
         let block_env = self
             .block_env
@@ -53,7 +57,8 @@ where
         let cfg = self.cfg.get(state)?.expect("Evm config must be set");
         let cfg_env = get_cfg_env_with_handler(&block_env, cfg, None);
 
-        let evm_db: EvmDb<_, S> = self.get_db(state);
+        let mut evm_db: EvmDb<_, S> = self.get_db(state);
+        overwrite_nonce_with_account_nonce(&mut evm_tx, &mut evm_db, signer);
         let result = executor::execute_tx(evm_db, &block_env, &evm_tx, signer, cfg_env);
 
         let previous_transaction = self.pending_transactions.last(state)?;
@@ -113,14 +118,18 @@ where
             .push(&pending_transaction, state)?;
 
         let live_tx_numbers = self.live_tx_numbers.get(state)?;
-        let tx_number = live_tx_numbers.and_then(|v| v.current_tx_number.checked_add(1)).unwrap_or(0);
+        let tx_number = live_tx_numbers
+            .and_then(|v| v.current_tx_number.checked_add(1))
+            .unwrap_or(0);
         let new_tx_numbers = LiveTxNumbers {
-            first_tx_number_of_block: live_tx_numbers.map(|v| v.first_tx_number_of_block).unwrap_or(0),
+            first_tx_number_of_block: live_tx_numbers
+                .map(|v| v.first_tx_number_of_block)
+                .unwrap_or(0),
             current_tx_number: tx_number,
         };
         self.live_tx_numbers.set(&new_tx_numbers, state)?;
 
-        #[cfg(feature = "native")] 
+        #[cfg(feature = "native")]
         {
             use sov_modules_api::prelude::UnwrapInfallible;
 
@@ -142,6 +151,36 @@ where
         }
 
         Ok(())
+    }
+}
+
+fn overwrite_nonce_with_account_nonce<S: Spec, W: StateReader<User, Error = Infallible>>(
+    tx: &mut TransactionSigned,
+    db: &mut EvmDb<W, S>,
+    address: Address,
+) {
+    let nonce = db
+        .accounts
+        .get(&address, &mut db.state)
+        .unwrap_infallible()
+        .map(|account| account.info.nonce)
+        .unwrap_or_default();
+    match &mut tx.transaction {
+        Transaction::Legacy(legacy) => {
+            legacy.nonce = nonce;
+        }
+        Transaction::Eip2930(eip2930) => {
+            eip2930.nonce = nonce;
+        }
+        Transaction::Eip1559(eip1559) => {
+            eip1559.nonce = nonce;
+        }
+        Transaction::Eip4844(eip4844) => {
+            eip4844.nonce = nonce;
+        }
+        Transaction::Eip7702(eip7702) => {
+            eip7702.nonce = nonce;
+        }
     }
 }
 
