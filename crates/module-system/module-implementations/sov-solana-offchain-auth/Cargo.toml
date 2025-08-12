@@ -59,5 +59,15 @@ reqwest = { workspace = true }
 default = []
 native = [
 	"sov-modules-api/native",
-    "sov-solana-offchain-auth/native"
+	"sov-solana-offchain-auth/native",
+	"sov-bank/native",
+	"sov-kernels/native",
+	"sov-mock-da/native",
+	"sov-mock-zkvm/native",
+	"sov-modules-rollup-blueprint/native",
+	"sov-modules-stf-blueprint/native",
+	"sov-paymaster/native",
+	"sov-rollup-interface/native",
+	"sov-state/native",
+	"sov-value-setter/native"
 ]

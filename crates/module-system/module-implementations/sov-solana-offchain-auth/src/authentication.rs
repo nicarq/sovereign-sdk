@@ -39,7 +39,7 @@ pub struct SolanaOffchainUnsignedTransaction<R: TransactionCallable, S: Spec> {
 }
 
 impl<R: TransactionCallable, S: Spec> SolanaOffchainUnsignedTransaction<R, S> {
-    fn to_unsigned_tx(self) -> UnsignedTransaction<R, S> {
+    fn into_unsigned_tx(self) -> UnsignedTransaction<R, S> {
         UnsignedTransaction {
             runtime_call: self.runtime_call,
             uniqueness: self.uniqueness,
@@ -161,8 +161,7 @@ fn verify_solana_signature<S: Spec>(
             }
             sov_modules_api::MeteredSigVerificationError::GasError(err) => {
                 AuthenticationError::OutOfGas(format!(
-                    "Signature verification ran out of gas: {}",
-                    err
+                    "Signature verification ran out of gas: {err}"
                 ))
             }
         })
@@ -183,18 +182,18 @@ fn unpack_solana_message<S: Spec>(raw_tx: &[u8]) -> Result<UnpackedSolanaMessage
             .map_err(|e| FatalError::DeserializationFailed(e.to_string()))?;
 
         // Verify preamble is present and valid
-        if envelope.signed_message.len() < PREAMBLE_LEN as usize {
+        if envelope.signed_message.len() < PREAMBLE_LEN {
             return Err(FatalError::DeserializationFailed(
                 "Message too short for preamble".to_string(),
             ));
         }
 
         let preamble: RawSolanaOffchainMessagePreamble =
-            borsh::from_slice(&envelope.signed_message[0..PREAMBLE_LEN as usize])
+            borsh::from_slice(&envelope.signed_message[0..PREAMBLE_LEN])
                 .map_err(|e| FatalError::DeserializationFailed(e.to_string()))?;
 
         // Calculate actual message length (excluding preamble)
-        let actual_message_length = envelope.signed_message.len() - PREAMBLE_LEN as usize;
+        let actual_message_length = envelope.signed_message.len() - PREAMBLE_LEN;
 
         // Validate the preamble
         validate_preamble(&preamble, actual_message_length)?;
@@ -202,7 +201,7 @@ fn unpack_solana_message<S: Spec>(raw_tx: &[u8]) -> Result<UnpackedSolanaMessage
         let signer: <S::CryptoSpec as CryptoSpec>::PublicKey = borsh::from_slice(&preamble.signer)
             .map_err(|e| FatalError::DeserializationFailed(e.to_string()))?;
 
-        let json_bytes = envelope.signed_message[PREAMBLE_LEN as usize..].to_vec();
+        let json_bytes = envelope.signed_message[PREAMBLE_LEN..].to_vec();
 
         Ok(UnpackedSolanaMessage {
             pub_key: signer,
@@ -235,7 +234,7 @@ where
     let solana_unsigned_tx: SolanaOffchainUnsignedTransaction<D, S> =
         serde_json::from_slice(&unpacked_message.json_bytes)
             .map_err(|e| FatalError::DeserializationFailed(e.to_string()))?;
-    Ok(solana_unsigned_tx.to_unsigned_tx().call())
+    Ok(solana_unsigned_tx.into_unsigned_tx().call())
 }
 
 pub fn authenticate<Accessor, S, D>(
@@ -265,7 +264,7 @@ where
         })?;
 
     let provided_chain_hash = solana_unsigned_tx.chain_hash;
-    let unsigned_tx = solana_unsigned_tx.to_unsigned_tx();
+    let unsigned_tx = solana_unsigned_tx.into_unsigned_tx();
     // This is useful to be able to reuse some of the standard authenticator's logic
     let reconstructed_tx_v0 = transaction::Version0 {
         runtime_call: unsigned_tx.runtime_call,
@@ -329,7 +328,7 @@ pub mod test {
         let pubkey = Ed25519PrivateKey::generate().pub_key();
         let signature: Ed25519Signature = [4u8; 64].as_slice().try_into().unwrap();
 
-        let preamble = make_preamble_for_message(&pubkey.bytes(), message_len);
+        let preamble = make_preamble_for_message(pubkey.bytes(), message_len);
 
         let mut signed_message = Vec::new();
         signed_message.extend_from_slice(&preamble);

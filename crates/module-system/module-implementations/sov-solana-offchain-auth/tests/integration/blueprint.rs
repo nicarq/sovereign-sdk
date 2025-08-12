@@ -193,7 +193,7 @@ where
     })?;
 
     Ok(TxInfoWithConfirmation {
-        id: tx_with_hash.tx_hash.into(),
+        id: tx_with_hash.tx_hash,
         confirmation: tx_with_hash.confirmation,
         status: TxStatus::Submitted,
     }

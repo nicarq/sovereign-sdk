@@ -226,8 +226,7 @@ async fn query_balance(client: &NodeClient, address: &str) -> Option<Amount> {
     // Query initial balance of recipient (should be 0)
     let response = client
         .query_rest_endpoint::<BalanceResponse>(&format!(
-            "/modules/bank/tokens/{}/balances/{}",
-            gas_token_id, address
+            "/modules/bank/tokens/{gas_token_id}/balances/{address}"
         ))
         .await
         .expect("Failed to query balance");
@@ -401,8 +400,7 @@ async fn test_submit_invalid_raw_signed_message_transaction() {
     assert!(
         response_text.contains("Signature verification failed")
             || response_text.contains("Verification equation was not satisfied"),
-        "Expected signature verification error, got: {}",
-        response_text
+        "Expected signature verification error, got: {response_text}"
     );
 }
 

@@ -15,5 +15,5 @@ pub fn make_preamble_for_message(pubkey: &[u8; 32], message_length: u16) -> [u8;
     header.extend(pubkey);
     // Message length as little-endian u16
     header.extend(&message_length.to_le_bytes());
-    return header.try_into().unwrap();
+    header.try_into().unwrap()
 }
