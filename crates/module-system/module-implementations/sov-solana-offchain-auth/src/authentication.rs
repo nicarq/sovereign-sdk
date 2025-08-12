@@ -8,7 +8,6 @@ use sov_modules_api::capabilities::{
     AuthenticationOutput, FatalError, UniquenessData,
 };
 use sov_modules_api::macros::UniversalWallet;
-use sov_modules_api::prelude::serde_json;
 use sov_modules_api::transaction::{
     self, AuthenticatedTransactionAndRawHash, TransactionCallable, TxDetails, UnsignedTransaction,
 };

@@ -4,7 +4,7 @@ description = "A Sovereign SDK module for authenticating transactions signed as 
 authors = { workspace = true }
 edition = { workspace = true }
 homepage = { workspace = true }
-license = "Sovereign Permissionless Commercial License"
+license = { workspace = true }
 repository = { workspace = true }
 version = { workspace = true }
 readme = "README.md"
