@@ -46,7 +46,7 @@ pub(crate) type SequencerEventStream<Rt> = Pin<
 #[async_trait]
 pub trait Sequencer: Send + Sync + 'static {
     /// What data is returned to clients when a transaction is accepted.
-    type Confirmation: Clone + serde::Serialize + Send + Sync + 'static;
+    type Confirmation: Clone + serde::Serialize + Send + Sync + 'static + std::fmt::Debug;
     /// The rollup spec.
     type Spec: Spec;
     /// The rollup's [`Runtime`].
@@ -248,7 +248,7 @@ impl<Da: DaSpec> BlobSenderHooks for TxStatusBlobSenderHooks<Da> {
 /// Empty transaction confirmation data.
 ///
 /// Serializes as an empty JSON object.
-#[derive(Clone, serde::Serialize)]
+#[derive(Clone, serde::Serialize, Debug)]
 pub struct EmptyConfirmation {}
 
 type AuthRes<S, Rt, I> = (

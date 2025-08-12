@@ -181,7 +181,7 @@ impl TransferGenerator {
             input: Bytes::new(),
             max_priority_fee_per_gas: U256::ZERO,
             max_fee_per_gas: U256::from_limbs([1000, 0, 0, 0]),
-            gas_limit: U256::from_limbs([u64::MAX, 0, 0, 0]),
+            gas_limit: U256::from_limbs([150_000, 0, 0, 0]),
             kind: TxKind::Call(Address::from_slice(&to)),
             access_list: AccessList::default(),
         });
