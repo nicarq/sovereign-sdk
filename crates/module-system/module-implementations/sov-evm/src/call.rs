@@ -58,8 +58,10 @@ where
         let cfg_env = get_cfg_env_with_handler(&block_env, cfg, None);
 
         let mut evm_db: EvmDb<_, S> = self.get_db(state);
-        overwrite_nonce_with_account_nonce(&mut evm_tx, &mut evm_db, signer);
+        let old_nonce = overwrite_nonce_with_account_nonce(&mut evm_tx, &mut evm_db, signer);
         let result = executor::execute_tx(evm_db, &block_env, &evm_tx, signer, cfg_env);
+        overwrite_nonce(&mut evm_tx, old_nonce);
+
 
         let previous_transaction = self.pending_transactions.last(state)?;
         let previous_transaction_cumulative_gas_used = previous_transaction
@@ -158,14 +160,13 @@ fn overwrite_nonce_with_account_nonce<S: Spec, W: StateReader<User, Error = Infa
     tx: &mut TransactionSigned,
     db: &mut EvmDb<W, S>,
     address: Address,
-) {
+) -> u64 {
     let nonce = db
         .accounts
         .get(&address, &mut db.state)
         .unwrap_infallible()
         .map(|account| account.info.nonce)
-        .unwrap_or_default();
-    match &mut tx.transaction {
+        .unwrap_or_default();match &mut tx.transaction {
         Transaction::Legacy(legacy) => {
             legacy.nonce = nonce;
         }
@@ -182,6 +183,30 @@ fn overwrite_nonce_with_account_nonce<S: Spec, W: StateReader<User, Error = Infa
             eip7702.nonce = nonce;
         }
     }
+    overwrite_nonce(tx, nonce)
+}
+
+fn overwrite_nonce(tx: &mut TransactionSigned, nonce: u64) -> u64{
+    let old_nonce = match &mut tx.transaction {
+        Transaction::Legacy(legacy) => {
+            &mut legacy.nonce
+        }
+        Transaction::Eip2930(eip2930) => {
+            &mut eip2930.nonce
+        }
+        Transaction::Eip1559(eip1559) => {
+            &mut eip1559.nonce
+        }
+        Transaction::Eip4844(eip4844) => {
+            &mut eip4844.nonce
+        }
+        Transaction::Eip7702(eip7702) => {
+            &mut eip7702.nonce
+        }
+    };
+    let return_nonce = *old_nonce;
+    *old_nonce = nonce;
+    return_nonce
 }
 
 /// builds CfgEnvWithHandlerCfg
