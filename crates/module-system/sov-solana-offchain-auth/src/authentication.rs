@@ -13,7 +13,7 @@ use sov_modules_api::transaction::{
 };
 use sov_modules_api::{
     charge_gas_to_deserialize_json, CryptoSpec, DispatchCall, GasMeter, MeteredSignature,
-    ProvableStateReader, Spec, TxHash,
+    ProvableStateReader, Spec, TxHash, SafeString,
 };
 
 /// The application domain for Solana offchain messages (placeholder for now)
@@ -34,6 +34,8 @@ pub struct SolanaOffchainUnsignedTransaction<R: TransactionCallable, S: Spec> {
     pub uniqueness: UniquenessData,
     /// Data related to fees and gas handling.
     pub details: TxDetails<S>,
+    /// The chain name, to aid with user safety.
+    pub chain_name: SafeString,
     /// The chain hash the transaction data was signed with. Because we're not actually using the
     /// schema to display the transaction, we have to include and validate the hash explicitly.
     #[serde_as(as = "serde_with::hex::Hex")]
@@ -247,6 +249,7 @@ where
 pub fn authenticate<Accessor, S, D>(
     raw_tx: &[u8],
     runtime_chain_hash: &[u8; 32],
+    runtime_chain_name: &'static str,
     state: &mut Accessor,
 ) -> Result<AuthenticationOutput<S, D::Decodable>, AuthenticationError>
 where
@@ -278,6 +281,8 @@ where
     })?;
 
     let provided_chain_hash = solana_unsigned_tx.chain_hash;
+    let provided_chain_name = solana_unsigned_tx.chain_name.to_string();
+
     let unsigned_tx = solana_unsigned_tx.into_unsigned_tx();
     // This is useful to be able to reuse some of the standard authenticator's logic
     let reconstructed_tx_v0 = transaction::Version0 {
@@ -293,6 +298,16 @@ where
             FatalError::InvalidChainHash {
                 expected: hex::encode(runtime_chain_hash),
                 got: hex::encode(provided_chain_hash),
+            },
+            raw_tx_hash,
+        ));
+    }
+
+    if provided_chain_name != runtime_chain_name {
+        return Err(AuthenticationError::FatalError(
+            FatalError::InvalidChainName {
+                expected: runtime_chain_name.to_string(),
+                got: provided_chain_name,
             },
             raw_tx_hash,
         ));
