@@ -25,8 +25,6 @@ pub trait SolanaOffchainAuthenticatorTrait<S: Spec>: Runtime<S> {
 
 /// See [`TransactionAuthenticator::Input`].
 #[derive(std::fmt::Debug, Clone, BorshDeserialize, BorshSerialize)]
-// #[borsh(use_discriminant=true)]
-// #[repr(u8)]
 pub enum SolanaOffchainAuthenticatorInput<T = RawTx> {
     /// Authenticate using the standard `sov-module` authenticator, which uses the default
     /// signature scheme and hashing algorithm defined in the rollup's [`Spec`].

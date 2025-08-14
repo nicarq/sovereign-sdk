@@ -302,7 +302,7 @@ async fn test_submit_ledger_signed_transaction() {
     signed_message.extend_from_slice(&encoded_tx);
 
     let message = SolanaOffchainSpecCompliantMessage::<S> {
-        signed_message,
+        signed_message_with_preamble,
         signature,
     };
 

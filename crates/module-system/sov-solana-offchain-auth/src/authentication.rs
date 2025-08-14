@@ -102,7 +102,7 @@ where
 #[derive(BorshSerialize, BorshDeserialize)]
 pub struct SolanaOffchainSpecCompliantMessage<S: Spec> {
     /// The message is a JSON-serialized SolanaOffchainUnsignedTransaction with the standard preamble prepended.
-    pub signed_message: Vec<u8>,
+    pub signed_message_with_preamble: Vec<u8>,
     pub signature: <S::CryptoSpec as CryptoSpec>::Signature,
 }
 
@@ -118,14 +118,9 @@ pub struct SolanaOffchainSimpleMessage<S: Spec> {
     pub signature: <S::CryptoSpec as CryptoSpec>::Signature,
 }
 
-/// The length of a preamble with a single 32-byte signer.
-pub const PREAMBLE_LEN: usize = std::mem::size_of::<RawSolanaOffchainMessagePreamble>();
-// Sanity check - this will only fail if the format or encoding is changed somehow. In that case,
-// adjust this check, once we're sure the versioning is handled correctly.
-const _: () = assert!(
-    PREAMBLE_LEN == 85,
-    "Preamble size is known to be exactly 85 bytes, unless the format changed"
-);
+/// The length of a preamble with a single 32-byte signer. This is just the sum of the lengths of
+/// the byte fields/arrays of the struct below.
+pub const PREAMBLE_LEN: usize = 85;
 
 /// The preamble/header required for signing solana offchain messages, supporting a single signer.
 /// See https://docs.anza.xyz/proposals/off-chain-message-signing#message-preamble
@@ -140,46 +135,45 @@ pub struct RawSolanaOffchainMessagePreamble {
     pub message_length: [u8; 2],
 }
 
-/// Validates a Solana offchain message preamble
-fn validate_preamble(
-    preamble: &RawSolanaOffchainMessagePreamble,
-    actual_message_length: usize,
-) -> Result<(), FatalError> {
-    if preamble.signing_domain != *b"\xffsolana offchain" {
-        return Err(FatalError::DeserializationFailed(
-            "Invalid signing domain in preamble".to_string(),
-        ));
-    }
-    // 0 is the only supported header version
-    if preamble.header_version != 0 {
-        return Err(FatalError::DeserializationFailed(
-            "Invalid header version in preamble".to_string(),
-        ));
-    }
-    if preamble.application_domain != APPLICATION_DOMAIN {
-        return Err(FatalError::DeserializationFailed(
-            "Invalid application domain in preamble".to_string(),
-        ));
-    }
-    // Format 0 is the ASCII, hw-wallet compatible format
-    if preamble.message_format != 0 {
-        return Err(FatalError::DeserializationFailed(
-            "Invalid message format in preamble".to_string(),
-        ));
-    }
-    if preamble.signer_count != 1 {
-        return Err(FatalError::DeserializationFailed(
-            "Invalid signer count in preamble".to_string(),
-        ));
-    }
-    let expected_length = u16::from_le_bytes(preamble.message_length) as usize;
-    if expected_length != actual_message_length {
-        return Err(FatalError::DeserializationFailed(format!(
-            "Message length mismatch: expected {expected_length}, got {actual_message_length}"
+impl RawSolanaOffchainMessagePreamble {
+    /// Validates a Solana offchain message preamble
+    fn validate(&self, actual_message_length: usize) -> Result<(), FatalError> {
+        if self.signing_domain != *b"\xffsolana offchain" {
+            return Err(FatalError::DeserializationFailed(format!(
+                "Invalid Solana signing domain in preamble"
+            )));
+        }
+        // 0 is the only supported header version
+        if self.header_version != 0 {
+            return Err(FatalError::DeserializationFailed(format!(
+                    "Invalid header version in preamble: only version 0 is supported, but version {} was provided", self.header_version
         )));
-    }
+        }
+        if self.application_domain != APPLICATION_DOMAIN {
+            return Err(FatalError::DeserializationFailed(format!(
+                    "Invalid application domain in preamble: supported domain is {}, provided domain was {}", hex::encode(APPLICATION_DOMAIN), hex::encode(self.application_domain)
+        )));
+        }
+        // Format 0 is the ASCII, hw-wallet compatible format
+        if self.message_format != 0 {
+            return Err(FatalError::DeserializationFailed(format!(
+                    "Invalid message format in preamble: only format 0 is supported, but format {} was provided", self.message_format
+        )));
+        }
+        if self.signer_count != 1 {
+            return Err(FatalError::DeserializationFailed(format!(
+                    "Invalid signer count in preamble: only a single signer is currently supported, but the count was {}", self.signer_count
+        )));
+        }
+        let expected_length = u16::from_le_bytes(self.message_length) as usize;
+        if expected_length != actual_message_length {
+            return Err(FatalError::DeserializationFailed(format!(
+                "Message length mismatch: expected {expected_length}, got {actual_message_length}"
+            )));
+        }
 
-    Ok(())
+        Ok(())
+    }
 }
 
 // TODO: json_bytes and signed_bytes will have a good amount of duplication, maybe we can reduce
@@ -231,32 +225,32 @@ fn unpack_solana_message<S: Spec>(raw_tx: &[u8]) -> Result<UnpackedSolanaMessage
             .map_err(|e| FatalError::DeserializationFailed(e.to_string()))?;
 
         // Verify preamble is present and valid
-        if envelope.signed_message.len() < PREAMBLE_LEN {
+        if envelope.signed_message_with_preamble.len() < PREAMBLE_LEN {
             return Err(FatalError::DeserializationFailed(
                 "Message too short for preamble".to_string(),
             ));
         }
 
         let preamble: RawSolanaOffchainMessagePreamble =
-            borsh::from_slice(&envelope.signed_message[0..PREAMBLE_LEN])
+            borsh::from_slice(&envelope.signed_message_with_preamble[0..PREAMBLE_LEN])
                 .map_err(|e| FatalError::DeserializationFailed(e.to_string()))?;
 
         // Calculate actual message length (excluding preamble)
-        let actual_message_length = envelope.signed_message.len() - PREAMBLE_LEN;
+        let actual_message_length = envelope.signed_message_with_preamble.len() - PREAMBLE_LEN;
 
         // Validate the preamble
-        validate_preamble(&preamble, actual_message_length)?;
+        preamble.validate(actual_message_length)?;
 
         let signer: <S::CryptoSpec as CryptoSpec>::PublicKey = borsh::from_slice(&preamble.signer)
             .map_err(|e| FatalError::DeserializationFailed(e.to_string()))?;
 
-        let json_bytes = envelope.signed_message[PREAMBLE_LEN..].to_vec();
+        let json_bytes = envelope.signed_message_with_preamble[PREAMBLE_LEN..].to_vec();
 
         Ok(UnpackedSolanaMessage {
             pub_key: signer,
             signature: envelope.signature,
             json_bytes,
-            signed_bytes: envelope.signed_message,
+            signed_bytes: envelope.signed_message_with_preamble,
         })
     } else {
         // Raw message without preamble (should start with ASCII character, typically '{')
@@ -395,7 +389,7 @@ pub mod test {
         signed_message.extend_from_slice(message);
 
         let envelope = SolanaOffchainSpecCompliantMessage::<TestSpec> {
-            signed_message: signed_message.clone(),
+            signed_message_with_preamble: signed_message.clone(),
             signature: signature.clone(),
         };
 
@@ -469,7 +463,7 @@ pub mod test {
         signed_message.extend_from_slice(message);
 
         let envelope = SolanaOffchainSpecCompliantMessage::<TestSpec> {
-            signed_message,
+            signed_message_with_preamble: signed_message,
             signature: signature.clone(),
         };
 

@@ -25,7 +25,7 @@ impl GenesisMacro {
                 #[derive(Clone, ::serde::Deserialize, ::serde::Serialize)]
             },
             quote::quote! {
-                #[serde(bound = "S: sov_modules_api::module::Spec")]
+                #[serde(bound = "")]
             },
         ];
         let config_attributes = get_derived_enum_attrs("genesis", &input, default_attrs)?;
