@@ -12,8 +12,8 @@ use sov_modules_api::transaction::{
     self, AuthenticatedTransactionAndRawHash, TransactionCallable, TxDetails, UnsignedTransaction,
 };
 use sov_modules_api::{
-    CryptoSpec, DispatchCall, GasMeter, GasSpec, MeteredJsonDeserialize,
-    MeteredJsonDeserializeError, MeteredSignature, ProvableStateReader, Spec, TxHash,
+    charge_gas_to_deserialize_json, CryptoSpec, DispatchCall, GasMeter, MeteredSignature,
+    ProvableStateReader, Spec, TxHash,
 };
 
 /// The application domain for Solana offchain messages (placeholder for now)
@@ -54,46 +54,8 @@ where
         }
     }
 
-    fn unmetered_deserialize_inner(buf: &[u8]) -> Result<Self, serde_json::Error> {
+    fn unmetered_deserialize(buf: &[u8]) -> Result<Self, serde_json::Error> {
         serde_json::from_slice::<SolanaOffchainUnsignedTransaction<R, S>>(buf)
-    }
-}
-
-impl<R, S> MeteredJsonDeserialize<S> for SolanaOffchainUnsignedTransaction<R, S>
-where
-    S: Spec,
-    R: TransactionCallable,
-    <R as TransactionCallable>::Call: Serialize + DeserializeOwned,
-{
-    fn bias_json_deserialization() -> <S as Spec>::Gas {
-        S::tx_bias_json_deserialization()
-    }
-
-    fn gas_to_charge_per_byte_json_deserialization() -> <S as Spec>::Gas {
-        S::tx_gas_to_charge_per_byte_json_deserialization()
-    }
-
-    #[cfg_attr(feature = "bench", crate::cycle_tracker)]
-    #[cfg_attr(
-        all(feature = "gas-constant-estimation", feature = "native"),
-        crate::track_gas_constants_usage
-    )]
-    fn deserialize(
-        buf: &mut &[u8],
-        meter: &mut impl GasMeter<Spec = S>,
-    ) -> Result<Self, MeteredJsonDeserializeError<<S as GasSpec>::Gas>> {
-        Self::charge_gas_to_deserialize(buf, meter)?;
-
-        SolanaOffchainUnsignedTransaction::<R, S>::unmetered_deserialize_inner(buf)
-            .map_err(MeteredJsonDeserializeError::SerdeError)
-    }
-
-    #[cfg(feature = "native")]
-    fn unmetered_deserialize(
-        buf: &mut &[u8],
-    ) -> Result<Self, MeteredJsonDeserializeError<<S as GasSpec>::Gas>> {
-        SolanaOffchainUnsignedTransaction::<R, S>::unmetered_deserialize_inner(buf)
-            .map_err(MeteredJsonDeserializeError::SerdeError)
     }
 }
 
@@ -300,25 +262,20 @@ where
         .map_err(|e| AuthenticationError::FatalError(e, raw_tx_hash))?;
 
     let mut json_slice = unpacked_message.json_bytes();
-    let solana_unsigned_tx =
-        match <SolanaOffchainUnsignedTransaction<D, S> as MeteredJsonDeserialize<S>>::deserialize(
-            &mut json_slice,
-            state,
-        ) {
-            Ok(ok) => ok,
-
-            Err(MeteredJsonDeserializeError::GasError(e)) => {
-                return Err(AuthenticationError::OutOfGas(format!(
-                    "Transaction deserialization run out of gas {e}, tx hash {raw_tx_hash}"
-                )))
-            }
-            Err(MeteredJsonDeserializeError::SerdeError(e)) => {
-                return Err(AuthenticationError::FatalError(
-                    FatalError::DeserializationFailed(e.to_string()),
-                    raw_tx_hash,
-                ));
-            }
-        };
+    charge_gas_to_deserialize_json(json_slice, state).map_err(|e| {
+        AuthenticationError::OutOfGas(format!(
+            "Transaction deserialization run out of gas: {e}, tx hash {raw_tx_hash}"
+        ))
+    })?;
+    let solana_unsigned_tx = SolanaOffchainUnsignedTransaction::<D, S>::unmetered_deserialize(
+        &mut json_slice,
+    )
+    .map_err(|e| {
+        AuthenticationError::FatalError(
+            FatalError::DeserializationFailed(e.to_string()),
+            raw_tx_hash,
+        )
+    })?;
 
     let provided_chain_hash = solana_unsigned_tx.chain_hash;
     let unsigned_tx = solana_unsigned_tx.into_unsigned_tx();
