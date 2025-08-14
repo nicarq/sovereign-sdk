@@ -298,8 +298,9 @@ async fn test_submit_ledger_signed_transaction() {
     .try_into()
     .unwrap();
 
-    let mut signed_message = make_preamble_for_message(&pubkey, encoded_tx.len() as u16).to_vec();
-    signed_message.extend_from_slice(&encoded_tx);
+    let mut signed_message_with_preamble =
+        make_preamble_for_message(&pubkey, encoded_tx.len() as u16).to_vec();
+    signed_message_with_preamble.extend_from_slice(&encoded_tx);
 
     let message = SolanaOffchainSpecCompliantMessage::<S> {
         signed_message_with_preamble,

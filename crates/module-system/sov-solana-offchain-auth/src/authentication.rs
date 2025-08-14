@@ -54,7 +54,7 @@ where
         }
     }
 
-    fn unmetered_deserialize_inner(buf: &mut &[u8]) -> Result<Self, serde_json::Error> {
+    fn unmetered_deserialize_inner(buf: &[u8]) -> Result<Self, serde_json::Error> {
         serde_json::from_slice::<SolanaOffchainUnsignedTransaction<R, S>>(buf)
     }
 }
@@ -176,13 +176,17 @@ impl RawSolanaOffchainMessagePreamble {
     }
 }
 
-// TODO: json_bytes and signed_bytes will have a good amount of duplication, maybe we can reduce
-// the copying involved
 struct UnpackedSolanaMessage<S: Spec> {
     pub_key: <S::CryptoSpec as CryptoSpec>::PublicKey,
     signature: <S::CryptoSpec as CryptoSpec>::Signature,
-    json_bytes: Vec<u8>,
     signed_bytes: Vec<u8>,
+    json_start: usize,
+}
+
+impl<S: Spec> UnpackedSolanaMessage<S> {
+    fn json_bytes(&self) -> &[u8] {
+        &self.signed_bytes[self.json_start..]
+    }
 }
 
 /// Verifies a signature over the signed bytes with gas metering
@@ -244,13 +248,11 @@ fn unpack_solana_message<S: Spec>(raw_tx: &[u8]) -> Result<UnpackedSolanaMessage
         let signer: <S::CryptoSpec as CryptoSpec>::PublicKey = borsh::from_slice(&preamble.signer)
             .map_err(|e| FatalError::DeserializationFailed(e.to_string()))?;
 
-        let json_bytes = envelope.signed_message_with_preamble[PREAMBLE_LEN..].to_vec();
-
         Ok(UnpackedSolanaMessage {
             pub_key: signer,
             signature: envelope.signature,
-            json_bytes,
             signed_bytes: envelope.signed_message_with_preamble,
+            json_start: PREAMBLE_LEN,
         })
     } else {
         // Raw message without preamble (should start with ASCII character, typically '{')
@@ -260,8 +262,8 @@ fn unpack_solana_message<S: Spec>(raw_tx: &[u8]) -> Result<UnpackedSolanaMessage
         Ok(UnpackedSolanaMessage {
             pub_key: raw_message.pubkey,
             signature: raw_message.signature,
-            json_bytes: raw_message.signed_message.clone(),
             signed_bytes: raw_message.signed_message,
+            json_start: 0,
         })
     }
 }
@@ -275,7 +277,7 @@ where
 {
     let unpacked_message = unpack_solana_message::<S>(raw_tx)?;
     let solana_unsigned_tx: SolanaOffchainUnsignedTransaction<D, S> =
-        serde_json::from_slice(&unpacked_message.json_bytes)
+        serde_json::from_slice(unpacked_message.json_bytes())
             .map_err(|e| FatalError::DeserializationFailed(e.to_string()))?;
     Ok(solana_unsigned_tx.into_unsigned_tx().call())
 }
@@ -297,9 +299,10 @@ where
     let unpacked_message = unpack_solana_message::<S>(raw_tx)
         .map_err(|e| AuthenticationError::FatalError(e, raw_tx_hash))?;
 
+    let mut json_slice = unpacked_message.json_bytes();
     let solana_unsigned_tx =
         match <SolanaOffchainUnsignedTransaction<D, S> as MeteredJsonDeserialize<S>>::deserialize(
-            &mut unpacked_message.json_bytes.as_slice(),
+            &mut json_slice,
             state,
         ) {
             Ok(ok) => ok,
@@ -398,16 +401,11 @@ pub mod test {
         let result = unpack_solana_message::<TestSpec>(&serialized);
         assert!(result.is_ok());
 
-        let UnpackedSolanaMessage {
-            pub_key: unpacked_pubkey,
-            signature: unpacked_signature,
-            json_bytes: unpacked_message,
-            signed_bytes,
-        } = result.unwrap();
-        assert_eq!(unpacked_pubkey, pubkey);
-        assert_eq!(unpacked_signature, signature);
-        assert_eq!(unpacked_message, message);
-        assert_eq!(signed_bytes, signed_message);
+        let unpacked = result.unwrap();
+        assert_eq!(unpacked.pub_key, pubkey);
+        assert_eq!(unpacked.signature, signature);
+        assert_eq!(unpacked.json_bytes(), message);
+        assert_eq!(unpacked.signed_bytes, signed_message);
     }
 
     #[test]
@@ -429,16 +427,11 @@ pub mod test {
         let result = unpack_solana_message::<TestSpec>(&serialized);
         assert!(result.is_ok());
 
-        let UnpackedSolanaMessage {
-            pub_key: unpacked_pubkey,
-            signature: unpacked_signature,
-            json_bytes: unpacked_message,
-            signed_bytes,
-        } = result.unwrap();
-        assert_eq!(unpacked_pubkey, pubkey);
-        assert_eq!(unpacked_signature, signature);
-        assert_eq!(unpacked_message, message);
-        assert_eq!(signed_bytes, message);
+        let unpacked = result.unwrap();
+        assert_eq!(unpacked.pub_key, pubkey);
+        assert_eq!(unpacked.signature, signature);
+        assert_eq!(unpacked.json_bytes(), message);
+        assert_eq!(unpacked.signed_bytes, message);
     }
 
     #[test]
