@@ -262,6 +262,7 @@ async fn test_submit_ledger_signed_transaction() {
 
         let message = SolanaOffchainSimpleMessage::<S> {
             signed_message: encoded_tx,
+            chain_hash: RT::CHAIN_HASH,
             pubkey,
             signature,
         };
@@ -348,6 +349,7 @@ async fn test_submit_raw_signed_message_transaction() {
 
     let message = SolanaOffchainSimpleMessage::<S> {
         signed_message: encoded_tx,
+        chain_hash: RT::CHAIN_HASH,
         pubkey,
         signature,
     };
@@ -383,6 +385,7 @@ async fn test_submit_invalid_raw_signed_message_transaction() {
 
     let message = SolanaOffchainSimpleMessage::<S> {
         signed_message: encoded_tx,
+        chain_hash: RT::CHAIN_HASH,
         pubkey,
         signature,
     };

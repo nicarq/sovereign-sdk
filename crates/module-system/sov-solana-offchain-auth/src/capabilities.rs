@@ -66,7 +66,7 @@ where
                 Ok(call)
             }
             SolanaOffchainAuthenticatorInput::SolanaOffchain(raw_tx) => {
-                let call = decode_solana_json_tx::<S, Rt>(&raw_tx.data, &Rt::CHAIN_HASH)?;
+                let call = decode_solana_json_tx::<S, Rt>(&raw_tx.data)?;
                 Ok(call)
             }
         }
