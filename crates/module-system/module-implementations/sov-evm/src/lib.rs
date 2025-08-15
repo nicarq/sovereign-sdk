@@ -30,6 +30,7 @@ pub use authenticate::{
     authenticate, decode_evm_tx, Eip712Authenticator, EthereumAuthenticator, EvmAuthenticator,
     EvmAuthenticatorInput,
 };
+use reth_primitives::revm_primitives;
 pub use reth_primitives::revm_primitives::SpecId;
 use reth_primitives::revm_primitives::{Address, BlockEnv, B256};
 pub use reth_primitives::TransactionSigned;
@@ -91,9 +92,8 @@ impl EncodeLike<(&Address, &U256), AccountStorageKey> for BcsCodec {
     }
 }
 
-
 #[derive(Copy, Clone, Debug, serde::Serialize, serde::Deserialize, Default)]
-pub(crate)  struct LiveTxNumbers {
+pub(crate) struct LiveTxNumbers {
     first_tx_number_of_block: u64,
     current_tx_number: u64,
 }
@@ -116,7 +116,7 @@ pub struct Evm<S: Spec> {
 
     /// Mapping from code hash to code. Used for lazy-loading code into a contract account.
     #[state]
-    pub(crate) code: StateMap<B256, reth_primitives::Bytes, BcsCodec>,
+    pub(crate) code: StateMap<B256, revm_primitives::Bytecode, BcsCodec>,
 
     /// Chain configuration. This field is set in genesis.
     #[state]

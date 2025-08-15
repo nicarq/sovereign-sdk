@@ -1,12 +1,12 @@
 use std::convert::Infallible;
 
 use reth_primitives::revm_primitives::{AccountInfo, Address, Bytecode, B256, U256};
-use reth_primitives::Bytes;
 use revm::Database;
 use sov_address::{EthereumAddress, FromVmAddress};
 use sov_modules_api::prelude::UnwrapInfallible;
-use sov_modules_api::{InfallibleStateAccessor, Spec, StateMap};
+use sov_modules_api::{BorshSerializedSize, InfallibleStateAccessor, Spec, StateMap};
 use sov_state::codec::BcsCodec;
+use sov_state::SlotKey;
 
 use super::DbAccount;
 use crate::{to_rollup_address, AccountStorageKey};
@@ -15,7 +15,7 @@ use crate::{to_rollup_address, AccountStorageKey};
 pub struct EvmDb<Ws, S: Spec> {
     pub(crate) accounts: StateMap<Address, DbAccount, BcsCodec>,
     pub(crate) account_storage: StateMap<AccountStorageKey, U256, BcsCodec>,
-    pub(crate) code: StateMap<B256, Bytes, BcsCodec>,
+    pub(crate) code: StateMap<B256, Bytecode, BcsCodec>,
     pub(crate) state: Ws,
     pub(crate) bank_module: sov_bank::Bank<S>,
 }
@@ -24,7 +24,7 @@ impl<Ws, S: Spec> EvmDb<Ws, S> {
     pub(crate) fn new(
         accounts: StateMap<Address, DbAccount, BcsCodec>,
         account_storage: StateMap<AccountStorageKey, U256, BcsCodec>,
-        code: StateMap<B256, Bytes, BcsCodec>,
+        code: StateMap<B256, Bytecode, BcsCodec>,
         state: Ws,
         bank_module: sov_bank::Bank<S>,
     ) -> Self {
@@ -34,6 +34,20 @@ impl<Ws, S: Spec> EvmDb<Ws, S> {
             code,
             state,
             bank_module,
+        }
+    }
+}
+
+pub(crate) struct CachedByteCode {
+    pub code: Bytecode,
+}
+
+impl BorshSerializedSize for CachedByteCode {
+    fn serialized_size(&self) -> usize {
+        match &self.code {
+            Bytecode::LegacyRaw(bytes) => bytes.len(),
+            Bytecode::LegacyAnalyzed(analyzed) => analyzed.bytecode().len(),
+            Bytecode::Eof(eof) => eof.raw.len(),
         }
     }
 }
@@ -82,12 +96,24 @@ where
     }
 
     fn code_by_hash(&mut self, code_hash: B256) -> Result<Bytecode, Self::Error> {
+        let key = SlotKey::from(code_hash.to_vec());
+
+        if let Some(code) = self.state.get_cached::<CachedByteCode>(key.clone()) {
+            return Ok(code.code.clone());
+        }
+
         // TODO move to new_raw_with_hash for better performance
-        let bytecode = Bytecode::new_raw(
-            self.code
-                .get(&code_hash, &mut self.state)
-                .unwrap_infallible()
-                .unwrap_or_default(),
+        let bytecode = self
+            .code
+            .get(&code_hash, &mut self.state)
+            .unwrap_infallible()
+            .unwrap_or_default();
+
+        self.state.put_cached::<CachedByteCode>(
+            key,
+            CachedByteCode {
+                code: bytecode.clone(),
+            },
         );
 
         Ok(bytecode)

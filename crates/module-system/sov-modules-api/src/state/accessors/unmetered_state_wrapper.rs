@@ -5,7 +5,9 @@ use sov_state::{
 };
 
 use super::UniversalStateAccessor;
-use crate::{StateReader, StateWriter};
+use crate::{
+    state::accessors::TempCache, BorshSerializedSize, PerBlockCache, StateReader, StateWriter,
+};
 
 /// A wrapper around an accessor that does not charge gas for state accesses.
 /// This is used in the testing framework to wrap the [`crate::WorkingSet`] and avoid charging gas in the `post_dispatch_hook` checks for tests.
@@ -84,5 +86,27 @@ where
     fn delete(&mut self, key: &SlotKey) -> Result<(), Self::Error> {
         self.inner.delete_value(N::NAMESPACE, key);
         Ok(())
+    }
+}
+
+impl<Inner: PerBlockCache> PerBlockCache for UnmeteredStateWrapper<'_, Inner> {
+    fn get_cached<T: 'static + Send + Sync>(&self, slot_key: SlotKey) -> Option<&T> {
+        self.inner.get_cached(slot_key)
+    }
+
+    fn put_cached<T: 'static + Send + Sync + BorshSerializedSize>(
+        &mut self,
+        slot_key: SlotKey,
+        value: T,
+    ) {
+        self.inner.put_cached(slot_key, value);
+    }
+
+    fn delete_cached<T: 'static + Send + Sync>(&mut self, slot_key: SlotKey) {
+        self.inner.delete_cached::<T>(slot_key);
+    }
+
+    fn update_cache_with(&mut self, other: TempCache) {
+        self.inner.update_cache_with(other);
     }
 }

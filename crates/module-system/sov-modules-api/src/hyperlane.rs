@@ -2,8 +2,6 @@ use sov_rollup_interface::common::{HexHash, HexString};
 
 use crate::{Address, Base58Address};
 
-
-
 /// An address which is compatible with the hyperlane protocol.
 ///
 /// Implementers of this trait must ensure that their addresses can be unambiguously represented in 32 bytes.

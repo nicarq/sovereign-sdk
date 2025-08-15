@@ -6,8 +6,9 @@ use sov_state::{SlotKey, SlotValue};
 use self::checkpoints::StateCheckpoint;
 use super::{checkpoints, internals, Namespace, UniversalStateAccessor};
 use crate::capabilities::{Kernel, RollupHeight};
+use crate::state::accessors::TempCache;
 use crate::state::traits::{PrivilegedKernelAccessor, VersionReader};
-use crate::{AccessoryStateWriter, GasMeter, Spec};
+use crate::{AccessoryStateWriter, BorshSerializedSize, GasMeter, PerBlockCache, Spec};
 
 /// A special wrapper over a `Delta` on the storage that allows access to kernel values to bootstrap the [`StateCheckpoint`].
 pub struct BootstrapWorkingSet<'a, S: Spec> {
@@ -131,5 +132,27 @@ impl<S: Spec> UniversalStateAccessor for KernelStateAccessor<'_, S> {
 
     fn delete_value(&mut self, namespace: Namespace, key: &SlotKey) {
         self.checkpoint.delete_value(namespace, key);
+    }
+}
+
+impl<S: Spec> PerBlockCache for KernelStateAccessor<'_, S> {
+    fn get_cached<T: 'static + Send + Sync>(&self, slot_key: SlotKey) -> Option<&T> {
+        self.checkpoint.get_cached(slot_key)
+    }
+
+    fn put_cached<T: 'static + Send + Sync + BorshSerializedSize>(
+        &mut self,
+        slot_key: SlotKey,
+        value: T,
+    ) {
+        self.checkpoint.put_cached(slot_key, value);
+    }
+
+    fn delete_cached<T: 'static + Send + Sync>(&mut self, slot_key: SlotKey) {
+        self.checkpoint.delete_cached::<T>(slot_key);
+    }
+
+    fn update_cache_with(&mut self, other: TempCache) {
+        self.checkpoint.update_cache_with(other);
     }
 }

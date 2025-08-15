@@ -322,11 +322,11 @@ impl<C> RevertableWriter<C>
 where
     C: PerBlockCache,
 {
-    pub(crate) fn get_cached<T: 'static + Send + Sync>(&self) -> Option<&T> {
-        if let CacheLookup::Hit(value) = self.cache_writes.get::<T>() {
+    pub(crate) fn get_cached<T: 'static + Send + Sync>(&self, slot_key: SlotKey) -> Option<&T> {
+        if let CacheLookup::Hit(value) = self.cache_writes.get::<T>(slot_key.clone()) {
             value
         } else {
-            self.inner.get_cached::<T>()
+            self.inner.get_cached::<T>(slot_key)
         }
     }
 }

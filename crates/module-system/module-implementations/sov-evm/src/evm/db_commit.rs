@@ -4,9 +4,11 @@ use revm::DatabaseCommit;
 use sov_address::{EthereumAddress, FromVmAddress};
 use sov_modules_api::prelude::UnwrapInfallible;
 use sov_modules_api::{Amount, InfallibleStateAccessor, Spec};
+use sov_state::SlotKey;
 
 use super::db::EvmDb;
 use super::DbAccount;
+use crate::db::CachedByteCode;
 use crate::to_rollup_address;
 
 impl<Ws: InfallibleStateAccessor, S: Spec> DatabaseCommit for EvmDb<Ws, S>
@@ -50,14 +52,19 @@ where
             // Set the EVM account balance to 0 - as balances are stored in the bank module.
             account_info.balance = U256::ZERO;
 
-            if let Some(ref code) = account_info.code {
+            if let Some(code) = account_info.code.take() {
                 if !code.is_empty() {
                     // TODO: would be good to have a contains_key method on the StateMap that would be optimized, so we can check the hash before storing the code
                     self.code
-                        .set(&account_info.code_hash, code.bytecode(), &mut self.state)
+                        .set(&account_info.code_hash, &code, &mut self.state)
                         .unwrap_infallible();
+                    self.state.put_cached::<CachedByteCode>(
+                        SlotKey::from(account_info.code_hash.to_vec()),
+                        CachedByteCode { code },
+                    );
                 }
             }
+            account_info.code = None;
 
             db_account.info = account_info;
 

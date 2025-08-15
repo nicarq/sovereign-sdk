@@ -1,5 +1,5 @@
 use reth_primitives::revm_primitives::{AccountInfo, Address, B256};
-use reth_primitives::Bytes;
+use reth_primitives::{Bytecode, Bytes};
 use sov_modules_api::prelude::UnwrapInfallible;
 use sov_modules_api::{InfallibleStateAccessor, Spec};
 
@@ -23,7 +23,7 @@ impl<Ws: InfallibleStateAccessor, S: Spec> InitEvmDb for EvmDb<Ws, S> {
 
     fn insert_code(&mut self, code_hash: B256, code: Bytes) {
         self.code
-            .set(&code_hash, &code, &mut self.state)
+            .set(&code_hash, &Bytecode::new_raw(code), &mut self.state)
             .unwrap_infallible();
     }
 }
