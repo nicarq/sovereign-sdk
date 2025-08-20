@@ -99,9 +99,9 @@ impl RawSolanaOffchainMessagePreamble {
     /// Validates a Solana offchain message preamble
     fn validate(&self, actual_message_length: usize) -> Result<(), FatalError> {
         if self.signing_domain != *b"\xffsolana offchain" {
-            return Err(FatalError::DeserializationFailed(format!(
-                "Invalid Solana signing domain in preamble"
-            )));
+            return Err(FatalError::DeserializationFailed(
+                "Invalid Solana signing domain in preamble".to_string(),
+            ));
         }
         // 0 is the only supported header version
         if self.header_version != 0 {
@@ -258,14 +258,14 @@ where
     let unpacked_message = unpack_solana_message::<S>(raw_tx)
         .map_err(|e| AuthenticationError::FatalError(e, raw_tx_hash))?;
 
-    let mut json_slice = unpacked_message.json_bytes();
+    let json_slice = unpacked_message.json_bytes();
     charge_gas_to_deserialize_json(json_slice, state).map_err(|e| {
         AuthenticationError::OutOfGas(format!(
             "Transaction deserialization run out of gas: {e}, tx hash {raw_tx_hash}"
         ))
     })?;
     let solana_unsigned_tx = SolanaOffchainUnsignedTransaction::<D, S>::unmetered_deserialize(
-        &mut json_slice,
+        json_slice,
     )
     .map_err(|e| {
         AuthenticationError::FatalError(
