@@ -3,6 +3,8 @@
   * The transactions need to be wrapped in the new types defined in the authenticator; support for this in the web3 SDK will come soon, while custom clients should serialize the transaction as a `SolanaOffchainUnsignedTransaction` and, after signing, wrap it into either `SolanaOffchainSpecCompliantMessage` (for Ledger compatiblity) or `SolanaOffchainSimpleMessage` (when signed with a wallet that signs messages as-is, without appending a preamble).
   * Breaking: adds `TX_GAS_TO_CHARGE_PER_BYTE_JSON_DESERIALIZATION` and `TX_BIAS_JSON_DESERIALIZATION` constants to `constants.toml`, as the transaction is JSON-serialized for human-readable display in the Solana wallet. Initially, they can be set to the same value as the equivalent `BORSH` constants.
   * Breaking: the `Spec` trait has had `serde::Serialize` and `serde::Deserialize` bounds added. Due to a subtlety of how the rustc compiler handles trait bounds with lifetimes (affecting the `Deserialize<'a>` trait), some types generic on the Spec may cause errors if `Deserialize` is derived for them due to the derive generating a duplicate Deserialize bound. The fix is to specify `#[serde(bound = "S: Spec")]` for the type (with any extra bounds as necessary if there are additional generics).
+
+# 2025-08-12
 - #1491 **BREAKING CHANGE** Dedup endpoint (`/rollup/addresses/{address}/dedup`) now actually returns nonce and not generation number. 
   It is possible to pass query parameter `?select=nonce` or `?select=generation` to explicitly request required uniqueness identifier.
   **Important note** Nonce and Generation numbers are independent uniqueness identifiers even for the same account and can be used in mix.
