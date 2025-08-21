@@ -1,6 +1,9 @@
+use alloy_consensus::{TxEip1559, TxEip2930, TxLegacy, TypedTransaction};
+use alloy_eips::eip2718::Encodable2718;
+use alloy_primitives::TxKind;
+use alloy_rpc_types::TransactionRequest;
 use jsonrpsee::types::ErrorObjectOwned;
 use jsonrpsee::RpcModule;
-use reth_primitives::{TxKind, U256};
 use reth_rpc_eth_types::EthApiError;
 use sov_address::{EthereumAddress, FromVmAddress};
 use sov_evm::{eth_api_into_rpc_error, EthereumAuthenticator, Evm, RlpEvmTransaction};
@@ -30,8 +33,7 @@ where
     rpc.register_async_method(
         "eth_sendTransaction",
         |parameters, ethereum, _| async move {
-            let mut transaction_request: reth_rpc_types::TransactionRequest =
-                parameters.one().unwrap();
+            let mut transaction_request: TransactionRequest = parameters.one().unwrap();
 
             let evm = Evm::<S>::default();
 
@@ -70,7 +72,7 @@ where
                     .map_err(|e| to_jsonrpsee_error_object(e, ETH_RPC_ERROR))?;
 
                 RlpEvmTransaction {
-                    rlp: signed_tx.envelope_encoded().to_vec(),
+                    rlp: signed_tx.encoded_2718(),
                 }
             };
             let (tx_hash, raw_message) = ethereum
@@ -93,10 +95,10 @@ where
 }
 
 fn to_typed_transaction_request<S: sov_modules_api::Spec>(
-    transaction_request: reth_rpc_types::TransactionRequest,
+    transaction_request: TransactionRequest,
     evm: &Evm<S>,
     state: &mut ApiStateAccessor<S>,
-) -> Result<reth_rpc_types::TypedTransactionRequest, ErrorObjectOwned>
+) -> Result<TypedTransaction, ErrorObjectOwned>
 where
     S::Address: FromVmAddress<EthereumAddress>,
 {
@@ -106,42 +108,29 @@ where
         .map(|id| id.to())
         .unwrap_or(config_chain_id());
 
-    let gas_price = transaction_request.gas_price.unwrap_or_default();
-
-    if transaction_request.from.is_none() {
-        return Err(to_jsonrpsee_error_object("No from address", ETH_RPC_ERROR));
-    }
-
     let estimated_gas = evm.eth_estimate_gas(
-        reth_rpc_types::TransactionRequest {
-            from: transaction_request.from,
-            to: transaction_request.to,
-            gas: transaction_request.gas,
-            gas_price: Some(gas_price),
-            max_fee_per_gas: None,
-            value: transaction_request.value,
-            input: transaction_request.input.clone(),
-            nonce: transaction_request.nonce,
-            chain_id: Some(chain_id),
-            access_list: transaction_request.access_list.clone(),
-            max_priority_fee_per_gas: None,
-            transaction_type: None,
-            blob_versioned_hashes: None,
-            max_fee_per_blob_gas: None,
-            ..Default::default()
-        },
+        transaction_request.clone(),
         Some("pending".to_string()),
         state,
     )?;
 
-    let gas_limit = estimated_gas.to::<U256>();
+    let gas_limit = estimated_gas.to::<u64>();
 
-    let reth_rpc_types::TransactionRequest {
+    let transaction = build_tx(transaction_request, chain_id, gas_limit)?;
+
+    Ok(transaction)
+}
+
+fn build_tx(
+    transaction_request: TransactionRequest,
+    chain_id: u64,
+    gas_limit: u64,
+) -> Result<TypedTransaction, ErrorObjectOwned> {
+    let TransactionRequest {
         to,
         gas_price,
         max_fee_per_gas,
         max_priority_fee_per_gas,
-        gas,
         value,
         input: data,
         nonce,
@@ -162,35 +151,27 @@ where
     ) {
         // legacy transaction
         // gas price required
-        (Some(_), None, None, None, None, None) => {
-            Some(reth_rpc_types::TypedTransactionRequest::Legacy(
-                reth_rpc_types::transaction::LegacyTransactionRequest {
-                    nonce: nonce.unwrap_or_default(),
-                    gas_price: U256::from(gas_price.unwrap_or_default()),
-                    gas_limit: U256::from(gas.unwrap_or_default()),
-                    value: value.unwrap_or_default(),
-                    input: data.into_input().unwrap_or_default(),
-                    kind: to.unwrap_or(TxKind::Create),
-                    chain_id: None,
-                },
-            ))
-        }
+        (Some(_), None, None, None, None, None) => TypedTransaction::Legacy(TxLegacy {
+            nonce: nonce.unwrap_or_default(),
+            gas_price: gas_price.unwrap_or_default(),
+            gas_limit,
+            value: value.unwrap_or_default(),
+            input: data.into_input().unwrap_or_default(),
+            to: to.unwrap_or(TxKind::Create),
+            chain_id: Some(chain_id),
+        }),
         // EIP2930
         // if only access_list is set, and no eip1599 fees
-        (_, None, Some(access_list), None, None, None) => {
-            Some(reth_rpc_types::TypedTransactionRequest::EIP2930(
-                reth_rpc_types::transaction::EIP2930TransactionRequest {
-                    nonce: nonce.unwrap_or_default(),
-                    gas_price: U256::from(gas_price.unwrap_or_default()),
-                    gas_limit: U256::from(gas.unwrap_or_default()),
-                    value: value.unwrap_or_default(),
-                    input: data.into_input().unwrap_or_default(),
-                    kind: to.unwrap_or(TxKind::Create),
-                    chain_id: config_value!("CHAIN_ID"),
-                    access_list,
-                },
-            ))
-        }
+        (_, None, Some(access_list), None, None, None) => TypedTransaction::Eip2930(TxEip2930 {
+            nonce: nonce.unwrap_or_default(),
+            gas_price: gas_price.unwrap_or_default(),
+            gas_limit,
+            value: value.unwrap_or_default(),
+            input: data.into_input().unwrap_or_default(),
+            to: to.unwrap_or(TxKind::Create),
+            chain_id,
+            access_list,
+        }),
         // EIP1559
         // if 4844 fields missing
         // gas_price, max_fee_per_gas, access_list,
@@ -198,21 +179,17 @@ where
         // sidecar,
         (None, _, _, None, None, None) => {
             // Empty fields fall back to the canonical transaction schema.
-            Some(reth_rpc_types::TypedTransactionRequest::EIP1559(
-                reth_rpc_types::transaction::EIP1559TransactionRequest {
-                    nonce: nonce.unwrap_or_default(),
-                    max_fee_per_gas: U256::from(max_fee_per_gas.unwrap_or_default()),
-                    max_priority_fee_per_gas: U256::from(
-                        max_priority_fee_per_gas.unwrap_or_default(),
-                    ),
-                    gas_limit: U256::from(gas.unwrap_or_default()),
-                    value: value.unwrap_or_default(),
-                    input: data.into_input().unwrap_or_default(),
-                    kind: to.unwrap_or(TxKind::Create),
-                    chain_id: config_value!("CHAIN_ID"),
-                    access_list: access_list.unwrap_or_default(),
-                },
-            ))
+            TypedTransaction::Eip1559(TxEip1559 {
+                nonce: nonce.unwrap_or_default(),
+                max_fee_per_gas: max_fee_per_gas.unwrap_or_default(),
+                max_priority_fee_per_gas: max_priority_fee_per_gas.unwrap_or_default(),
+                gas_limit,
+                value: value.unwrap_or_default(),
+                input: data.into_input().unwrap_or_default(),
+                to: to.unwrap_or(TxKind::Create),
+                chain_id,
+                access_list: access_list.unwrap_or_default(),
+            })
         }
         // EIP-4844
         (None, _, _, Some(_), Some(_), Some(_)) => {
@@ -220,40 +197,11 @@ where
                 "EIP-4844 is not supported",
             )))
         }
-        _ => None,
-    };
-
-    Ok(match transaction {
-        Some(reth_rpc_types::TypedTransactionRequest::Legacy(mut m)) => {
-            m.chain_id = Some(chain_id);
-            m.gas_limit = gas_limit;
-            m.gas_price = U256::from(gas_price.unwrap_or_default());
-
-            reth_rpc_types::TypedTransactionRequest::Legacy(m)
-        }
-        Some(reth_rpc_types::TypedTransactionRequest::EIP2930(mut m)) => {
-            m.chain_id = chain_id;
-            m.gas_limit = gas_limit;
-            m.gas_price = U256::from(gas_price.unwrap_or_default());
-
-            reth_rpc_types::TypedTransactionRequest::EIP2930(m)
-        }
-        Some(reth_rpc_types::TypedTransactionRequest::EIP1559(mut m)) => {
-            m.chain_id = chain_id;
-            m.gas_limit = gas_limit;
-            m.max_fee_per_gas = U256::from(max_fee_per_gas.unwrap_or_default());
-
-            reth_rpc_types::TypedTransactionRequest::EIP1559(m)
-        }
-        Some(reth_rpc_types::TypedTransactionRequest::EIP4844(_)) => {
-            return Err(sov_evm::eth_api_into_rpc_error(EthApiError::Unsupported(
-                "EIP-4844 is not supported",
-            )))
-        }
-        None => {
+        _ => {
             return Err(sov_evm::eth_api_into_rpc_error(
                 EthApiError::ConflictingFeeFieldsInRequest,
             ))
         }
-    })
+    };
+    Ok(transaction)
 }

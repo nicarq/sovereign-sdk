@@ -4,9 +4,9 @@ mod signer;
 
 use std::sync::Arc;
 
+use alloy_primitives::{Bytes, B256, U256};
 use jsonrpsee::types::{ErrorCode, ErrorObjectOwned};
 use jsonrpsee::RpcModule;
-use reth_primitives::{Bytes, B256, U256};
 pub use reth_rpc_eth_types::GasPriceOracleConfig;
 use sov_address::{EthereumAddress, FromVmAddress};
 #[cfg(feature = "local")]
@@ -145,7 +145,7 @@ where
         let tx_hash = signed_transaction.hash();
         let message = borsh::to_vec(&raw_tx).expect("Failed to serialize raw tx");
 
-        Ok((tx_hash, message))
+        Ok((*tx_hash, message))
     }
 }
 
