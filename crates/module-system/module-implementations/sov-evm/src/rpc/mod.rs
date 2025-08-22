@@ -220,14 +220,16 @@ where
         // TODO: Implement block_number once we have archival state #882
         // https://github.com/Sovereign-Labs/sovereign-sdk/issues/882
 
+        let ethereum_address: EthereumAddress = address.into();
+        let credential_id = ethereum_address.as_credential_id();
+
         let nonce = self
-            .get_db(state)
-            .basic(address)
-            .unwrap_infallible()
-            .map(|account| account.nonce)
+            .uniqueness_module
+            // TODO nonce or next nonce?
+            .next_nonce(&credential_id, state)
             .unwrap_or_default();
 
-        debug!(%address, nonce, "EVM module JSON-RPC request to `eth_getTransactionCount`");
+        debug!(%ethereum_address, nonce, "EVM module JSON-RPC request to `eth_getTransactionCount`");
 
         Ok(U64::from(nonce))
     }
