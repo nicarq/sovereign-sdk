@@ -105,6 +105,7 @@ arbitrary = [
 	"sov-state/arbitrary",
 	"sov-test-utils/arbitrary",
 	"sov-bank/arbitrary",
+	"sov-uniqueness/arbitrary",
 	"alloy-consensus/arbitrary",
 	"reth-primitives-traits/arbitrary",
 	"reth-ethereum-primitives/arbitrary"
