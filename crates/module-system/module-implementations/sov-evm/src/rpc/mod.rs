@@ -46,25 +46,14 @@ where
         debug!("EVM module JSON-RPC request to `net_version`");
 
         // Network ID is the same as chain ID for most networks
-        let chain_id = self
-            .cfg
-            .get(state)
-            .unwrap_infallible()
-            .expect("EVM config must be set at genesis")
-            .chain_id;
-
+        let chain_id = self.cfg_infallible(state).chain_id;
         Ok(chain_id.to_string())
     }
 
     /// Handler for: `eth_chainId`
     #[rpc_method(name = "eth_chainId")]
     pub fn chain_id(&self, state: &mut ApiStateAccessor<S>) -> RpcResult<Option<U64>> {
-        let chain_id = self
-            .cfg
-            .get(state)
-            .unwrap_infallible()
-            .expect("EVM config must be set at genesis")
-            .chain_id;
+        let chain_id = self.cfg_infallible(state).chain_id;
         debug!(
             chain_id = chain_id,
             "EVM module JSON-RPC request to `eth_chainId`"
@@ -283,29 +272,11 @@ where
         hash: B256,
         state: &mut ApiStateAccessor<S>,
     ) -> RpcResult<Option<Transaction>> {
-        let tx_number = self
-            .transaction_hashes
-            .get(&hash, state)
-            .unwrap_infallible();
+        let tx_number = self.get_tx_index_by_hash(&hash, state);
 
         let transaction = tx_number.map(|number| {
-            let tx = self
-                .transactions
-                .get(number, state)
-                .unwrap_infallible()
-                .unwrap_or_else(|| panic!("Transaction with known hash {} and number {} must be set in all {} transaction",
-                                          hash,
-                                          number,
-                                          self.transactions.len(state).unwrap_infallible()
-                ));
-
-            let block = self
-                .blocks
-                .get(tx.block_number, state)
-                .unwrap_infallible()
-                .unwrap_or_else(|| panic!("Block with number {} for known transaction {} must be set",
-                                          tx.block_number,
-                                          tx.signed_transaction.hash()));
+            let tx = self.transaction(number, state);
+            let block = self.block(tx.block_number, state);
 
             from_recovered_with_block_context(
                 tx.into(),
@@ -337,28 +308,12 @@ where
             "EVM module JSON-RPC request to `eth_getTransactionReceipt`"
         );
 
-        let tx_number = self
-            .transaction_hashes
-            .get(&hash, state)
-            .unwrap_infallible();
+        let tx_number = self.get_tx_index_by_hash(&hash, state);
 
         let receipt = tx_number.map(|number| {
-            let tx = self
-                .transactions
-                .get(number, state)
-                .unwrap_infallible()
-                .expect("Transaction with known hash must be set");
-            let block = self
-                .blocks
-                .get(tx.block_number, state)
-                .unwrap_infallible()
-                .expect("Block number for known transaction must be set");
-
-            let receipt = self
-                .receipts
-                .get(tx_number.unwrap(), state)
-                .unwrap_infallible()
-                .expect("Receipt for known transaction must be set");
+            let tx = self.transaction(number, state);
+            let block = self.block(tx.block_number, state);
+            let receipt = self.receipt(tx_number.unwrap(), state);
 
             build_rpc_receipt(block, tx, tx_number.unwrap(), receipt)
         });
@@ -380,22 +335,10 @@ where
     ) -> RpcResult<Bytes> {
         debug!("EVM module JSON-RPC request to `eth_call`");
 
-        let block_env = match block_number {
-            Some(ref block_number) if block_number == "pending" => self
-                .block_env
-                .get(state)
-                .unwrap_infallible()
-                .unwrap_or_default()
-                .clone(),
-            _ => {
-                let block = self.get_sealed_block_by_number(block_number, state);
-                BlockEnv::from(block)
-            }
-        };
-
+        let block_env = self.resolve_block_env(block_number, state);
         let tx_env = prepare_call_env(&block_env, request.clone()).unwrap();
 
-        let cfg = self.cfg.get(state).unwrap_infallible().unwrap_or_default();
+        let cfg = self.cfg_infallible(state);
         let cfg_env = get_cfg_env(&block_env, cfg, Some(get_cfg_env_template()));
 
         let evm_db: EvmDb<_, S> = self.get_db(state);
@@ -427,23 +370,12 @@ where
         state: &mut ApiStateAccessor<S>,
     ) -> RpcResult<U64> {
         debug!("EVM module JSON-RPC request to `eth_estimateGas`");
-        let mut block_env = match block_number {
-            Some(ref block_number) if block_number == "pending" => self
-                .block_env
-                .get(state)
-                .unwrap_infallible()
-                .unwrap_or_default()
-                .clone(),
-            _ => {
-                let block = self.get_sealed_block_by_number(block_number, state);
-                BlockEnv::from(block)
-            }
-        };
+        let mut block_env = self.resolve_block_env(block_number, state);
 
         let tx_env = prepare_call_env(&block_env, request.clone()).unwrap();
         trace!(?tx_env, "TxEnv is prepared");
 
-        let cfg = self.cfg.get(state).unwrap_infallible().unwrap_or_default();
+        let cfg = self.cfg_infallible(state);
         let cfg_env = get_cfg_env(&block_env, cfg, Some(get_cfg_env_template()));
 
         let request_gas = request.gas;
@@ -553,6 +485,85 @@ where
             Err(err) => return Err(eth_api_into_rpc_error(eth_from_infallible(err))),
         };
 
+        let gas_limit = self.bin_search_gas_limit(
+            &cfg_env,
+            &block_env,
+            &tx_env,
+            result,
+            highest_gas_limit,
+            state,
+        )?;
+
+        debug!(
+            %gas_limit,
+            "EVM module JSON-RPC response from `eth_estimateGas`"
+        );
+        Ok(U64::from(gas_limit))
+    }
+}
+
+impl<S: Spec> Evm<S>
+where
+    S::Address: FromVmAddress<EthereumAddress>,
+{
+    fn get_sealed_block_by_number(
+        &self,
+        block_number: Option<String>,
+        state: &mut ApiStateAccessor<S>,
+    ) -> SealedBlock {
+        // safe, finalized, and pending are not supported
+        match block_number {
+            Some(ref block_number) if block_number == "earliest" => self
+                .blocks
+                .get(0, state)
+                .unwrap_infallible()
+                .expect("Genesis block must be set"),
+            Some(ref block_number) if block_number == "latest" => self
+                .blocks
+                .last(state)
+                .unwrap_infallible()
+                .expect("Head block must be set"),
+            Some(ref block_number) => {
+                // hex representation may have 0x prefix
+                let block_number = u64::from_str_radix(block_number.trim_start_matches("0x"), 16)
+                    .expect("Block number must be a valid hex number, with or without 0x prefix");
+                self.blocks
+                    .get(block_number, state)
+                    .unwrap_infallible()
+                    .expect("Block must be set")
+            }
+            None => self.get_sealed_block_by_number(Some("latest".into()), state),
+        }
+    }
+
+    fn resolve_block_env(
+        &self,
+        block_number: Option<String>,
+        state: &mut ApiStateAccessor<S>,
+    ) -> BlockEnv {
+        match block_number {
+            Some(ref block_number) if block_number == "pending" => self
+                .block_env
+                .get(state)
+                .unwrap_infallible()
+                .unwrap_or_default()
+                .clone(),
+            _ => {
+                let block = self.get_sealed_block_by_number(block_number, state);
+                BlockEnv::from(block)
+            }
+        }
+    }
+
+    fn bin_search_gas_limit(
+        &self,
+        cfg_env: &CfgEnv,
+        block_env: &BlockEnv,
+        tx_env: &TxEnv,
+        result: ExecutionResult,
+        highest_gas_limit: u64,
+        state: &mut ApiStateAccessor<S>,
+    ) -> Result<u64, ErrorObjectOwned> {
         // at this point, we know the call succeeded but want to find the _best_ (lowest) gas the
         // transaction succeeds with.
         // we find this by doing a binary search over the
@@ -577,7 +588,7 @@ where
             tx_env.gas_limit = mid_gas_limit;
 
             let evm_db = self.get_db(state);
-            let result = executor::inspect(evm_db, &block_env, tx_env.clone(), cfg_env.clone());
+            let result = executor::inspect(evm_db, block_env, tx_env.clone(), cfg_env.clone());
 
             // Exceptional case: init used too much gas, we need to increase the gas limit and try
             // again
@@ -626,48 +637,7 @@ where
             // new midpoint
             mid_gas_limit = ((highest_gas_limit as u128 + lowest_gas_limit as u128) / 2) as u64;
         }
-
-        debug!(
-            %highest_gas_limit,
-            "EVM module JSON-RPC response from `eth_estimateGas`"
-        );
-        Ok(U64::from(highest_gas_limit))
-    }
-}
-
-impl<S: Spec> Evm<S> {
-    fn get_sealed_block_by_number(
-        &self,
-        block_number: Option<String>,
-        state: &mut ApiStateAccessor<S>,
-    ) -> SealedBlock {
-        // safe, finalized, and pending are not supported
-        match block_number {
-            Some(ref block_number) if block_number == "earliest" => self
-                .blocks
-                .get(0, state)
-                .unwrap_infallible()
-                .expect("Genesis block must be set"),
-            Some(ref block_number) if block_number == "latest" => self
-                .blocks
-                .last(state)
-                .unwrap_infallible()
-                .expect("Head block must be set"),
-            Some(ref block_number) => {
-                // hex representation may have 0x prefix
-                let block_number = u64::from_str_radix(block_number.trim_start_matches("0x"), 16)
-                    .expect("Block number must be a valid hex number, with or without 0x prefix");
-                self.blocks
-                    .get(block_number, state)
-                    .unwrap_infallible()
-                    .expect("Block must be set")
-            }
-            None => self
-                .blocks
-                .last(state)
-                .unwrap_infallible()
-                .expect("Head block must be set"),
-        }
+        Ok(highest_gas_limit)
     }
 }
 

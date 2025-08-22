@@ -1,8 +1,7 @@
 use alloy_consensus::constants::KECCAK_EMPTY;
 use alloy_consensus::proofs::{calculate_receipt_root, calculate_transaction_root};
-use alloy_consensus::{TxReceipt, EMPTY_OMMER_ROOT_HASH};
-use alloy_primitives::B64;
-use alloy_primitives::{Bloom, Bytes};
+use alloy_consensus::TxReceipt;
+use alloy_primitives::Bloom;
 use alloy_primitives::{B256, U256};
 use sov_modules_api::prelude::UnwrapInfallible;
 #[cfg(feature = "native")]
@@ -36,7 +35,7 @@ impl<S: Spec> BlockHooks for Evm<S> {
             B256::from_slice(&pre_state_user_root);
         self.head.set(&parent_block, state).unwrap_infallible();
 
-        let cfg = self.cfg.get(state).unwrap_infallible().unwrap_or_default();
+        let cfg = self.cfg_infallible(state);
 
         let new_pending_env = BlockEnv {
             number: U256::from(parent_block.header.number.wrapping_add(1)),
@@ -67,7 +66,7 @@ impl<S: Spec> BlockHooks for Evm<S> {
     /// Logic executed at the end of the slot. Here, we generate an authenticated block and set it as the new head of the chain.
     /// It's important to note that the state root hash is not known at this moment, so we postpone setting this field until the begin_rollup_block_hook of the next slot.
     fn end_rollup_block_hook(&mut self, state: &mut StateCheckpoint<S>) {
-        let cfg = self.cfg.get(state).unwrap_infallible().unwrap_or_default();
+        let cfg = self.cfg_infallible(state);
 
         let block_env = self
             .block_env
@@ -117,31 +116,19 @@ impl<S: Spec> BlockHooks for Evm<S> {
             parent_hash: parent_block.header.seal(),
             timestamp: block_env.timestamp.to::<u64>(),
             number: block_env.number.to::<u64>(),
-            ommers_hash: EMPTY_OMMER_ROOT_HASH,
             beneficiary: parent_block.header.beneficiary,
             // This will be set in finalize_hook or in the next begin_rollup_block_hook
             state_root: KECCAK_EMPTY,
             transactions_root,
             receipts_root,
-            withdrawals_root: None,
             logs_bloom: receipts
                 .iter()
                 .fold(Bloom::ZERO, |bloom, r| bloom | r.bloom()),
-            difficulty: U256::ZERO,
             gas_limit: block_env.gas_limit,
             gas_used,
             mix_hash: block_env.prevrandao.map_or(B256::ZERO, B256::from),
-            nonce: B64::ZERO,
             base_fee_per_gas: parent_block.header.next_block_base_fee(cfg.base_fee_params),
-            extra_data: Bytes::default(),
-            // EIP-4844 related fields
-            blob_gas_used: None,
-            excess_blob_gas: None,
-            // EIP-4788 related field
-            // unrelated for rollups
-            parent_beacon_block_root: None,
-            // EIP-7685: TODO: Sovereign does not yet support it: https://github.com/Sovereign-Labs/sovereign-sdk-wip/issues/1131
-            requests_hash: None,
+            ..Default::default()
         };
 
         let block = Block {
