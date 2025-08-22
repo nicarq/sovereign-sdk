@@ -11217,6 +11217,22 @@ dependencies = [
 ]
 
 [[package]]
+name = "sov-eth-dev-generator"
+version = "0.3.0"
+dependencies = [
+ "alloy-consensus",
+ "alloy-primitives",
+ "arbitrary",
+ "rand_chacha 0.3.1",
+ "reth-primitives",
+ "revm",
+ "secp256k1 0.30.0",
+ "sha2 0.10.9",
+ "sov-eth-dev-signer",
+ "sov-transaction-generator",
+]
+
+[[package]]
 name = "sov-eth-dev-signer"
 version = "0.3.0"
 dependencies = [

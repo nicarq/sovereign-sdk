@@ -38,7 +38,7 @@ pub(crate) mod signer {
         S::Address: FromVmAddress<EthereumAddress>,
         Seq::Rt: HasKernel<S> + EthereumAuthenticator<S> + Default + Send + Sync + 'static,
     {
-        Ok(ethereum.eth_signer.signers())
+        Ok(ethereum.eth_signer.addresses())
     }
 
     pub async fn eth_send_transaction<S, Seq>(
@@ -62,7 +62,7 @@ pub(crate) mod signer {
             .ok_or(to_jsonrpsee_error_object("No from address", ETH_RPC_ERROR))?;
 
         // return error if not in signers
-        if !ethereum.eth_signer.signers().contains(&from) {
+        if !ethereum.eth_signer.addresses().contains(&from) {
             return Err(to_jsonrpsee_error_object(
                 "From address not in signers",
                 ETH_RPC_ERROR,
@@ -100,7 +100,7 @@ pub(crate) mod signer {
             // sign transaction
             let signed_tx = ethereum
                 .eth_signer
-                .sign_transaction(transaction, from)
+                .sign_transaction(transaction, &from)
                 .map_err(|e| to_jsonrpsee_error_object(e, ETH_RPC_ERROR))?;
 
             RlpEvmTransaction {

@@ -5,7 +5,7 @@ use alloy_primitives::{Address, U256};
 use reth_primitives::TransactionSigned;
 use secp256k1::rand::SeedableRng as _;
 use secp256k1::{PublicKey, SecretKey};
-use sov_eth_dev_signer::DevSigner;
+use sov_eth_dev_signer::Signer;
 use sov_evm::{AccountData, EvmConfig, RlpEvmTransaction, SpecId};
 use sov_modules_api::{CredentialId, HexHash};
 use sov_test_utils::runtime::genesis::optimistic::HighLevelOptimisticGenesisConfig;
@@ -32,8 +32,8 @@ impl EvmAccount {
     }
 
     pub fn sign(&self, tx: TypedTransaction) -> (RlpEvmTransaction, TransactionSigned) {
-        let signer = DevSigner::new(vec![self.0]);
-        let signed_tx = signer.sign_transaction(tx, self.address()).unwrap();
+        let signer = Signer::new(self.0);
+        let signed_tx = signer.sign_transaction(tx).unwrap();
         let rlp = signed_tx.encoded_2718();
         (RlpEvmTransaction { rlp }, signed_tx)
     }

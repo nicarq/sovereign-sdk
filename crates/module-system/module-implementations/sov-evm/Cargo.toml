@@ -127,5 +127,5 @@ native = [
 	"sov-state/native",
 	"sov-rollup-interface/native",
 	"sov-kernels/native",
-	"sov-bank/native"
+	"sov-bank/native",
 ]
