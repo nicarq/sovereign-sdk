@@ -6534,6 +6534,7 @@ dependencies = [
  "rand_chacha 0.3.1",
  "schemars 0.8.21",
  "serde",
+ "sov-metrics",
  "sov-modules-api",
  "sov-rollup-interface",
  "sov-state",
