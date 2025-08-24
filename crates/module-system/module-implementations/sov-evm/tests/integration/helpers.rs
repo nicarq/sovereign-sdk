@@ -18,8 +18,8 @@ pub(crate) struct EvmAccount(SecretKey);
 
 impl EvmAccount {
     pub fn generate() -> Self {
-        let mut rng = secp256k1::rand::rngs::StdRng::from_entropy();
-        let secret_key = SecretKey::new(&mut rng);
+        //let mut rng = secp256k1::rand::rngs::StdRng::from_entropy();
+        let secret_key = SecretKey::from_byte_array(&[0xcd; 32]).unwrap();
         Self(secret_key)
     }
 

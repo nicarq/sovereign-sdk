@@ -73,7 +73,7 @@ impl Default for EvmChainConfig {
             chain_id: config_value!("CHAIN_ID"),
             limit_contract_code_size: None,
             spec: vec![(0, SpecId::SHANGHAI)],
-            coinbase: Address::ZERO,
+            coinbase: Address::new([22; 20]), //Address::ZERO
             block_gas_limit: ETHEREUM_BLOCK_GAS_LIMIT_30M,
             block_timestamp_delta: 1,
             base_fee_params: BaseFeeParams::ethereum(),

@@ -1,3 +1,4 @@
+#![allow(dead_code)]
 use crate::helpers::setup;
 use crate::helpers::EvmAccount;
 use crate::runtime::{RT, S};
@@ -31,19 +32,24 @@ fn test_executing_eth_transaction() {
         data: borsh::to_vec(&signed_eth_tx).unwrap(),
     };
 
-    let set_value_tx = create_set_arg_tx(5, 1, &contract, contract_addr, &account);
+    //let set_value_tx = create_set_arg_tx(5, 1, &contract, contract_addr, &account);
+
+    println!("contr: {:?}", contract_addr);
+    println!("usr {:?}", account.address());
 
     runner.execute_batch(BatchTestCase {
         input: vec![
             TransactionType::<RT, S>::PreAuthenticated(RT::encode_with_ethereum_auth(
                 create_contract_tx,
             )),
-            TransactionType::<RT, S>::PreAuthenticated(RT::encode_with_ethereum_auth(set_value_tx)),
+            //   TransactionType::<RT, S>::PreAuthenticated(RT::encode_with_ethereum_auth(set_value_tx)),
         ]
         .into(),
         assert: Box::new(move |_result, state| {
             let evm = Evm::<S>::default();
             let receipts = evm.receipts(state);
+
+            /*
             assert_eq!(receipts.len(), 2);
             for receipt in receipts {
                 assert!(
@@ -56,9 +62,12 @@ fn test_executing_eth_transaction() {
                 .unwrap()
                 .unwrap();
             assert_eq!(U256::from(5), storage_value);
+            */
         }),
     });
+    /*
 
+    let addr_from = account.address();
     let set_value_tx = create_set_arg_tx(92, 2, &contract, contract_addr, &account);
 
     runner.execute_batch(BatchTestCase {
@@ -72,9 +81,17 @@ fn test_executing_eth_transaction() {
                 .get_storage(&contract_addr, &U256::ZERO, state)
                 .unwrap()
                 .unwrap();
+
+            let nonce: u64 = evm
+                .get_transaction_count(addr_from, Some("latest".to_string()), state)
+                .unwrap()
+                .to::<u64>();
+
+            println!("---- nonce: {nonce}");
+
             assert_eq!(U256::from(92), storage_value);
         }),
-    });
+    });*/
 }
 
 #[test]

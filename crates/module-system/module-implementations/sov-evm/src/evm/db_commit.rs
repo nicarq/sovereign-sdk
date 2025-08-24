@@ -24,11 +24,15 @@ where
             // Unwrap because we took key from map itself, so key exists by definition.
             let account = changes.remove(&address).unwrap();
 
+            //"account.info.nonce;
             // TODO figure out what to do when account is destroyed.
             // https://github.com/Sovereign-Labs/sovereign-sdk/issues/425
             if account.is_selfdestructed() {
                 todo!("Account destruction not supported")
             }
+
+            println!("Acc nonce: {:?} {:?}", address, &account);
+            println!("");
 
             let mut db_account = self
                 .accounts
@@ -37,6 +41,7 @@ where
                 .unwrap_or_else(DbAccount::new);
 
             let mut account_info = account.info;
+
             let rollup_address: <S as Spec>::Address = to_rollup_address::<S>(address);
 
             self.bank_module

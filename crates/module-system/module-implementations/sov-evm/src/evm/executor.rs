@@ -38,6 +38,7 @@ pub fn execute_tx<DB: Database<Error = Infallible> + DatabaseCommit>(
     cfg: CfgEnv,
 ) -> Result<ExecutionResult, EVMError<Infallible>> {
     let tx_env = create_tx_env(tx, signer);
+
     let context = Context::mainnet()
         .with_db(db)
         .with_block(block_env)

@@ -78,6 +78,7 @@ pub fn convert_to_transaction_signed(
     }
 
     let tx = TransactionSigned::decode_2718(&mut data.as_ref())?;
+
     Ok(tx)
 }
 

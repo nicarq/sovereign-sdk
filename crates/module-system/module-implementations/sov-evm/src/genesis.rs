@@ -78,7 +78,7 @@ impl Default for EvmConfig {
             chain_id: config_value!("CHAIN_ID"),
             limit_contract_code_size: None,
             spec: vec![(0, SpecId::SHANGHAI)].into_iter().collect(),
-            coinbase: Address::ZERO,
+            coinbase: Address::new([17; 20]), //Address::ZERO,
             starting_base_fee: MIN_PROTOCOL_BASE_FEE,
             block_gas_limit: ETHEREUM_BLOCK_GAS_LIMIT_30M,
             block_timestamp_delta: SLOT_DURATION.as_secs(),
