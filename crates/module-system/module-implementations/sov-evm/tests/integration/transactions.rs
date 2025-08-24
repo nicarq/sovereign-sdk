@@ -45,22 +45,25 @@ fn test_executing_eth_transaction() {
         }),
     });
 
-    let set_value_tx = create_set_arg_tx(92, 2, &contract, contract_addr, &account);
+    for n in 2..10 {
+        let set_value_tx =
+            create_set_arg_tx((n + 90) as u32, n, &contract, contract_addr, &account);
 
-    runner.execute_batch(BatchTestCase {
-        input: vec![TransactionType::<RT, S>::PreAuthenticated(
-            RT::encode_with_ethereum_auth(set_value_tx),
-        )]
-        .into(),
-        assert: Box::new(move |_result, state| {
-            let evm = Evm::<S>::default();
-            let storage_value = evm
-                .get_storage(&contract_addr, &U256::ZERO, state)
-                .unwrap()
-                .unwrap();
-            assert_eq!(U256::from(92), storage_value);
-        }),
-    });
+        runner.execute_batch(BatchTestCase {
+            input: vec![TransactionType::<RT, S>::PreAuthenticated(
+                RT::encode_with_ethereum_auth(set_value_tx),
+            )]
+            .into(),
+            assert: Box::new(move |_result, state| {
+                let evm = Evm::<S>::default();
+                let storage_value = evm
+                    .get_storage(&contract_addr, &U256::ZERO, state)
+                    .unwrap()
+                    .unwrap();
+                assert_eq!(U256::from(n + 90), storage_value);
+            }),
+        });
+    }
 }
 
 #[test]
