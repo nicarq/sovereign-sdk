@@ -327,7 +327,7 @@ mod tests {
         // Get the ethereum address from the public key turned into credential id turned into address
         let credential_id = public_key.credential_id();
         assert_eq!(
-            "0x4efbae02ded675eac115583671334bf1710d12c9f689cc819476fa589f08c64c",
+            "0x00000000000000000000000071334bf1710d12c9f689cc819476fa589f08c64c",
             credential_id.to_string()
         );
         let address_from_credential_id: EthereumAddress = credential_id.into();
