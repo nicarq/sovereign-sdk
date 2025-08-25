@@ -187,6 +187,7 @@ impl<S: Spec> Evm<S> {
             self.code.clone(),
             infallible_state_accessor,
             self.bank_module.clone(),
+            self.accounts_module.clone(),
         )
     }
 

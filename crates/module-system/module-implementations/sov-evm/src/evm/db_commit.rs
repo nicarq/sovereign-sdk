@@ -37,7 +37,17 @@ where
                 .unwrap_or_else(DbAccount::new);
 
             let mut account_info = account.info;
-            let rollup_address: <S as Spec>::Address = to_rollup_address::<S>(address);
+
+            let credential_id = EthereumAddress(address).as_credential_id();
+
+            let rollup_address = match self
+                .accounts_module
+                .get_rollup_address(&credential_id, &mut self.state)
+                .unwrap_infallible()
+            {
+                Some(rollup_address) => rollup_address,
+                None => to_rollup_address::<S>(address),
+            };
 
             self.bank_module
                 .override_gas_balance(
