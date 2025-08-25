@@ -1,3 +1,4 @@
+mod account_abstraction;
 mod contracts;
 mod genesis;
 mod helpers;

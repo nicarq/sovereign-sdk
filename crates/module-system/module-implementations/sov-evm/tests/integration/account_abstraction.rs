@@ -5,7 +5,7 @@ use sov_evm::{EthereumAuthenticator, Evm};
 use sov_test_utils::{BatchTestCase, SimpleStorageContract, TransactionType};
 
 #[test]
-fn test_executing_eth_transaction() {
+fn test_account_abstraction() {
     let (mut runner, _, account, _) = setup();
     let contract = SimpleStorageContract::default();
     let contract_addr = account.address().create(0);
@@ -65,24 +65,4 @@ fn test_executing_eth_transaction() {
             }),
         });
     }
-}
-
-#[test]
-fn test_failed_tx_doesnt_update_evm_module_state() {
-    let (mut runner, _, _, no_balance_account) = setup();
-    let contract = SimpleStorageContract::default();
-    let create_contract_tx = create_contract_tx(0, &contract, &no_balance_account);
-
-    runner.execute_batch(BatchTestCase {
-        input: vec![TransactionType::<RT, S>::PreAuthenticated(
-            RT::encode_with_ethereum_auth(create_contract_tx),
-        )]
-        .into(),
-        assert: Box::new(move |_result, state| {
-            let evm = Evm::<S>::default();
-            // no pending block added if eth tx execution fails.
-            assert!(evm.pending_head(state).is_none());
-            assert!(evm.pending_transactions(state).is_empty());
-        }),
-    });
 }

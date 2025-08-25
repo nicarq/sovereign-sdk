@@ -1,18 +1,24 @@
+use crate::runtime::{GenesisConfig, TestRuntime, RT, S};
 use alloy_consensus::constants::KECCAK_EMPTY;
+use alloy_consensus::TxEip1559;
 use alloy_consensus::TypedTransaction;
+use alloy_eips::eip1559::MIN_PROTOCOL_BASE_FEE;
 use alloy_eips::eip2718::Encodable2718;
+use alloy_primitives::Bytes;
+use alloy_primitives::TxKind;
 use alloy_primitives::{Address, U256};
 use reth_primitives::TransactionSigned;
 use secp256k1::rand::SeedableRng as _;
 use secp256k1::{PublicKey, SecretKey};
 use sov_eth_dev_signer::Signer;
 use sov_evm::{AccountData, EvmConfig, RlpEvmTransaction, SpecId};
+use sov_modules_api::macros::config_value;
+use sov_modules_api::RawTx;
 use sov_modules_api::{CredentialId, HexHash};
 use sov_test_utils::runtime::genesis::optimistic::HighLevelOptimisticGenesisConfig;
 use sov_test_utils::runtime::TestRunner;
+use sov_test_utils::SimpleStorageContract;
 use sov_test_utils::TestUser;
-
-use crate::runtime::{GenesisConfig, TestRuntime, RT, S};
 
 pub(crate) struct EvmAccount(SecretKey);
 
@@ -74,4 +80,51 @@ pub(crate) fn setup() -> (TestRunner<RT, S>, TestUser<S>, EvmAccount, EvmAccount
         TestRunner::new_with_genesis(genesis.into_genesis_params(), TestRuntime::default());
 
     (runner, rollup_account, evm_account, no_balance_account)
+}
+
+pub(crate) fn create_contract_tx(
+    nonce: u64,
+    contract: &SimpleStorageContract,
+    account: &EvmAccount,
+) -> RawTx {
+    let create_contract_tx_request = TypedTransaction::Eip1559(TxEip1559 {
+        chain_id: config_value!("CHAIN_ID"),
+        nonce,
+        max_priority_fee_per_gas: Default::default(),
+        max_fee_per_gas: MIN_PROTOCOL_BASE_FEE as u128 * 2,
+        gas_limit: 1_000_000,
+        to: TxKind::Create,
+        value: Default::default(),
+        input: Bytes::from(contract.byte_code().to_vec()),
+        access_list: Default::default(),
+    });
+    let (signed_eth_tx, _) = account.sign(create_contract_tx_request);
+    RawTx {
+        data: borsh::to_vec(&signed_eth_tx).unwrap(),
+    }
+}
+
+pub(crate) fn create_set_arg_tx(
+    set_arg: u32,
+    nonce: u64,
+    contract: &SimpleStorageContract,
+    contract_addr: Address,
+    account: &EvmAccount,
+) -> RawTx {
+    let set_arg_eth_tx = TypedTransaction::Eip1559(TxEip1559 {
+        chain_id: config_value!("CHAIN_ID"),
+        nonce,
+        max_priority_fee_per_gas: Default::default(),
+        max_fee_per_gas: MIN_PROTOCOL_BASE_FEE as u128 * 2,
+        gas_limit: 1_000_000,
+        to: TxKind::Call(contract_addr),
+        value: Default::default(),
+        input: Bytes::from(hex::decode(hex::encode(contract.set_call_data(set_arg))).unwrap()),
+        access_list: Default::default(),
+    });
+
+    let (signed_eth_tx, _) = account.sign(set_arg_eth_tx);
+    RawTx {
+        data: borsh::to_vec(&signed_eth_tx).unwrap(),
+    }
 }
