@@ -22,6 +22,7 @@ sov-state = { workspace = true }
 sov-address = { workspace = true, features = ["evm"] }
 sov-bank = { workspace = true }
 sov-uniqueness = { workspace = true }
+sov-accounts = { workspace = true }
 
 anyhow = { workspace = true }
 arbitrary = { workspace = true, optional = true }
@@ -106,6 +107,7 @@ arbitrary = [
 	"sov-test-utils/arbitrary",
 	"sov-bank/arbitrary",
 	"sov-uniqueness/arbitrary",
+	"sov-accounts/arbitrary",
 	"alloy-consensus/arbitrary",
 	"reth-primitives-traits/arbitrary",
 	"reth-ethereum-primitives/arbitrary"
@@ -130,5 +132,6 @@ native = [
 	"sov-rollup-interface/native",
 	"sov-kernels/native",
 	"sov-bank/native",
-	"sov-uniqueness/native"
+	"sov-uniqueness/native",
+	"sov-accounts/native",
 ]

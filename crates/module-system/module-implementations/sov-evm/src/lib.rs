@@ -135,6 +135,10 @@ pub struct Evm<S: Spec> {
     #[module]
     pub(crate) uniqueness_module: sov_uniqueness::Uniqueness<S>,
 
+    /// A reference to the Accounts module.
+    #[module]
+    pub(crate) accounts_module: sov_accounts::Accounts<S>,
+
     #[phantom]
     phantom: core::marker::PhantomData<S>,
 }

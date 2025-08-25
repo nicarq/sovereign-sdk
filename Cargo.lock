@@ -11326,6 +11326,7 @@ dependencies = [
  "serde",
  "serde_with",
  "sha2 0.10.9",
+ "sov-accounts",
  "sov-address",
  "sov-bank",
  "sov-eth-dev-signer",
