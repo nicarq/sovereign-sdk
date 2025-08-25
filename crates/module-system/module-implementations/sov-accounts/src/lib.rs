@@ -13,8 +13,6 @@ pub use query::*;
 #[cfg(test)]
 mod tests;
 pub use call::CallMessage;
-use sov_modules_api::StateAccessor;
-use sov_modules_api::StateReader;
 use sov_modules_api::{
     Context, CredentialId, DaSpec, GenesisState, Module, ModuleId, ModuleInfo, ModuleRestApi, Spec,
     StateMap, TxState,
@@ -79,16 +77,5 @@ impl<S: Spec> Module for Accounts<S> {
                 Ok(self.insert_credential_id(new_credential_id, context, state)?)
             }
         }
-    }
-}
-
-impl<S: Spec> Accounts<S> {
-    /// TODO
-    pub fn get_rollup_address<Accessor: StateAccessor>(
-        &self,
-        credential_id: &CredentialId,
-        state: &mut Accessor,
-    ) -> Result<Option<S::Address>, <Accessor as StateReader<User>>::Error> {
-        Ok(self.accounts.get(credential_id, state)?.map(|a| a.addr))
     }
 }

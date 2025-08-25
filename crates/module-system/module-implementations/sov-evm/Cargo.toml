@@ -130,5 +130,5 @@ native = [
 	"sov-rollup-interface/native",
 	"sov-kernels/native",
 	"sov-bank/native",
-	"sov-uniqueness/native",
+	"sov-uniqueness/native"
 ]
