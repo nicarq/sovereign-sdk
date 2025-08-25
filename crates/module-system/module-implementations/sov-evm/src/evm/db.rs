@@ -19,7 +19,6 @@ pub struct EvmDb<Ws, S: Spec> {
     pub(crate) code: StateMap<B256, Bytes, BcsCodec>,
     pub(crate) state: Ws,
     pub(crate) bank_module: sov_bank::Bank<S>,
-    pub(crate) accounts_module: sov_accounts::Accounts<S>,
 }
 
 impl<Ws, S: Spec> EvmDb<Ws, S> {
@@ -29,7 +28,6 @@ impl<Ws, S: Spec> EvmDb<Ws, S> {
         code: StateMap<B256, Bytes, BcsCodec>,
         state: Ws,
         bank_module: sov_bank::Bank<S>,
-        accounts_module: sov_accounts::Accounts<S>,
     ) -> Self {
         Self {
             accounts,
@@ -37,7 +35,6 @@ impl<Ws, S: Spec> EvmDb<Ws, S> {
             code,
             state,
             bank_module,
-            accounts_module,
         }
     }
 }

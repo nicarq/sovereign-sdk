@@ -135,10 +135,6 @@ pub struct Evm<S: Spec> {
     #[module]
     pub(crate) uniqueness_module: sov_uniqueness::Uniqueness<S>,
 
-    /// A reference to the Accounts module.
-    #[module]
-    pub(crate) accounts_module: sov_accounts::Accounts<S>,
-
     #[phantom]
     phantom: core::marker::PhantomData<S>,
 }
@@ -187,7 +183,6 @@ impl<S: Spec> Evm<S> {
             self.code.clone(),
             infallible_state_accessor,
             self.bank_module.clone(),
-            self.accounts_module.clone(),
         )
     }
 

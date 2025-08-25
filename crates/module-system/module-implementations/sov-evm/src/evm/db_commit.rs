@@ -38,17 +38,7 @@ where
 
             let mut account_info = account.info;
 
-            let credential_id = EthereumAddress(address).as_credential_id();
-
-            let rollup_address = match self
-                .accounts_module
-                .get_rollup_address(&credential_id, &mut self.state)
-                .unwrap_infallible()
-            {
-                Some(rollup_address) => rollup_address,
-                None => to_rollup_address::<S>(address),
-            };
-
+            let rollup_address = to_rollup_address::<S>(address);
             self.bank_module
                 .override_gas_balance(
                     // U256 can overflow u128
