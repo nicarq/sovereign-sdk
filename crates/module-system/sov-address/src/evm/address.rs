@@ -1,3 +1,5 @@
+use crate::evm::public_key::EthereumPublicKey;
+use crate::{MultiAddress, Not28Bytes};
 use alloy_primitives::{Address, AddressError};
 use borsh::{BorshDeserialize, BorshSerialize};
 use k256::elliptic_curve::sec1::ToEncodedPoint;
@@ -6,9 +8,6 @@ use sov_modules_api::macros::UniversalWallet;
 use sov_rollup_interface::common::HexString;
 use sov_rollup_interface::crypto::CredentialId;
 use sov_rollup_interface::BasicAddress;
-
-use crate::evm::public_key::EthereumPublicKey;
-use crate::{MultiAddress, Not28Bytes};
 
 #[derive(
     Debug,
@@ -34,6 +33,10 @@ use crate::{MultiAddress, Not28Bytes};
 pub struct EthereumAddress(#[sov_wallet(as_ty = "[u8;20]", display = "hex")] pub Address);
 
 impl EthereumAddress {
+    pub fn new(bytes: [u8; 20]) -> Self {
+        Self(Address(alloy_primitives::FixedBytes(bytes)))
+    }
+
     pub fn as_credential_id(&self) -> CredentialId {
         CredentialId::from_bytes(self.0.into_word().into())
     }
