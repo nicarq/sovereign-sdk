@@ -748,7 +748,7 @@ impl From<crate::db::Error> for EthApiError {
     fn from(err: crate::db::Error) -> Self {
         RpcInvalidTransactionError::other(ErrorObject::owned(
             -32603,
-            format!("Database error: {}", err),
+            format!("Database error: {err}"),
             None::<()>,
         ))
         .into()

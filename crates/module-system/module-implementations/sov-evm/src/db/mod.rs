@@ -17,13 +17,13 @@ pub(crate) mod init;
 #[derive(Debug, thiserror::Error)]
 pub enum Error {
     #[error("Failed to access account state: {0}")]
-    AccountAccess(String),
+    Account(String),
     #[error("Failed to access bank balance: {0}")]
-    BankAccess(String),
+    Bank(String),
     #[error("Failed to access code: {0}")]
-    CodeAccess(String),
+    Code(String),
     #[error("Failed to access storage: {0}")]
-    StorageAccess(String),
+    Storage(String),
 }
 
 impl DBErrorMarker for Error {}
@@ -52,7 +52,7 @@ where
         let maybe_account_info = self
             .accounts
             .get(&address, self.state)
-            .map_err(|e| Error::AccountAccess(e.to_string()))?
+            .map_err(|e| Error::Account(e.to_string()))?
             .map(|acc| acc.0);
 
         let rollup_address: <S as Spec>::Address = to_rollup_address::<S>(address);
@@ -60,7 +60,7 @@ where
         let bank_balance = self
             .bank_module
             .get_balance_of(&rollup_address, sov_bank::config_gas_token_id(), self.state)
-            .map_err(|e| Error::BankAccess(e.to_string()))?
+            .map_err(|e| Error::Bank(e.to_string()))?
             .unwrap_or_default();
 
         match maybe_account_info {
@@ -86,7 +86,7 @@ where
         let bytecode = Bytecode::new_raw(
             self.code
                 .get(&code_hash, self.state)
-                .map_err(|e| Error::CodeAccess(e.to_string()))?
+                .map_err(|e| Error::Code(e.to_string()))?
                 .unwrap_or_default(),
         );
 
@@ -97,7 +97,7 @@ where
         let storage_value: U256 = self
             .account_storage
             .get(&(&address, &index), self.state)
-            .map_err(|e| Error::StorageAccess(e.to_string()))?
+            .map_err(|e| Error::Storage(e.to_string()))?
             .unwrap_or_default();
 
         Ok(storage_value)
