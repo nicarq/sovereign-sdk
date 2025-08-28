@@ -1,18 +1,20 @@
 use crate::runtime::{GenesisConfig, TestRuntime, RT, S};
 use alloy_consensus::constants::KECCAK_EMPTY;
-use alloy_consensus::TypedTransaction;
+use alloy_consensus::{TxEip1559, TypedTransaction};
+use alloy_eips::eip1559::MIN_PROTOCOL_BASE_FEE;
 use alloy_eips::eip2718::Encodable2718;
-use alloy_primitives::Address;
+use alloy_primitives::{Address, Bytes, TxKind, U256};
 use reth_primitives::TransactionSigned;
 use secp256k1::rand::SeedableRng as _;
 use secp256k1::{PublicKey, SecretKey};
 use sov_address::EthereumAddress;
 use sov_address::MultiAddress;
 use sov_eth_dev_signer::Signer;
-use sov_evm::{AccountData, EvmGenesisConfig, RlpEvmTransaction, SpecId};
-use sov_test_utils::runtime::genesis::optimistic::HighLevelOptimisticGenesisConfig;
-use sov_test_utils::runtime::TestRunner;
-use sov_test_utils::TEST_DEFAULT_USER_BALANCE;
+use sov_evm::{AccountData, EthereumAuthenticator, EvmGenesisConfig, RlpEvmTransaction, SpecId};
+use sov_modules_api::macros::config_value;
+use sov_modules_api::RawTx;
+use sov_test_utils::runtime::{genesis::optimistic::HighLevelOptimisticGenesisConfig, TestRunner};
+use sov_test_utils::{SimpleStorageContract, TransactionType, TEST_DEFAULT_USER_BALANCE};
 
 pub(crate) struct EvmAccount(SecretKey);
 
@@ -77,4 +79,61 @@ pub(crate) fn setup() -> (TestRunner<RT, S>, EvmAccount, EvmAccount) {
         TestRunner::new_with_genesis(genesis.into_genesis_params(), TestRuntime::default());
 
     (runner, evm_account, no_balance_account)
+}
+
+pub(crate) fn create_transfer_tx(
+    nonce: u64,
+    from: &EvmAccount,
+    to: &EvmAccount,
+    value: u128,
+) -> TransactionType<RT, S> {
+    let tx = TxEip1559 {
+        to: TxKind::Call(to.address()),
+        value: U256::from(value),
+        nonce,
+        ..Default::default()
+    };
+    create_tx(from, tx)
+}
+
+pub(crate) fn create_deploy_tx(
+    nonce: u64,
+    contract: &SimpleStorageContract,
+    account: &EvmAccount,
+) -> TransactionType<RT, S> {
+    let tx = TxEip1559 {
+        input: Bytes::from(contract.byte_code().to_vec()),
+        nonce,
+        ..Default::default()
+    };
+    create_tx(account, tx)
+}
+
+pub(crate) fn create_set_arg_tx(
+    set_arg: u32,
+    nonce: u64,
+    contract: &SimpleStorageContract,
+    contract_addr: Address,
+    account: &EvmAccount,
+) -> TransactionType<RT, S> {
+    let tx = TxEip1559 {
+        to: TxKind::Call(contract_addr),
+        input: Bytes::from(hex::decode(hex::encode(contract.set_call_data(set_arg))).unwrap()),
+        nonce,
+        ..Default::default()
+    };
+    create_tx(account, tx)
+}
+
+fn create_tx(account: &EvmAccount, tx: TxEip1559) -> TransactionType<RT, S> {
+    let tx_with_defaults = TxEip1559 {
+        gas_limit: 1_000_000,
+        max_fee_per_gas: MIN_PROTOCOL_BASE_FEE as u128 * 2,
+        chain_id: config_value!("CHAIN_ID"),
+        ..tx
+    };
+    let (signed_eth_tx, _) = account.sign(TypedTransaction::Eip1559(tx_with_defaults));
+    let data = borsh::to_vec(&signed_eth_tx).unwrap();
+    let raw_tx = RawTx { data };
+    TransactionType::PreAuthenticated(RT::encode_with_ethereum_auth(raw_tx))
 }
