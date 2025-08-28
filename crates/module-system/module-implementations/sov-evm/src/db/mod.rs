@@ -3,6 +3,7 @@ use std::convert::Infallible;
 use alloy_primitives::Bytes;
 use alloy_primitives::{Address, B256, U256};
 use derive_more::{Deref, Into};
+use derive_new::new;
 use revm::state::{AccountInfo, Bytecode};
 use revm::Database;
 use serde::{Deserialize, Serialize};
@@ -21,30 +22,13 @@ pub(crate) mod init;
 pub struct DbAccount(pub(crate) AccountInfo);
 
 /// A queryable EVM database.
+#[derive(new)]
 pub struct EvmDb<Ws, S: Spec> {
     pub(crate) accounts: StateMap<Address, DbAccount, BcsCodec>,
     pub(crate) account_storage: StateMap<AccountStorageKey, U256, BcsCodec>,
     pub(crate) code: StateMap<B256, Bytes, BcsCodec>,
     pub(crate) state: Ws,
     pub(crate) bank_module: sov_bank::Bank<S>,
-}
-
-impl<Ws, S: Spec> EvmDb<Ws, S> {
-    pub(crate) fn new(
-        accounts: StateMap<Address, DbAccount, BcsCodec>,
-        account_storage: StateMap<AccountStorageKey, U256, BcsCodec>,
-        code: StateMap<B256, Bytes, BcsCodec>,
-        state: Ws,
-        bank_module: sov_bank::Bank<S>,
-    ) -> Self {
-        Self {
-            accounts,
-            account_storage,
-            code,
-            state,
-            bank_module,
-        }
-    }
 }
 
 impl<Ws: InfallibleStateAccessor, S: Spec> Database for EvmDb<Ws, S>
