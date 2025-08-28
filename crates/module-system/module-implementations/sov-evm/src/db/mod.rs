@@ -1,11 +1,9 @@
-use std::convert::Infallible;
-
 use alloy_primitives::Bytes;
 use alloy_primitives::{Address, B256, U256};
 use derive_more::{Deref, Into};
 use derive_new::new;
 use revm::state::{AccountInfo, Bytecode};
-use revm::Database;
+use revm::{database_interface::DBErrorMarker, Database};
 use serde::{Deserialize, Serialize};
 use sov_address::{EthereumAddress, FromVmAddress};
 use sov_modules_api::{Spec, StateAccessor, StateMap};
@@ -15,6 +13,20 @@ use crate::{to_rollup_address, AccountStorageKey};
 
 mod commit;
 pub(crate) mod init;
+
+#[derive(Debug, thiserror::Error)]
+pub enum Error {
+    #[error("Failed to access account state: {0}")]
+    AccountAccess(String),
+    #[error("Failed to access bank balance: {0}")]
+    BankAccess(String),
+    #[error("Failed to access code: {0}")]
+    CodeAccess(String),
+    #[error("Failed to access storage: {0}")]
+    StorageAccess(String),
+}
+
+impl DBErrorMarker for Error {}
 
 /// Stores information about an EVM account and a corresponding account state.
 #[derive(Deserialize, Serialize, Debug, PartialEq, Clone, Default, Deref, Into)]
@@ -34,25 +46,21 @@ impl<'a, Ws: StateAccessor, S: Spec> Database for EvmDb<'a, Ws, S>
 where
     S::Address: FromVmAddress<EthereumAddress>,
 {
-    type Error = Infallible;
+    type Error = Error;
 
     fn basic(&mut self, address: Address) -> Result<Option<AccountInfo>, Self::Error> {
         let maybe_account_info = self
             .accounts
             .get(&address, self.state)
-            .expect("Failed to access account state")
+            .map_err(|e| Error::AccountAccess(e.to_string()))?
             .map(|acc| acc.0);
 
         let rollup_address: <S as Spec>::Address = to_rollup_address::<S>(address);
 
         let bank_balance = self
             .bank_module
-            .get_balance_of(
-                &rollup_address,
-                sov_bank::config_gas_token_id(),
-                self.state,
-            )
-            .expect("Failed to access bank balance")
+            .get_balance_of(&rollup_address, sov_bank::config_gas_token_id(), self.state)
+            .map_err(|e| Error::BankAccess(e.to_string()))?
             .unwrap_or_default();
 
         match maybe_account_info {
@@ -78,7 +86,7 @@ where
         let bytecode = Bytecode::new_raw(
             self.code
                 .get(&code_hash, self.state)
-                .expect("Failed to access code")
+                .map_err(|e| Error::CodeAccess(e.to_string()))?
                 .unwrap_or_default(),
         );
 
@@ -89,7 +97,7 @@ where
         let storage_value: U256 = self
             .account_storage
             .get(&(&address, &index), self.state)
-            .expect("Failed to access storage")
+            .map_err(|e| Error::StorageAccess(e.to_string()))?
             .unwrap_or_default();
 
         Ok(storage_value)

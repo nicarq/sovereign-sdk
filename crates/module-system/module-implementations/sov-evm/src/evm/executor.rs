@@ -1,5 +1,3 @@
-use std::convert::Infallible;
-
 use alloy_primitives::Address;
 use reth_primitives::TransactionSigned;
 #[cfg(feature = "native")]
@@ -12,7 +10,7 @@ use revm::{
     Database, DatabaseCommit, ExecuteCommitEvm, MainContext,
 };
 
-use crate::{evm::conversions::create_tx_env, get_spec_id, sov_evm::SovEvm, EvmRuntimeConfig};
+use crate::{db, evm::conversions::create_tx_env, get_spec_id, sov_evm::SovEvm, EvmRuntimeConfig};
 
 /// builds CfgEnv
 /// Returns correct config depending on spec for given block number
@@ -30,14 +28,14 @@ pub(crate) fn get_cfg_env(
 }
 
 /// Execute an Ethereum transaction and commit it to the database.
-pub fn execute_tx<DB: Database<Error = Infallible> + DatabaseCommit>(
+pub fn execute_tx<DB: Database<Error = db::Error> + DatabaseCommit>(
     account_nonce: u64,
     db: DB,
     block_env: &BlockEnv,
     tx: &TransactionSigned,
     signer: Address,
     cfg: CfgEnv,
-) -> Result<ExecutionResult, EVMError<Infallible>> {
+) -> Result<ExecutionResult, EVMError<db::Error>> {
     let tx_env = create_tx_env(account_nonce, tx, signer);
     let context = Context::mainnet()
         .with_db(db)
@@ -48,12 +46,12 @@ pub fn execute_tx<DB: Database<Error = Infallible> + DatabaseCommit>(
 }
 
 #[cfg(feature = "native")]
-pub(crate) fn inspect<DB: Database<Error = Infallible> + DatabaseCommit>(
+pub(crate) fn inspect<DB: Database<Error = db::Error> + DatabaseCommit>(
     db: DB,
     block_env: &BlockEnv,
     tx: TxEnv,
     cfg: CfgEnv,
-) -> Result<ResultAndState, EVMError<Infallible>> {
+) -> Result<ResultAndState, EVMError<db::Error>> {
     use revm::InspectEvm;
 
     let config = revm_inspectors::tracing::TracingInspectorConfig::all();
