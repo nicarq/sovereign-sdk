@@ -6,14 +6,13 @@ use revm::primitives::HashMap;
 use revm::state::{Account, EvmStorageSlot};
 use revm::DatabaseCommit;
 use sov_address::{EthereumAddress, FromVmAddress};
-use sov_modules_api::prelude::UnwrapInfallible;
-use sov_modules_api::{InfallibleStateAccessor, Spec};
+use sov_modules_api::{Spec, StateAccessor};
 
 use super::EvmDb;
 use crate::db::DbAccount;
 use crate::{to_rollup_address, to_rollup_balance};
 
-impl<Ws: InfallibleStateAccessor, S: Spec> DatabaseCommit for EvmDb<Ws, S>
+impl<'a, Ws: StateAccessor, S: Spec> DatabaseCommit for EvmDb<'a, Ws, S>
 where
     S::Address: FromVmAddress<EthereumAddress>,
 {
@@ -22,12 +21,12 @@ where
             .into_iter()
             .sorted_by_key(|(address, _)| *address) // Sort addresses to avoid non-determinism in ZK
             .for_each(|(address, account)| {
-                self.commit_account(address, account).unwrap_infallible();
+                self.commit_account(address, account).unwrap();
             });
     }
 }
 
-impl<Ws: InfallibleStateAccessor, S: Spec> EvmDb<Ws, S>
+impl<'a, Ws: StateAccessor, S: Spec> EvmDb<'a, Ws, S>
 where
     S::Address: FromVmAddress<EthereumAddress>,
 {
@@ -42,11 +41,13 @@ where
 
         let mut account = account.info;
 
-        self.bank_module.override_gas_balance(
-            to_rollup_balance(account.balance),
-            &to_rollup_address::<S>(address),
-            &mut self.state,
-        )?;
+        self.bank_module
+            .override_gas_balance(
+                to_rollup_balance(account.balance),
+                &to_rollup_address::<S>(address),
+                self.state,
+            )
+            .expect("Failed to override gas balance");
         // Set the EVM account balance to 0 - as balances are stored in the bank module.
         account.balance = U256::ZERO;
 
@@ -54,12 +55,14 @@ where
             if !code.is_empty() {
                 // TODO: would be good to have a contains_key method on the StateMap that would be optimized, so we can check the hash before storing the code
                 self.code
-                    .set(&account.code_hash, code.bytecode(), &mut self.state)?;
+                    .set(&account.code_hash, code.bytecode(), self.state)
+                    .expect("Failed to set code");
             }
         }
 
         self.accounts
-            .set(&address, &DbAccount(account), &mut self.state)?;
+            .set(&address, &DbAccount(account), self.state)
+            .expect("Failed to set account");
 
         Ok(())
     }
@@ -71,8 +74,8 @@ where
             .for_each(|(key, value)| {
                 let value = value.present_value();
                 self.account_storage
-                    .set(&(&address, &key), &value, &mut self.state)
-                    .unwrap_infallible();
+                    .set(&(&address, &key), &value, self.state)
+                    .expect("Failed to set storage");
             });
     }
 }

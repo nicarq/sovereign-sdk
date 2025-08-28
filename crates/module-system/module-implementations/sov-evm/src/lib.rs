@@ -44,7 +44,7 @@ use sov_modules_api::{
     AccessoryStateMap, AccessoryStateReader, AccessoryStateReaderAndWriter, AccessoryStateValue,
     AccessoryStateVec, Context, DaSpec, GenesisState, InfallibleStateAccessor,
     InfallibleStateReaderAndWriter, Module, ModuleId, ModuleInfo, Spec, StateAccessor, StateMap,
-    StateReader, StateValue, StateVec, TxState, UnmeteredStateWrapper,
+    StateReader, StateValue, StateVec, TxState,
 };
 use sov_state::codec::BcsCodec;
 use sov_state::User;
@@ -175,16 +175,12 @@ where
 
 impl<S: Spec> Evm<S> {
     /// Get a EvmDb instance for the supplied state.
-    pub fn get_db<'a, Ws: StateAccessor>(
-        &self,
-        state: &'a mut Ws,
-    ) -> EvmDb<UnmeteredStateWrapper<'a, Ws>, S> {
-        let infallible_state_accessor = state.to_unmetered();
+    pub fn get_db<'a, Ws: StateAccessor>(&self, state: &'a mut Ws) -> EvmDb<'a, Ws, S> {
         EvmDb::new(
             self.accounts.clone(),
             self.account_storage.clone(),
             self.code.clone(),
-            infallible_state_accessor,
+            state,
             self.bank_module.clone(),
         )
     }

@@ -8,8 +8,7 @@ use revm::state::{AccountInfo, Bytecode};
 use revm::Database;
 use serde::{Deserialize, Serialize};
 use sov_address::{EthereumAddress, FromVmAddress};
-use sov_modules_api::prelude::UnwrapInfallible;
-use sov_modules_api::{InfallibleStateAccessor, Spec, StateMap};
+use sov_modules_api::{Spec, StateAccessor, StateMap};
 use sov_state::codec::BcsCodec;
 
 use crate::{to_rollup_address, AccountStorageKey};
@@ -23,15 +22,15 @@ pub struct DbAccount(pub(crate) AccountInfo);
 
 /// A queryable EVM database.
 #[derive(new)]
-pub struct EvmDb<Ws, S: Spec> {
+pub struct EvmDb<'a, Ws, S: Spec> {
     pub(crate) accounts: StateMap<Address, DbAccount, BcsCodec>,
     pub(crate) account_storage: StateMap<AccountStorageKey, U256, BcsCodec>,
     pub(crate) code: StateMap<B256, Bytes, BcsCodec>,
-    pub(crate) state: Ws,
+    pub(crate) state: &'a mut Ws,
     pub(crate) bank_module: sov_bank::Bank<S>,
 }
 
-impl<Ws: InfallibleStateAccessor, S: Spec> Database for EvmDb<Ws, S>
+impl<'a, Ws: StateAccessor, S: Spec> Database for EvmDb<'a, Ws, S>
 where
     S::Address: FromVmAddress<EthereumAddress>,
 {
@@ -40,8 +39,8 @@ where
     fn basic(&mut self, address: Address) -> Result<Option<AccountInfo>, Self::Error> {
         let maybe_account_info = self
             .accounts
-            .get(&address, &mut self.state)
-            .unwrap_infallible()
+            .get(&address, self.state)
+            .expect("Failed to access account state")
             .map(|acc| acc.0);
 
         let rollup_address: <S as Spec>::Address = to_rollup_address::<S>(address);
@@ -51,9 +50,9 @@ where
             .get_balance_of(
                 &rollup_address,
                 sov_bank::config_gas_token_id(),
-                &mut self.state,
+                self.state,
             )
-            .unwrap_infallible()
+            .expect("Failed to access bank balance")
             .unwrap_or_default();
 
         match maybe_account_info {
@@ -78,8 +77,8 @@ where
         // TODO move to new_raw_with_hash for better performance
         let bytecode = Bytecode::new_raw(
             self.code
-                .get(&code_hash, &mut self.state)
-                .unwrap_infallible()
+                .get(&code_hash, self.state)
+                .expect("Failed to access code")
                 .unwrap_or_default(),
         );
 
@@ -89,8 +88,8 @@ where
     fn storage(&mut self, address: Address, index: U256) -> Result<U256, Self::Error> {
         let storage_value: U256 = self
             .account_storage
-            .get(&(&address, &index), &mut self.state)
-            .unwrap_infallible()
+            .get(&(&address, &index), self.state)
+            .expect("Failed to access storage")
             .unwrap_or_default();
 
         Ok(storage_value)
