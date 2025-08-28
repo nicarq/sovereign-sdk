@@ -24,7 +24,7 @@ use sov_modules_api::prelude::UnwrapInfallible;
 use sov_modules_api::{ApiStateAccessor, InfallibleStateAccessor, Spec};
 use tracing::{debug, trace};
 
-use crate::evm::db::EvmDb;
+use crate::db::EvmDb;
 use crate::evm::executor;
 use crate::evm::primitive_types::{Receipt, SealedBlock, TransactionSignedAndRecovered};
 use crate::executor::get_cfg_env;

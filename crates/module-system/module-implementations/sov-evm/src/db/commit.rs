@@ -6,7 +6,7 @@ use sov_address::{EthereumAddress, FromVmAddress};
 use sov_modules_api::prelude::UnwrapInfallible;
 use sov_modules_api::{Amount, InfallibleStateAccessor, Spec};
 
-use super::db::EvmDb;
+use super::EvmDb;
 use crate::to_rollup_address;
 
 impl<Ws: InfallibleStateAccessor, S: Spec> DatabaseCommit for EvmDb<Ws, S>

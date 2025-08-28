@@ -13,6 +13,9 @@ use sov_state::codec::BcsCodec;
 
 use crate::{to_rollup_address, AccountStorageKey};
 
+mod commit;
+pub(crate) mod init;
+
 /// Stores information about an EVM account and a corresponding account state.
 #[derive(Deserialize, Serialize, Debug, PartialEq, Clone, Default, Deref, Into)]
 pub struct DbAccount(pub(crate) AccountInfo);

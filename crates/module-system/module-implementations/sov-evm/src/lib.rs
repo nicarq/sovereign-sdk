@@ -4,6 +4,7 @@
 mod account_storage_key;
 mod call;
 mod config;
+mod db;
 mod evm;
 mod genesis;
 mod hooks;
@@ -48,7 +49,7 @@ use sov_state::codec::BcsCodec;
 use sov_state::User;
 
 use crate::account_storage_key::AccountStorageKey;
-use crate::evm::db::{DbAccount, EvmDb};
+use crate::db::{DbAccount, EvmDb};
 use crate::evm::primitive_types::{
     Block, PendingTransaction, Receipt, SealedBlock, TransactionSignedAndRecovered,
 };

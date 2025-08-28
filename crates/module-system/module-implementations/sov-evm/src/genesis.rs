@@ -7,7 +7,7 @@ use revm::state::AccountInfo;
 use sov_address::{EthereumAddress, FromVmAddress};
 use sov_modules_api::{GenesisState, Module, Spec};
 
-use crate::evm::db_init::InitEvmDb;
+use crate::db::init::InitEvmDb;
 use crate::evm::primitive_types::Block;
 
 use crate::{Evm, EvmGenesisConfig, EvmRuntimeConfig};

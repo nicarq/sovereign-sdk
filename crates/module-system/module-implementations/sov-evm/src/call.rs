@@ -6,7 +6,7 @@ use sov_modules_api::macros::{serialize, UniversalWallet};
 use sov_modules_api::{Context, Spec, TxState};
 
 use crate::conversions::convert_to_transaction_signed;
-use crate::evm::db::EvmDb;
+use crate::db::EvmDb;
 use crate::evm::executor::{self};
 use crate::evm::primitive_types::{Receipt, TransactionSignedAndRecovered};
 use crate::evm::RlpEvmTransaction;

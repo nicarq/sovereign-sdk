@@ -3,7 +3,7 @@ use revm::state::AccountInfo;
 use sov_modules_api::prelude::UnwrapInfallible;
 use sov_modules_api::{InfallibleStateAccessor, Spec};
 
-use super::db::{DbAccount, EvmDb};
+use super::{DbAccount, EvmDb};
 
 /// Initializes database with a predefined account.
 pub(crate) trait InitEvmDb {
