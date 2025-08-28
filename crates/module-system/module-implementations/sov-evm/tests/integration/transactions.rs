@@ -7,15 +7,15 @@ use sov_test_utils::{BatchTestCase, SimpleStorageContract};
 use sov_test_utils::{TransactionTestCase, TEST_DEFAULT_USER_BALANCE};
 
 #[test]
-fn simple_transfer() {
+fn test_simple_transfer() {
     let (mut runner, from, to) = setup();
 
     let value = 1;
-    let create_contract_tx = create_transfer_tx(0, &from, &to, value);
+    let transfer_tx = create_transfer_tx(0, &from, &to, value);
 
     let evm = Evm::<S>::default();
     runner.execute_transaction(TransactionTestCase {
-        input: create_contract_tx,
+        input: transfer_tx,
         assert: Box::new(move |ctx, state| {
             let mut db = evm.get_db(state);
             let from_acc = db.basic(from.address()).unwrap().unwrap();
@@ -97,6 +97,37 @@ fn test_failed_tx_doesnt_update_evm_module_state() {
             // no pending block added if eth tx execution fails.
             assert!(evm.pending_head(state).is_none());
             assert!(evm.pending_transactions(state).is_empty());
+        }),
+    });
+}
+
+#[test]
+fn test_account_nonce() {
+    let (mut runner, from, to) = setup();
+
+    let from_addr = from.address();
+    let value = 1;
+    let transfer_tx = create_transfer_tx(0, &from, &to, value);
+
+    let evm = Evm::<S>::default();
+    runner.execute_transaction(TransactionTestCase {
+        input: transfer_tx,
+        assert: Box::new(move |_ctx, state| {
+            let mut db = evm.get_db(state);
+            let from_acc = db.basic(from_addr).unwrap().unwrap();
+            assert_eq!(from_acc.nonce, 1);
+        }),
+    });
+
+    let transfer_tx = create_transfer_tx(1, &from, &to, value);
+
+    let evm = Evm::<S>::default();
+    runner.execute_transaction(TransactionTestCase {
+        input: transfer_tx,
+        assert: Box::new(move |_ctx, state| {
+            let mut db = evm.get_db(state);
+            let from_acc = db.basic(from_addr).unwrap().unwrap();
+            assert_eq!(from_acc.nonce, 2);
         }),
     });
 }
