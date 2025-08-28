@@ -23,7 +23,7 @@ pub(crate) fn get_cfg_env(
     let mut cfg_env = template_cfg.unwrap_or_default();
     cfg_env.chain_id = cfg.chain_spec.chain_id;
     cfg_env.limit_contract_code_size = cfg.chain_spec.limit_contract_code_size;
-    let spec = get_spec_id(cfg.hardforks, block_env.number.to::<u64>());
+    let spec = get_spec_id(&cfg.hardforks, block_env.number.to::<u64>());
     cfg_env.with_spec(spec)
 }
 
