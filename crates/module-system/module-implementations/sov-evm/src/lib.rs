@@ -38,6 +38,7 @@ pub use authenticate::{
 pub use reth_primitives::TransactionSigned;
 pub use revm::primitives::hardfork::SpecId;
 use sov_address::{EthereumAddress, FromVmAddress};
+use sov_bank::Amount;
 use sov_modules_api::prelude::UnwrapInfallible as _;
 use sov_modules_api::{
     AccessoryStateMap, AccessoryStateReader, AccessoryStateReaderAndWriter, AccessoryStateValue,
@@ -344,4 +345,13 @@ where
     S::Address: FromVmAddress<EthereumAddress>,
 {
     S::Address::from_vm_address(EthereumAddress::from(address))
+}
+
+pub(crate) fn to_rollup_balance(balance: U256) -> Amount {
+    // Overflow is not possible here. The gas token’s supply_cap is bounded by u128::MAX,
+    // which means no account can ever hold a balance greater than u128::MAX.
+    let bank_amount = balance
+        .try_into()
+        .unwrap_or_else(|_| panic!("The impossible happened: Balance overflowed"));
+    Amount::new(bank_amount)
 }
