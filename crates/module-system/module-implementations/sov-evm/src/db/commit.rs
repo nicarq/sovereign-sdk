@@ -10,6 +10,7 @@ use sov_modules_api::prelude::UnwrapInfallible;
 use sov_modules_api::{InfallibleStateAccessor, Spec};
 
 use super::EvmDb;
+use crate::db::DbAccount;
 use crate::{to_rollup_address, to_rollup_balance};
 
 impl<Ws: InfallibleStateAccessor, S: Spec> DatabaseCommit for EvmDb<Ws, S>
@@ -37,32 +38,28 @@ where
             todo!("Account destruction not supported")
         }
 
-        let mut db_account = self
-            .accounts
-            .get(&address, &mut self.state)?
-            .unwrap_or_default();
+        self.commit_storage(address, account.storage);
 
-        let mut account_info = account.info;
-        let rollup_address: <S as Spec>::Address = to_rollup_address::<S>(address);
-        let balance = to_rollup_balance(account_info.balance);
+        let mut account = account.info;
 
-        self.bank_module
-            .override_gas_balance(balance, &rollup_address, &mut self.state)?;
-
+        self.bank_module.override_gas_balance(
+            to_rollup_balance(account.balance),
+            &to_rollup_address::<S>(address),
+            &mut self.state,
+        )?;
         // Set the EVM account balance to 0 - as balances are stored in the bank module.
-        account_info.balance = U256::ZERO;
+        account.balance = U256::ZERO;
 
-        if let Some(ref code) = account_info.code {
+        if let Some(ref code) = account.code {
             if !code.is_empty() {
                 // TODO: would be good to have a contains_key method on the StateMap that would be optimized, so we can check the hash before storing the code
                 self.code
-                    .set(&account_info.code_hash, code.bytecode(), &mut self.state)?;
+                    .set(&account.code_hash, code.bytecode(), &mut self.state)?;
             }
         }
 
-        db_account.0 = account_info;
-        self.accounts.set(&address, &db_account, &mut self.state)?;
-        self.commit_storage(address, account.storage);
+        self.accounts
+            .set(&address, &DbAccount(account), &mut self.state)?;
 
         Ok(())
     }
