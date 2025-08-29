@@ -1,5 +1,4 @@
 use alloy_primitives::{Address, U256};
-use auto_impl::auto_impl;
 use itertools::Itertools;
 use reth_revm::db::DBErrorMarker;
 use revm::primitives::HashMap;
@@ -12,7 +11,6 @@ use crate::db::{DbAccount, Error};
 use crate::{to_rollup_address, to_rollup_balance};
 
 /// EVM database commit interface.
-#[auto_impl(&mut, Box)]
 pub trait FallibleDatabaseCommit {
     type Error: DBErrorMarker + core::error::Error;
 

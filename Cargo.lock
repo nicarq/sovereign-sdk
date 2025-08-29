@@ -11310,7 +11310,6 @@ dependencies = [
  "alloy-sol-types",
  "anyhow",
  "arbitrary",
- "auto_impl",
  "bincode",
  "borsh",
  "bytes",
