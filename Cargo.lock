@@ -1852,9 +1852,9 @@ dependencies = [
 
 [[package]]
 name = "celestia-proto"
-version = "0.8.0"
+version = "0.9.1"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "2ad9997e960ce6a4ac0648a227430673583d649103ceb2d850395b1e32e4c647"
+checksum = "b6c8da7e4e1d4ae492170a9c551419e89e314c1438652bb512e00091b39bdf0b"
 dependencies = [
  "bytes",
  "prost",
@@ -1868,16 +1868,16 @@ dependencies = [
 
 [[package]]
 name = "celestia-rpc"
-version = "0.11.3"
+version = "0.12.1"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "4dc7f0e9052b62c489e9678cae4f161f63634cd4eea415c1aa46dc3f36dc7bd9"
+checksum = "b092c16940d27ac6c447a85bae6b114efd39f023fe8f73f8a971321bb2babc08"
 dependencies = [
  "async-trait",
  "base64 0.22.1",
+ "celestia-proto",
  "celestia-types",
  "http 1.1.0",
  "jsonrpsee",
- "prost",
  "serde",
  "serde_repr",
  "thiserror 1.0.64",
@@ -1886,9 +1886,9 @@ dependencies = [
 
 [[package]]
 name = "celestia-types"
-version = "0.13.0"
+version = "0.14.1"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "6f536bad6c2891ee5efbe3d7665393b7c18a6921254c3198036d603078000ced"
+checksum = "205328aee984ee96a17988444f766a31da4c7cdff95dfb36d182a80176c984db"
 dependencies = [
  "base64 0.22.1",
  "bech32 0.11.0",
@@ -1905,7 +1905,7 @@ dependencies = [
  "multihash",
  "nmt-rs",
  "prost",
- "ruint",
+ "rust_decimal",
  "serde",
  "serde_repr",
  "sha2 0.10.9",
@@ -9740,6 +9740,16 @@ checksum = "2e5347777e9aacb56039b0e1f28785929a8a3b709e87482e7442c72e7c12529d"
 dependencies = [
  "sha2 0.10.9",
  "walkdir",
+]
+
+[[package]]
+name = "rust_decimal"
+version = "1.37.2"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "b203a6425500a03e0919c42d3c47caca51e79f1132046626d2c8871c5092035d"
+dependencies = [
+ "arrayvec",
+ "num-traits",
 ]
 
 [[package]]
