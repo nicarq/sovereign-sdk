@@ -5,12 +5,16 @@ use revm::context::{result::ResultAndState, TxEnv};
 use revm::{
     context::{
         result::{EVMError, ExecutionResult},
-        BlockEnv, CfgEnv, Context,
+        BlockEnv, CfgEnv, Context, ContextTr,
     },
-    Database, DatabaseCommit, ExecuteCommitEvm, MainContext,
+    handler::EvmTr,
+    Database, ExecuteEvm, MainContext,
 };
 
-use crate::{db, evm::conversions::create_tx_env, get_spec_id, sov_evm::SovEvm, EvmRuntimeConfig};
+use crate::{
+    db, db::commit::FallibleDatabaseCommit, evm::conversions::create_tx_env, get_spec_id,
+    sov_evm::SovEvm, EvmRuntimeConfig,
+};
 
 /// builds CfgEnv
 /// Returns correct config depending on spec for given block number
@@ -28,7 +32,7 @@ pub(crate) fn get_cfg_env(
 }
 
 /// Execute an Ethereum transaction and commit it to the database.
-pub fn execute_tx<DB: Database<Error = db::Error> + DatabaseCommit>(
+pub fn execute_tx<DB: Database<Error = db::Error> + FallibleDatabaseCommit<Error = db::Error>>(
     account_nonce: u64,
     db: DB,
     block_env: &BlockEnv,
@@ -42,11 +46,15 @@ pub fn execute_tx<DB: Database<Error = db::Error> + DatabaseCommit>(
         .with_block(block_env)
         .with_cfg(cfg);
     let mut evm = SovEvm::new(context, ());
-    evm.transact_commit(tx_env)
+    // We don't use transact_commit as it does not support returning an error
+    let result = evm.transact_one(tx_env)?;
+    let changes = evm.finalize();
+    evm.ctx().db_mut().commit(changes)?;
+    Ok(result)
 }
 
 #[cfg(feature = "native")]
-pub(crate) fn inspect<DB: Database<Error = db::Error> + DatabaseCommit>(
+pub(crate) fn inspect<DB: Database<Error = db::Error>>(
     db: DB,
     block_env: &BlockEnv,
     tx: TxEnv,

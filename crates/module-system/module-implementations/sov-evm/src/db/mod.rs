@@ -11,7 +11,7 @@ use sov_state::codec::BcsCodec;
 
 use crate::{to_rollup_address, AccountStorageKey};
 
-mod commit;
+pub(crate) mod commit;
 pub(crate) mod init;
 
 #[derive(Debug, thiserror::Error)]

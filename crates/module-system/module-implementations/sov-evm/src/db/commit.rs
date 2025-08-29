@@ -1,28 +1,42 @@
 use std::convert::Infallible;
 
 use alloy_primitives::{Address, U256};
+use auto_impl::auto_impl;
+use core::error::Error;
 use itertools::Itertools;
+use reth_revm::db::DBErrorMarker;
 use revm::primitives::HashMap;
 use revm::state::{Account, EvmStorageSlot};
-use revm::DatabaseCommit;
 use sov_address::{EthereumAddress, FromVmAddress};
 use sov_modules_api::{Spec, StateAccessor};
 
 use super::EvmDb;
-use crate::db::DbAccount;
+use crate::db::{self, DbAccount};
 use crate::{to_rollup_address, to_rollup_balance};
 
-impl<'a, Ws: StateAccessor, S: Spec> DatabaseCommit for EvmDb<'a, Ws, S>
+/// EVM database commit interface.
+#[auto_impl(&mut, Box)]
+pub trait FallibleDatabaseCommit {
+    type Error: DBErrorMarker + Error;
+
+    /// Commit changes to the database.
+    fn commit(&mut self, changes: HashMap<Address, Account>) -> Result<(), Self::Error>;
+}
+
+impl<'a, Ws: StateAccessor, S: Spec> FallibleDatabaseCommit for EvmDb<'a, Ws, S>
 where
     S::Address: FromVmAddress<EthereumAddress>,
 {
-    fn commit(&mut self, changes: HashMap<Address, Account>) {
+    type Error = db::Error;
+
+    fn commit(&mut self, changes: HashMap<Address, Account>) -> Result<(), db::Error> {
         changes
             .into_iter()
             .sorted_by_key(|(address, _)| *address) // Sort addresses to avoid non-determinism in ZK
             .for_each(|(address, account)| {
                 self.commit_account(address, account).unwrap();
             });
+        Ok(())
     }
 }
 

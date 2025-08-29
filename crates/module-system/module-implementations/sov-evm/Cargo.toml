@@ -25,6 +25,7 @@ sov-uniqueness = { workspace = true }
 
 anyhow = { workspace = true }
 arbitrary = { workspace = true, optional = true }
+auto_impl = { workspace = true }
 thiserror = { workspace = true }
 bytes = { workspace = true }
 derive_more = { workspace = true }
