@@ -1,8 +1,5 @@
-use std::convert::Infallible;
-
 use alloy_primitives::{Address, U256};
 use auto_impl::auto_impl;
-use core::error::Error;
 use itertools::Itertools;
 use reth_revm::db::DBErrorMarker;
 use revm::primitives::HashMap;
@@ -11,13 +8,13 @@ use sov_address::{EthereumAddress, FromVmAddress};
 use sov_modules_api::{Spec, StateAccessor};
 
 use super::EvmDb;
-use crate::db::{self, DbAccount};
+use crate::db::{DbAccount, Error};
 use crate::{to_rollup_address, to_rollup_balance};
 
 /// EVM database commit interface.
 #[auto_impl(&mut, Box)]
 pub trait FallibleDatabaseCommit {
-    type Error: DBErrorMarker + Error;
+    type Error: DBErrorMarker + core::error::Error;
 
     /// Commit changes to the database.
     fn commit(&mut self, changes: HashMap<Address, Account>) -> Result<(), Self::Error>;
@@ -27,9 +24,9 @@ impl<'a, Ws: StateAccessor, S: Spec> FallibleDatabaseCommit for EvmDb<'a, Ws, S>
 where
     S::Address: FromVmAddress<EthereumAddress>,
 {
-    type Error = db::Error;
+    type Error = Error;
 
-    fn commit(&mut self, changes: HashMap<Address, Account>) -> Result<(), db::Error> {
+    fn commit(&mut self, changes: HashMap<Address, Account>) -> Result<(), Error> {
         changes
             .into_iter()
             .sorted_by_key(|(address, _)| *address) // Sort addresses to avoid non-determinism in ZK
@@ -44,14 +41,14 @@ impl<'a, Ws: StateAccessor, S: Spec> EvmDb<'a, Ws, S>
 where
     S::Address: FromVmAddress<EthereumAddress>,
 {
-    fn commit_account(&mut self, address: Address, account: Account) -> Result<(), Infallible> {
+    fn commit_account(&mut self, address: Address, account: Account) -> Result<(), Error> {
         // TODO figure out what to do when account is destroyed.
         // https://github.com/Sovereign-Labs/sovereign-sdk/issues/425
         if account.is_selfdestructed() {
             todo!("Account destruction not supported")
         }
 
-        self.commit_storage(address, account.storage);
+        self.commit_storage(address, account.storage)?;
 
         let mut account = account.info;
 
@@ -61,7 +58,7 @@ where
                 &to_rollup_address::<S>(address),
                 self.state,
             )
-            .expect("Failed to override gas balance");
+            .map_err(|e| Error::Bank(e.to_string()))?;
         // Set the EVM account balance to 0 - as balances are stored in the bank module.
         account.balance = U256::ZERO;
 
@@ -70,26 +67,30 @@ where
                 // TODO: would be good to have a contains_key method on the StateMap that would be optimized, so we can check the hash before storing the code
                 self.code
                     .set(&account.code_hash, code.bytecode(), self.state)
-                    .expect("Failed to set code");
+                    .map_err(|e| Error::Code(e.to_string()))?;
             }
         }
 
         self.accounts
             .set(&address, &DbAccount(account), self.state)
-            .expect("Failed to set account");
+            .map_err(|e| Error::Account(e.to_string()))?;
 
         Ok(())
     }
 
-    fn commit_storage(&mut self, address: Address, storage: HashMap<U256, EvmStorageSlot>) {
+    fn commit_storage(
+        &mut self,
+        address: Address,
+        storage: HashMap<U256, EvmStorageSlot>,
+    ) -> Result<(), Error> {
         storage
             .into_iter()
             .sorted_by_key(|(key, _)| *key) // Sort keys explicitly to avoid non-determinism.
-            .for_each(|(key, value)| {
+            .try_for_each(|(key, value)| {
                 let value = value.present_value();
                 self.account_storage
                     .set(&(&address, &key), &value, self.state)
-                    .expect("Failed to set storage");
-            });
+                    .map_err(|e| Error::Storage(e.to_string()))
+            })
     }
 }
