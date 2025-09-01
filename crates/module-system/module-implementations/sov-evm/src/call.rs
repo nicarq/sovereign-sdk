@@ -128,7 +128,10 @@ where
             .and_then(|v| v.current.checked_add(1))
             .unwrap_or(0);
         let first_tx_number_of_block = live_tx_numbers.map(|v| v.first_of_block).unwrap_or(0);
-        let new_tx_numbers = LiveTxNumbers::new(first_tx_number_of_block, current_tx_number);
+        let new_tx_numbers = LiveTxNumbers {
+            first_of_block: first_tx_number_of_block,
+            current: current_tx_number,
+        };
         self.live_tx_numbers.set(&new_tx_numbers, state)?;
 
         #[cfg(feature = "native")]

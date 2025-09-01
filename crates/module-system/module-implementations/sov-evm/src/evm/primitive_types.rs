@@ -6,7 +6,6 @@ use alloy_consensus::{
     Header,
 };
 use alloy_primitives::{Address, Sealable, Sealed, B256};
-use derive_new::new;
 use reth_ethereum_primitives::serde_bincode_compat::Receipt as ReceiptBincodeCompat;
 use reth_primitives::{Recovered, TransactionSigned};
 use revm::context::result::EVMError;
@@ -114,7 +113,7 @@ impl MaybeSealedBlock {
 }
 
 /// The number of the current tx, and the first tx number of the current block.
-#[derive(Copy, Clone, Debug, serde::Serialize, serde::Deserialize, Default, new)]
+#[derive(Copy, Clone, Debug, serde::Serialize, serde::Deserialize, Default)]
 pub struct LiveTxNumbers {
     pub(crate) first_of_block: u64,
     pub(crate) current: u64,
