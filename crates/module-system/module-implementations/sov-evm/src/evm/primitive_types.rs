@@ -59,7 +59,7 @@ pub struct PendingTransaction {
 }
 
 pub(crate) enum MaybeSealedBlock {
-    Sealed(SealedBlock),
+    Sealed(Box<SealedBlock>),
     Pending {
         block_number: u64,
         first_tx_number: u64,

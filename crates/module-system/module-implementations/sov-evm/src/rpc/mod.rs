@@ -511,7 +511,7 @@ where
     ) -> MaybeSealedBlock {
         let block = self.blocks.get(tx.block_number, state).unwrap_infallible();
         if let Some(block) = block {
-            return MaybeSealedBlock::Sealed(block);
+            return MaybeSealedBlock::Sealed(block.into());
         }
         let current_block_env = self
             .block_env
@@ -524,14 +524,10 @@ where
             .expect("Block number is too large to fit in a u64. It's over!");
         assert_eq!(block_num, tx.block_number, "Transaction is in a block that is not yet sealed, but that block is not yet pending! This is impossible!");
         let live_tx_numbers = self.live_tx_numbers(state);
-        let base_fee_per_gas = current_block_env
-            .basefee
-            .try_into()
-            .expect("BaseFee overflowed a u64. This should be unreachable!");
         MaybeSealedBlock::Pending {
             block_number: tx.block_number,
             first_tx_number: live_tx_numbers.first_of_block,
-            base_fee_per_gas,
+            base_fee_per_gas: current_block_env.basefee,
         }
     }
 

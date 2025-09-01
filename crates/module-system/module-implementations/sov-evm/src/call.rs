@@ -139,7 +139,7 @@ where
                 .push_accessory(&pending_transaction.transaction, state)?;
             let hash = pending_transaction.transaction.signed_transaction.hash();
             self.transaction_hashes
-                .set(&hash, &current_tx_number, state)?;
+                .set(hash, &current_tx_number, state)?;
         }
 
         Ok(())
