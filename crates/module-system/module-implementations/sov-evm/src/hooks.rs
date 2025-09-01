@@ -31,9 +31,6 @@ impl<S: Spec> BlockHooks for Evm<S> {
 
         let mut live_tx_numbers = self.live_tx_numbers(state);
         live_tx_numbers.first_of_block = parent_block.transactions.end;
-        self.live_tx_numbers
-            .set(&live_tx_numbers, state)
-            .unwrap_infallible();
 
         // Here we set the parent's state root to the previous state root
         parent_block.header.state_root =
@@ -153,30 +150,6 @@ impl<S: Spec> BlockHooks for Evm<S> {
             self.pending_head
                 .set(&block, &mut accessory_state)
                 .unwrap_infallible();
-
-            let mut tx_index = start_tx_index;
-            for PendingTransaction {
-                transaction,
-                receipt,
-            } in &pending_transactions
-            {
-                self.transactions
-                    .push(transaction, &mut accessory_state)
-                    .unwrap_infallible();
-                self.receipts
-                    .push(receipt, &mut accessory_state)
-                    .unwrap_infallible();
-
-                self.transaction_hashes
-                    .set(
-                        transaction.signed_transaction.hash(),
-                        &tx_index,
-                        &mut accessory_state,
-                    )
-                    .unwrap_infallible();
-
-                tx_index += 1;
-            }
         }
 
         self.pending_transactions.clear(state).unwrap_infallible();
