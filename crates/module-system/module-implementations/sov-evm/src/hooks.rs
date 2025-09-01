@@ -14,6 +14,8 @@ use sov_modules_api::{BlockHooks, Spec, StateCheckpoint};
 use sov_state::{ProvableNamespace, StateRoot, Storage};
 #[cfg(feature = "native")]
 use std::convert::Infallible;
+#[cfg(feature = "native")]
+use std::ops::RangeInclusive;
 
 impl<S: Spec> BlockHooks for Evm<S> {
     type Spec = S;
@@ -158,10 +160,10 @@ impl<S: Spec> BlockHooks for Evm<S> {
             } in &pending_transactions
             {
                 self.transactions
-                    .push(transaction, &mut accessory_state)
+                    .set(&tx_index, transaction, &mut accessory_state)
                     .unwrap_infallible();
                 self.receipts
-                    .push(receipt, &mut accessory_state)
+                    .set(&tx_index, receipt, &mut accessory_state)
                     .unwrap_infallible();
 
                 self.transaction_hashes
@@ -205,9 +207,22 @@ impl<S: Spec> FinalizeHook for Evm<S> {
         let user_space_root_hash: [u8; 32] = root_hash.namespace_root(ProvableNamespace::User);
         block.header.state_root = user_space_root_hash.into();
 
+        let block_number = block.header.number;
         let sealed_block = block.seal();
 
-        self.blocks.push(&sealed_block, state).unwrap_infallible();
+        let block_numbers_range = self.block_numbers(state);
+
+        let new_block_numbers_range =
+            crate_range_from(block_numbers_range, None, Some(block_number));
+
+        self.block_numbers
+            .set(&new_block_numbers_range, state)
+            .unwrap_infallible();
+
+        self.blocks
+            .set(&sealed_block.header.number, &sealed_block, state)
+            .unwrap_infallible();
+
         self.block_hashes
             .set(
                 &sealed_block.header.seal(),
@@ -225,46 +240,67 @@ impl<S: Spec> FinalizeHook for Evm<S> {
 impl<S: Spec> Evm<S> {
     fn prune(&mut self, state: &mut impl AccessoryStateReaderAndWriter) -> Result<(), Infallible> {
         let block_pruning_threshold = config_value!("EVM_BLOCK_PRUNING_THRESHOLD");
-        let transaction_pruning_threshold = config_value!("EVM_TRANSACTION_PRUNING_THRESHOLD");
+        let block_numbers = self.block_numbers(state);
 
-        // Prune blocks
-        while self.blocks.len(state)? > block_pruning_threshold {
-            let block = self
-                .blocks
-                .remove(0, state)?
-                // Safe because we already checked blocks.len()
-                .expect("Impossible happened: no block available to prune");
+        if let Some(last_to_remove) = block_numbers.end().checked_sub(block_pruning_threshold) {
+            let block_numbers_to_remove =
+                crate_range_from(block_numbers.clone(), None, Some(last_to_remove));
 
-            let block_hash = block.header.hash();
-            self.block_hashes
-                .remove(&block_hash, state)
-                // Safe, since we keep one block_hash per block.
-                .expect("Impossible happened: no block_hasha vailable to prune");
-        }
+            for block_number in block_numbers_to_remove {
+                let block = self
+                    .blocks
+                    .remove(&block_number, state)?
+                    // Safe because we already checked block_numbers.len()
+                    .expect("Impossible happened: no block available to prune");
 
-        // Prune transactions
-        while self.transactions.len(state)? > transaction_pruning_threshold {
-            let transaction = self
-                .transactions
-                .remove(0, state)?
-                // Safe because we already checked transactions.len()
-                .expect("Impossible happened: no transaction available to prune");
+                let block_hash = block.header.hash();
+                self.block_hashes
+                    .remove(&block_hash, state)?
+                    // Safe, since we keep one block_hash per block.
+                    .expect("Impossible happened: no block_hasha vailable to prune");
 
-            let tx_hash = transaction.signed_transaction.hash();
-            self.transaction_hashes
-                .remove(tx_hash, state)
-                // Safe, since we keep one tx_hash per tx.
-                .expect("Impossible happened: no transaction_hashes available to prune");
-        }
+                for tx_idx in block.transactions {
+                    let transaction = self
+                        .transactions
+                        .remove(&tx_idx, state)?
+                        // Safe because we already checked transactions.len()
+                        // Safe, since we keep one tx_hash per tx.
+                        .expect("Impossible happened: no transaction_hashes available to prune");
 
-        // Prune receipts
-        while self.receipts.len(state)? > transaction_pruning_threshold {
-            self.receipts
-                .remove(0, state)?
-                // Safe because we already checked receipts.len()
-                .expect("Impossible happened: no receipts available to prune");
+                    let tx_hash = transaction.signed_transaction.hash();
+
+                    self.transaction_hashes
+                        .remove(tx_hash, state)?
+                        // Safe, since we keep one tx_hash per tx.
+                        .expect("Impossible happened: no transaction_hashes available to prune");
+
+                    self.receipts
+                        .remove(&tx_idx, state)?
+                        // Safe because we already checked receipts.len()
+                        .expect("Impossible happened: no receipts available to prune");
+                }
+            }
+
+            let new_block_numbers = crate_range_from(block_numbers, Some(last_to_remove + 1), None);
+            assert!(new_block_numbers.end() - new_block_numbers.start() < block_pruning_threshold);
+            self.block_numbers.set(&new_block_numbers, state)?;
         }
 
         Ok(())
     }
+}
+
+#[cfg(feature = "native")]
+fn crate_range_from(
+    mut range: RangeInclusive<u64>,
+    new_start: Option<u64>,
+    new_end: Option<u64>,
+) -> RangeInclusive<u64> {
+    if let Some(new_start) = new_start {
+        range = RangeInclusive::new(new_start, *range.end());
+    }
+    if let Some(new_end) = new_end {
+        range = RangeInclusive::new(*range.start(), new_end);
+    }
+    range
 }

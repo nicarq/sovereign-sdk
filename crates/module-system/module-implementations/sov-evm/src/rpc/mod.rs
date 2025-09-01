@@ -105,32 +105,32 @@ where
         let header = from_primitive_with_hash(block.header.clone());
 
         // Collect transactions with ids from db
-        let transactions_with_ids = block.transactions.clone().map(|id| {
+        let transactions_with_index = block.transactions.clone().map(|index| {
             let tx = self
                 .transactions
-                .get(id, state)
+                .get(&index, state)
                 .unwrap_infallible()
                 .expect("Transaction must be set");
-            (id, tx)
+            (index, tx)
         });
 
         // Build rpc transactions response
         let transactions = match details {
             Some(true) => BlockTransactions::Full(
-                transactions_with_ids
-                    .map(|(id, tx)| {
+                transactions_with_index
+                    .map(|(index, tx)| {
                         from_recovered_with_block_context(
                             tx.clone().into(),
                             block.header.seal(),
                             block.header.number,
                             block.header.base_fee_per_gas,
-                            U256::from(id - block.transactions.start),
+                            U256::from(index - block.transactions.start),
                         )
                     })
                     .collect::<Vec<_>>(),
             ),
             _ => BlockTransactions::Hashes({
-                transactions_with_ids
+                transactions_with_index
                     .map(|(_, tx)| *tx.signed_transaction.hash())
                     .collect::<Vec<_>>()
             }),
@@ -269,7 +269,7 @@ where
         let tx_number = self.get_tx_index_by_hash(&hash, state);
 
         let transaction = tx_number.map(|number| {
-            let tx = self.transaction(number, state);
+            let tx = self.transaction(number, state).unwrap();
             let block = self.block(tx.block_number, state);
 
             from_recovered_with_block_context(
@@ -305,9 +305,9 @@ where
         let tx_number = self.get_tx_index_by_hash(&hash, state);
 
         let receipt = tx_number.map(|number| {
-            let tx = self.transaction(number, state);
+            let tx = self.transaction(number, state).unwrap();
             let block = self.block(tx.block_number, state);
-            let receipt = self.receipt(tx_number.unwrap(), state);
+            let receipt = self.receipt(tx_number.unwrap(), state).unwrap();
 
             build_rpc_receipt(block, tx, tx_number.unwrap(), receipt)
         });
@@ -348,10 +348,12 @@ where
     /// Handler for: `eth_blockNumber`
     #[rpc_method(name = "eth_blockNumber")]
     pub fn block_number(&self, state: &mut ApiStateAccessor<S>) -> RpcResult<U256> {
-        let block_number = self.blocks.len(state).unwrap_infallible().saturating_sub(1);
-        debug!(%block_number, "EVM module JSON-RPC request to `eth_blockNumber`");
-
-        Ok(U256::from(block_number))
+        let block_number_range = self
+            .block_numbers
+            .get(state)
+            .unwrap_infallible()
+            .expect("Block number must be set");
+        Ok(U256::from(*block_number_range.end()))
     }
 
     /// Handler for: `eth_estimateGas`
@@ -507,22 +509,31 @@ where
     ) -> SealedBlock {
         // safe, finalized, and pending are not supported
         match block_number {
-            Some(ref block_number) if block_number == "earliest" => self
-                .blocks
-                .get(0, state)
-                .unwrap_infallible()
-                .expect("Genesis block must be set"),
-            Some(ref block_number) if block_number == "latest" => self
-                .blocks
-                .last(state)
-                .unwrap_infallible()
-                .expect("Head block must be set"),
+            Some(ref block_number) if block_number == "earliest" => {
+                let block_numbers = self.block_numbers.get(state).unwrap_infallible().unwrap();
+                let first_block_number = block_numbers.start();
+
+                self.blocks
+                    .get(first_block_number, state)
+                    .unwrap_infallible()
+                    .expect("Block must be set")
+            }
+            Some(ref block_number) if block_number == "latest" => {
+                let block_numbers = self.block_numbers.get(state).unwrap_infallible().unwrap();
+                let last_block_number = block_numbers.end();
+
+                self.blocks
+                    .get(last_block_number, state)
+                    .unwrap_infallible()
+                    .expect("Block must be set")
+            }
             Some(ref block_number) => {
                 // hex representation may have 0x prefix
                 let block_number = u64::from_str_radix(block_number.trim_start_matches("0x"), 16)
                     .expect("Block number must be a valid hex number, with or without 0x prefix");
+
                 self.blocks
-                    .get(block_number, state)
+                    .get(&block_number, state)
                     .unwrap_infallible()
                     .expect("Block must be set")
             }
