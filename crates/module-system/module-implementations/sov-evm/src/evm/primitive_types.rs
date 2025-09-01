@@ -114,8 +114,8 @@ impl MaybeSealedBlock {
 /// The number of the current tx, and the first tx number of the current block.
 #[derive(Copy, Clone, Debug, serde::Serialize, serde::Deserialize, Default, new)]
 pub struct LiveTxNumbers {
-    pub(crate) first_tx_number_of_block: u64,
-    pub(crate) current_tx_number: u64,
+    pub(crate) first_of_block: u64,
+    pub(crate) current: u64,
 }
 
 #[serde_as]

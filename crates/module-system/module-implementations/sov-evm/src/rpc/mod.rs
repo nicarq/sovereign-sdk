@@ -530,7 +530,7 @@ where
             .expect("BaseFee overflowed a u64. This should be unreachable!");
         MaybeSealedBlock::Pending {
             block_number: tx.block_number,
-            first_tx_number: live_tx_numbers.first_tx_number_of_block,
+            first_tx_number: live_tx_numbers.first_of_block,
             base_fee_per_gas,
         }
     }

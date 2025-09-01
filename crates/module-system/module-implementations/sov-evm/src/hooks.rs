@@ -30,7 +30,7 @@ impl<S: Spec> BlockHooks for Evm<S> {
             pre_state_user_root.namespace_root(ProvableNamespace::User);
 
         let mut live_tx_numbers = self.live_tx_numbers(state);
-        live_tx_numbers.first_tx_number_of_block = parent_block.transactions.end;
+        live_tx_numbers.first_of_block = parent_block.transactions.end;
         self.live_tx_numbers
             .set(&live_tx_numbers, state)
             .unwrap_infallible();
