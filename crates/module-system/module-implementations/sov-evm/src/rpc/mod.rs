@@ -19,7 +19,7 @@ use revm::Database;
 use sov_address::{EthereumAddress, FromVmAddress};
 use sov_modules_api::macros::{config_value, rpc_gen};
 use sov_modules_api::prelude::UnwrapInfallible;
-use sov_modules_api::{ApiStateAccessor, InfallibleStateAccessor, Spec};
+use sov_modules_api::{ApiStateAccessor, InfallibleStateAccessor, Spec, StateAccessor};
 use tracing::{debug, trace};
 
 use crate::db::EvmDb;
@@ -734,7 +734,7 @@ where
     }
 }
 
-fn eth_from_evm_error(err: EVMError<crate::db::Error>) -> EthApiError {
+fn eth_from_evm_error<Ws: StateAccessor>(err: EVMError<crate::db::Error<Ws>>) -> EthApiError {
     match err {
         EVMError::Transaction(err) => RpcInvalidTransactionError::from(err).into(),
         EVMError::Header(InvalidHeader::PrevrandaoNotSet) => EthApiError::PrevrandaoNotSet,
@@ -744,8 +744,8 @@ fn eth_from_evm_error(err: EVMError<crate::db::Error>) -> EthApiError {
     }
 }
 
-impl From<crate::db::Error> for EthApiError {
-    fn from(err: crate::db::Error) -> Self {
+impl<Ws: StateAccessor> From<crate::db::Error<Ws>> for EthApiError {
+    fn from(err: crate::db::Error<Ws>) -> Self {
         RpcInvalidTransactionError::other(ErrorObject::owned(
             -32603,
             format!("Database error: {err}"),

@@ -1,5 +1,6 @@
 use alloy_primitives::Address;
 use reth_primitives::TransactionSigned;
+use reth_revm::db::DBErrorMarker;
 #[cfg(feature = "native")]
 use revm::context::{result::ResultAndState, TxEnv};
 use revm::{
@@ -12,7 +13,7 @@ use revm::{
 };
 
 use crate::{
-    db, db::commit::FallibleDatabaseCommit, evm::conversions::create_tx_env, get_spec_id,
+    db::commit::FallibleDatabaseCommit, evm::conversions::create_tx_env, get_spec_id,
     sov_evm::SovEvm, EvmRuntimeConfig,
 };
 
@@ -32,14 +33,14 @@ pub(crate) fn get_cfg_env(
 }
 
 /// Execute an Ethereum transaction and commit it to the database.
-pub fn execute_tx<DB: Database<Error = db::Error> + FallibleDatabaseCommit<Error = db::Error>>(
+pub fn execute_tx<DB: Database<Error = E> + FallibleDatabaseCommit<Error = E>, E: DBErrorMarker>(
     account_nonce: u64,
     db: DB,
     block_env: &BlockEnv,
     tx: &TransactionSigned,
     signer: Address,
     cfg: CfgEnv,
-) -> Result<ExecutionResult, EVMError<db::Error>> {
+) -> Result<ExecutionResult, EVMError<E>> {
     let tx_env = create_tx_env(account_nonce, tx, signer);
     let context = Context::mainnet()
         .with_db(db)
@@ -54,12 +55,12 @@ pub fn execute_tx<DB: Database<Error = db::Error> + FallibleDatabaseCommit<Error
 }
 
 #[cfg(feature = "native")]
-pub(crate) fn inspect<DB: Database<Error = db::Error>>(
+pub(crate) fn inspect<DB: Database<Error = E>, E>(
     db: DB,
     block_env: &BlockEnv,
     tx: TxEnv,
     cfg: CfgEnv,
-) -> Result<ResultAndState, EVMError<db::Error>> {
+) -> Result<ResultAndState, EVMError<E>> {
     use revm::InspectEvm;
 
     let config = revm_inspectors::tracing::TracingInspectorConfig::all();

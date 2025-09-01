@@ -22,9 +22,9 @@ impl<'a, Ws: StateAccessor, S: Spec> FallibleDatabaseCommit for EvmDb<'a, Ws, S>
 where
     S::Address: FromVmAddress<EthereumAddress>,
 {
-    type Error = Error;
+    type Error = Error<Ws>;
 
-    fn commit(&mut self, changes: HashMap<Address, Account>) -> Result<(), Error> {
+    fn commit(&mut self, changes: HashMap<Address, Account>) -> Result<(), Error<Ws>> {
         changes
             .into_iter()
             .sorted_by_key(|(address, _)| *address) // Sort addresses to avoid non-determinism in ZK
@@ -39,7 +39,7 @@ impl<'a, Ws: StateAccessor, S: Spec> EvmDb<'a, Ws, S>
 where
     S::Address: FromVmAddress<EthereumAddress>,
 {
-    fn commit_account(&mut self, address: Address, account: Account) -> Result<(), Error> {
+    fn commit_account(&mut self, address: Address, account: Account) -> Result<(), Error<Ws>> {
         // TODO figure out what to do when account is destroyed.
         // https://github.com/Sovereign-Labs/sovereign-sdk/issues/425
         if account.is_selfdestructed() {
@@ -56,7 +56,7 @@ where
                 &to_rollup_address::<S>(address),
                 self.state,
             )
-            .map_err(|e| Error::Bank(e.to_string()))?;
+            .map_err(Error)?;
         // Set the EVM account balance to 0 - as balances are stored in the bank module.
         account.balance = U256::ZERO;
 
@@ -65,13 +65,13 @@ where
                 // TODO: would be good to have a contains_key method on the StateMap that would be optimized, so we can check the hash before storing the code
                 self.code
                     .set(&account.code_hash, code.bytecode(), self.state)
-                    .map_err(|e| Error::Code(e.to_string()))?;
+                    .map_err(Error)?;
             }
         }
 
         self.accounts
             .set(&address, &DbAccount(account), self.state)
-            .map_err(|e| Error::Account(e.to_string()))?;
+            .map_err(Error)?;
 
         Ok(())
     }
@@ -80,7 +80,7 @@ where
         &mut self,
         address: Address,
         storage: HashMap<U256, EvmStorageSlot>,
-    ) -> Result<(), Error> {
+    ) -> Result<(), Error<Ws>> {
         storage
             .into_iter()
             .sorted_by_key(|(key, _)| *key) // Sort keys explicitly to avoid non-determinism.
@@ -88,7 +88,7 @@ where
                 let value = value.present_value();
                 self.account_storage
                     .set(&(&address, &key), &value, self.state)
-                    .map_err(|e| Error::Storage(e.to_string()))
+                    .map_err(Error)
             })
     }
 }

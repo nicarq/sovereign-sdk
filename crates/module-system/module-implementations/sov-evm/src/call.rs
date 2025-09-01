@@ -105,7 +105,7 @@ where
                     }
                     err => {
                         // This is a fatal error, so we need to return it.
-                        Err(err.into())
+                        Err(anyhow::anyhow!("EVM execution error: {:?}", err))
                     }
                 };
             }
