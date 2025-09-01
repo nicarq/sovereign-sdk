@@ -50,7 +50,7 @@ use sov_state::User;
 use crate::account_storage_key::AccountStorageKey;
 use crate::evm::db::{DbAccount, EvmDb};
 use crate::evm::primitive_types::{
-    Block, PendingTransaction, Receipt, SealedBlock, TransactionSignedAndRecovered,
+    Block, LiveTxNumbers, PendingTransaction, Receipt, SealedBlock, TransactionSignedAndRecovered,
 };
 
 // Gas per transaction not creating a contract.
@@ -84,6 +84,10 @@ pub struct Evm<S: Spec> {
     /// Chain configuration. This field is set in genesis.
     #[state]
     pub(crate) cfg: StateValue<EvmRuntimeConfig, BcsCodec>,
+
+    /// The number of the current tx, and the first tx number of the current block.
+    #[state]
+    pub(crate) live_tx_numbers: StateValue<LiveTxNumbers, BcsCodec>,
 
     /// Block environment used by the evm. This field is set in `begin_rollup_block_hook`.
     #[state]
@@ -296,6 +300,17 @@ impl<S: Spec> Evm<S> {
         state: &mut Accessor,
     ) -> Result<Option<EvmRuntimeConfig>, Accessor::Error> {
         self.cfg.get(state)
+    }
+
+    /// Get the live tx numbers.
+    pub fn live_tx_numbers<Accessor: InfallibleStateAccessor>(
+        &self,
+        state: &mut Accessor,
+    ) -> LiveTxNumbers {
+        self.live_tx_numbers
+            .get(state)
+            .unwrap_infallible()
+            .unwrap_or_default()
     }
 
     /// Get the Evm chain config.

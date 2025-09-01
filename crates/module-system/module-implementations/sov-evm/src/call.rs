@@ -11,7 +11,7 @@ use crate::evm::executor::{self};
 use crate::evm::primitive_types::{Receipt, TransactionSignedAndRecovered};
 use crate::evm::RlpEvmTransaction;
 use crate::executor::get_cfg_env;
-use crate::{Evm, PendingTransaction, SpecId};
+use crate::{evm::primitive_types::LiveTxNumbers, Evm, PendingTransaction, SpecId};
 
 /// EVM call message.
 #[derive(Debug, PartialEq, Eq, Clone, schemars::JsonSchema, UniversalWallet)]
@@ -122,6 +122,27 @@ where
 
         self.pending_transactions
             .push(&pending_transaction, state)?;
+
+        let live_tx_numbers = self.live_tx_numbers.get(state)?;
+        let current_tx_number = live_tx_numbers
+            .and_then(|v| v.current_tx_number.checked_add(1))
+            .unwrap_or(0);
+        let first_tx_number_of_block = live_tx_numbers
+            .map(|v| v.first_tx_number_of_block)
+            .unwrap_or(0);
+        let new_tx_numbers = LiveTxNumbers::new(first_tx_number_of_block, current_tx_number);
+        self.live_tx_numbers.set(&new_tx_numbers, state)?;
+
+        #[cfg(feature = "native")]
+        {
+            self.receipts
+                .push_accessory(&pending_transaction.receipt, state)?;
+            self.transactions
+                .push_accessory(&pending_transaction.transaction, state)?;
+            let hash = pending_transaction.transaction.signed_transaction.hash();
+            self.transaction_hashes
+                .set(&hash, &current_tx_number, state)?;
+        }
 
         Ok(())
     }

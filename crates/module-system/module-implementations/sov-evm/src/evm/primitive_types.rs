@@ -6,6 +6,7 @@ use alloy_consensus::{
     Header,
 };
 use alloy_primitives::{Address, Sealable, Sealed, B256};
+use derive_new::new;
 use reth_ethereum_primitives::serde_bincode_compat::Receipt as ReceiptBincodeCompat;
 use reth_primitives::{Recovered, TransactionSigned};
 use revm::context::result::EVMError;
@@ -55,6 +56,66 @@ impl TransactionSignedAndRecovered {
 pub struct PendingTransaction {
     pub(crate) transaction: TransactionSignedAndRecovered,
     pub(crate) receipt: Receipt,
+}
+
+pub(crate) enum MaybeSealedBlock {
+    Sealed(SealedBlock),
+    Pending {
+        block_number: u64,
+        first_tx_number: u64,
+        base_fee_per_gas: u64,
+    },
+}
+
+impl MaybeSealedBlock {
+    pub fn hash(&self) -> Option<B256> {
+        match self {
+            Self::Sealed(block) => Some(block.header.hash()),
+            Self::Pending { .. } => None,
+        }
+    }
+
+    pub fn number(&self) -> u64 {
+        match self {
+            Self::Sealed(block) => block.header.number,
+            Self::Pending { block_number, .. } => *block_number,
+        }
+    }
+
+    pub fn transactions_start(&self) -> u64 {
+        match self {
+            Self::Sealed(block) => block.transactions.start,
+            Self::Pending {
+                first_tx_number, ..
+            } => *first_tx_number,
+        }
+    }
+
+    pub fn timestamp(&self) -> Option<u64> {
+        match self {
+            Self::Sealed(block) => Some(block.header.timestamp),
+            Self::Pending { .. } => None,
+        }
+    }
+
+    pub fn base_fee_per_gas(&self) -> u64 {
+        match self {
+            Self::Sealed(block) => block
+                .header
+                .base_fee_per_gas
+                .expect("Legacy blocks with no base fee are unsupported"),
+            Self::Pending {
+                base_fee_per_gas, ..
+            } => *base_fee_per_gas,
+        }
+    }
+}
+
+/// The number of the current tx, and the first tx number of the current block.
+#[derive(Copy, Clone, Debug, serde::Serialize, serde::Deserialize, Default, new)]
+pub struct LiveTxNumbers {
+    pub(crate) first_tx_number_of_block: u64,
+    pub(crate) current_tx_number: u64,
 }
 
 #[serde_as]

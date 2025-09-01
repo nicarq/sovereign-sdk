@@ -205,6 +205,7 @@ chrono = { version = "0.4", default-features = false, features = ["now"] }
 darling = "0.20"
 delegate = "0.13.4"
 derivative = { version = "2.2", features = ["use_core"] }
+derive-new = { version = "0.7.0" }
 digest = { version = "0.10.7", default-features = false, features = ["alloc"] }
 derive-getters = { version = "0.5.0" }
 futures = { version = "0.3", default-features = false }

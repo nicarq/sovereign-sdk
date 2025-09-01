@@ -26,7 +26,9 @@ use tracing::{debug, trace};
 
 use crate::evm::db::EvmDb;
 use crate::evm::executor;
-use crate::evm::primitive_types::{Receipt, SealedBlock, TransactionSignedAndRecovered};
+use crate::evm::primitive_types::{
+    MaybeSealedBlock, Receipt, SealedBlock, TransactionSignedAndRecovered,
+};
 use crate::executor::get_cfg_env;
 use crate::helpers::{
     from_primitive_with_hash, from_recovered_with_block_context, prepare_call_env,
@@ -304,17 +306,17 @@ where
             "EVM module JSON-RPC request to `eth_getTransactionReceipt`"
         );
 
-        let tx_number = self.get_tx_index_by_hash(&hash, state);
+        let Some(number) = self.get_tx_index_by_hash(&hash, state) else {
+            return Ok(None);
+        };
 
-        let receipt = tx_number.map(|number| {
-            let tx = self.transaction(number, state);
-            let block = self.block(tx.block_number, state);
-            let receipt = self.receipt(tx_number.unwrap(), state);
+        let tx = self.transaction(number, state);
+        // The block may be `None` for a few seconds after the tx is processed
+        let block = self.get_maybe_sealed_block(&tx, state);
+        let receipt = self.receipt(number, state);
+        let receipt = build_rpc_receipt(block, tx, number, receipt);
 
-            build_rpc_receipt(block, tx, tx_number.unwrap(), receipt)
-        });
-
-        Ok(receipt)
+        Ok(Some(receipt))
     }
 
     /// Handler for: `eth_call`
@@ -502,6 +504,37 @@ impl<S: Spec> Evm<S>
 where
     S::Address: FromVmAddress<EthereumAddress>,
 {
+    fn get_maybe_sealed_block(
+        &self,
+        tx: &TransactionSignedAndRecovered,
+        state: &mut ApiStateAccessor<S>,
+    ) -> MaybeSealedBlock {
+        let block = self.blocks.get(tx.block_number, state).unwrap_infallible();
+        if let Some(block) = block {
+            return MaybeSealedBlock::Sealed(block);
+        }
+        let current_block_env = self
+            .block_env
+            .get(state)
+            .unwrap_infallible()
+            .unwrap_or_default();
+        let block_num: u64 = current_block_env
+            .number
+            .try_into()
+            .expect("Block number is too large to fit in a u64. It's over!");
+        assert_eq!(block_num, tx.block_number, "Transaction is in a block that is not yet sealed, but that block is not yet pending! This is impossible!");
+        let live_tx_numbers = self.live_tx_numbers(state);
+        let base_fee_per_gas = current_block_env
+            .basefee
+            .try_into()
+            .expect("BaseFee overflowed a u64. This should be unreachable!");
+        MaybeSealedBlock::Pending {
+            block_number: tx.block_number,
+            first_tx_number: live_tx_numbers.first_tx_number_of_block,
+            base_fee_per_gas,
+        }
+    }
+
     fn get_sealed_block_by_number(
         &self,
         block_number: Option<String>,
@@ -651,7 +684,7 @@ fn get_cfg_env_template() -> CfgEnv {
 
 // modified from: https://github.com/paradigmxyz/reth many times
 pub(crate) fn build_rpc_receipt(
-    block: SealedBlock,
+    block: MaybeSealedBlock,
     tx: TransactionSignedAndRecovered,
     tx_number: u64,
     receipt: Receipt,
@@ -659,10 +692,13 @@ pub(crate) fn build_rpc_receipt(
     let transaction: Recovered<TransactionSigned> = tx.into();
     let from = transaction.signer();
 
-    let block_hash = Some(block.header.seal());
-    let block_number = Some(block.header.number);
+    let block_hash = block.hash();
+    let block_number = Some(block.number());
     let transaction_hash = Some(*transaction.hash());
-    let transaction_index = tx_number - block.transactions.start;
+    // Safety: The transaction cannot have a lower number than the block start
+    let transaction_index = tx_number
+        .checked_sub(block.transactions_start())
+        .expect("Overflow while subtracting block start from tx number. This is a bug!");
 
     let logs: Vec<Log> = receipt
         .receipt
@@ -673,7 +709,7 @@ pub(crate) fn build_rpc_receipt(
             inner: log.clone(),
             block_hash,
             block_number,
-            block_timestamp: Some(block.header.timestamp),
+            block_timestamp: block.timestamp(),
             transaction_hash,
             transaction_index: Some(transaction_index),
             log_index: Some(receipt.log_index_start + tx_log_idx as u64),
@@ -701,7 +737,7 @@ pub(crate) fn build_rpc_receipt(
         block_hash,
         block_number,
         gas_used: receipt.gas_used,
-        effective_gas_price: transaction.effective_gas_price(block.header.base_fee_per_gas),
+        effective_gas_price: transaction.effective_gas_price(Some(block.base_fee_per_gas())),
         blob_gas_used: None,
         blob_gas_price: None,
         from,
