@@ -58,6 +58,7 @@ pub struct PendingTransaction {
     pub(crate) receipt: Receipt,
 }
 
+#[cfg(feature = "native")]
 pub(crate) enum MaybeSealedBlock {
     Sealed(Box<SealedBlock>),
     Pending {
@@ -67,6 +68,7 @@ pub(crate) enum MaybeSealedBlock {
     },
 }
 
+#[cfg(feature = "native")]
 impl MaybeSealedBlock {
     pub fn hash(&self) -> Option<B256> {
         match self {
