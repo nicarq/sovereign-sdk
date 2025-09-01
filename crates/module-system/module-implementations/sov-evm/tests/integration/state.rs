@@ -62,13 +62,10 @@ fn test_transactions_receipts() {
     let tx_1_request = TypedTransaction::Eip1559(TxEip1559 {
         chain_id: config_value!("CHAIN_ID"),
         nonce: 0,
-        max_priority_fee_per_gas: Default::default(),
         max_fee_per_gas: MIN_PROTOCOL_BASE_FEE as u128 * 2,
         gas_limit: 1_000_000,
-        to: TxKind::Create,
-        value: Default::default(),
         input: Bytes::from(contract.byte_code().to_vec()),
-        access_list: Default::default(),
+        ..Default::default()
     });
     let (rlp_tx, signed_tx1) = account.sign(tx_1_request);
     let tx_1 = RawTx {
@@ -77,13 +74,10 @@ fn test_transactions_receipts() {
     let tx_2_request = TypedTransaction::Eip1559(TxEip1559 {
         chain_id: config_value!("CHAIN_ID"),
         nonce: 1,
-        max_priority_fee_per_gas: Default::default(),
         max_fee_per_gas: MIN_PROTOCOL_BASE_FEE as u128 * 2,
         gas_limit: 1_000_000,
-        to: TxKind::Create,
-        value: Default::default(),
         input: Bytes::from(contract.byte_code().to_vec()),
-        access_list: Default::default(),
+        ..Default::default()
     });
     let (rlp_tx, signed_tx2) = account.sign(tx_2_request);
     let tx_2 = RawTx {
