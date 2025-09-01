@@ -44,7 +44,7 @@ where
         &mut self,
         address: Address,
         account: Account,
-    ) -> Result<(), Error<<Ws as StateReader<User>>::Error>> {
+    ) -> Result<(), <Ws as StateReader<User>>::Error> {
         // TODO figure out what to do when account is destroyed.
         // https://github.com/Sovereign-Labs/sovereign-sdk/issues/425
         if account.is_selfdestructed() {
@@ -81,7 +81,7 @@ where
         &mut self,
         address: Address,
         storage: HashMap<U256, EvmStorageSlot>,
-    ) -> Result<(), Error<<Ws as StateReader<User>>::Error>> {
+    ) -> Result<(), <Ws as StateReader<User>>::Error> {
         storage
             .into_iter()
             .sorted_by_key(|(key, _)| *key) // Sort keys explicitly to avoid non-determinism.
@@ -89,7 +89,6 @@ where
                 let value = value.present_value();
                 self.account_storage
                     .set(&(&address, &key), &value, self.state)
-                    .map_err(Error)
             })
     }
 }

@@ -19,7 +19,9 @@ use revm::Database;
 use sov_address::{EthereumAddress, FromVmAddress};
 use sov_modules_api::macros::{config_value, rpc_gen};
 use sov_modules_api::prelude::UnwrapInfallible;
+use sov_modules_api::StateReader;
 use sov_modules_api::{ApiStateAccessor, InfallibleStateAccessor, Spec, StateAccessor};
+use sov_state::User;
 use tracing::{debug, trace};
 
 use crate::db::EvmDb;
@@ -339,7 +341,11 @@ where
 
         let result = match executor::inspect(evm_db, &block_env, tx_env, cfg_env) {
             Ok(result) => result.result,
-            Err(err) => return Err(eth_api_into_rpc_error(eth_from_evm_error(err))),
+            Err(err) => {
+                return Err(eth_api_into_rpc_error(eth_from_evm_error::<
+                    ApiStateAccessor<S>,
+                >(err)))
+            }
         };
 
         ensure_success(result).map_err(eth_api_into_rpc_error)
@@ -476,7 +482,11 @@ where
                     };
                 }
             },
-            Err(err) => return Err(eth_api_into_rpc_error(eth_from_evm_error(err))),
+            Err(err) => {
+                return Err(eth_api_into_rpc_error(eth_from_evm_error::<
+                    ApiStateAccessor<S>,
+                >(err)))
+            }
         };
 
         let gas_limit = self.bin_search_gas_limit(
@@ -624,7 +634,9 @@ where
                     }
                 },
                 Err(err) => {
-                    return Err(eth_api_into_rpc_error(eth_from_evm_error(err)));
+                    return Err(eth_api_into_rpc_error(eth_from_evm_error::<
+                        ApiStateAccessor<S>,
+                    >(err)));
                 }
             };
 
@@ -734,7 +746,9 @@ where
     }
 }
 
-fn eth_from_evm_error<Ws: StateAccessor>(err: EVMError<crate::db::Error<Ws>>) -> EthApiError {
+fn eth_from_evm_error<Ws: StateAccessor>(
+    err: EVMError<crate::db::Error<<Ws as StateReader<User>>::Error>>,
+) -> EthApiError {
     match err {
         EVMError::Transaction(err) => RpcInvalidTransactionError::from(err).into(),
         EVMError::Header(InvalidHeader::PrevrandaoNotSet) => EthApiError::PrevrandaoNotSet,
@@ -744,8 +758,8 @@ fn eth_from_evm_error<Ws: StateAccessor>(err: EVMError<crate::db::Error<Ws>>) ->
     }
 }
 
-impl<Ws: StateAccessor> From<crate::db::Error<Ws>> for EthApiError {
-    fn from(err: crate::db::Error<Ws>) -> Self {
+impl<E: derive_more::Display> From<crate::db::Error<E>> for EthApiError {
+    fn from(err: crate::db::Error<E>) -> Self {
         RpcInvalidTransactionError::other(ErrorObject::owned(
             -32603,
             format!("Database error: {err}"),
