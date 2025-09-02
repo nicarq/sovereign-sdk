@@ -153,6 +153,7 @@ impl<S: Spec> BlockHooks for Evm<S> {
                 .set(&block, &mut accessory_state)
                 .unwrap_infallible();
 
+            /*
             let mut tx_index = start_tx_index;
             for PendingTransaction {
                 transaction,
@@ -176,6 +177,7 @@ impl<S: Spec> BlockHooks for Evm<S> {
 
                 tx_index += 1;
             }
+            */
         }
 
         self.pending_transactions.clear(state).unwrap_infallible();

@@ -123,6 +123,35 @@ where
         self.pending_transactions
             .push(&pending_transaction, state)?;
 
+        #[cfg(feature = "native")]
+        {
+            let head = self.head.get(state)?.unwrap();
+            let first_tx_index = head.transactions.end;
+
+            let pending_len = self.pending_transactions.len(state)?;
+
+            let tx_index = first_tx_index + pending_len - 1;
+
+            self.transactions
+                .set(&tx_index, &pending_transaction.transaction, state)?;
+
+            self.receipts
+                .set(&tx_index, &pending_transaction.receipt, state)?;
+
+            let hash = pending_transaction.transaction.signed_transaction.hash();
+            self.transaction_hashes.set(hash, &tx_index, state)?;
+
+            /*
+            self.receipts
+                .push_accessory(&pending_transaction.receipt, state)?;
+            self.transactions
+                .push_accessory(&pending_transaction.transaction, state)?;
+            let hash = pending_transaction.transaction.signed_transaction.hash();
+            self.transaction_hashes
+                .set(hash, &current_tx_number, state)?;
+            */
+        }
+
         Ok(())
     }
 
