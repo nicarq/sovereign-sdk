@@ -709,7 +709,7 @@ impl<Da: DaService, FM: FinalizationManager> TaskState<Da, FM> {
 
                         match finality_status {
                             Some((false, blob_selector_status)) => {
-                                trace!(%blob_id, %receipt, %blob_selector_status, "Waiting for blob finalization.");
+                                trace!(%blob_id, %receipt, ?blob_selector_status, "Waiting for blob finalization.");
                                 sleep(self.ledger_pool_interval).await;
                                 continue;
                             }
@@ -747,7 +747,7 @@ impl<Da: DaService, FM: FinalizationManager> TaskState<Da, FM> {
                         | Some(BlobSelectorStatus::Discarded(
                             BlobDiscardReason::SequenceNumberTooLow,
                         )) => {
-                            trace!(%blob_id, %receipt, ?reason, "Blob was discarded. Removing it form the blob sender");
+                            trace!(%blob_id, %receipt, ?blob_status.blob_selector_status , "Blob was removed from blob sender");
 
                             self.send_notification(blob_status.clone()).await;
                             // Upon crashing, we'd rather call the hook twice rather than not
