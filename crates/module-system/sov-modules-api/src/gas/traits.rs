@@ -570,13 +570,9 @@ pub trait GasMeter {
         Ok(())
     }
 
-    /// Returns the amount of gas remaining. Used to set the EVM gas limit
-    fn remaining_gas(
-        &mut self,
-    ) -> Result<<Self::Spec as Spec>::Gas, GasMeteringError<<Self::Spec as Spec>::Gas>> {
-        unreachable!(
-            "Default implementation should not be called. Override in the respective gas meter"
-        )
+    /// Returns the basic gas state if it's a BasicGasMeter or contains a BasicGasMeter. Used to set the EVM gas limit
+    fn try_as_basic_gas_state(&mut self) -> Option<BasicGasState<Self::Spec>> {
+        None
     }
 
     /// Tracks the removal of gas consumption pattern.
@@ -905,10 +901,14 @@ impl<S: Spec> GasMeter for BasicGasMeter<S> {
         Ok(())
     }
 
-    fn remaining_gas(
-        &mut self,
-    ) -> Result<<Self::Spec as Spec>::Gas, GasMeteringError<<Self::Spec as Spec>::Gas>> {
-        Ok(self.remaining_gas.clone())
+    fn try_as_basic_gas_state(&mut self) -> Option<BasicGasState<Self::Spec>> {
+        Some(BasicGasState {
+            gas: self.remaining_gas.clone(),
+            funds: self
+                .remaining_funds
+                .expect("This method is used in TX context where amount is set"),
+            price: self.gas_price.clone(),
+        })
     }
 
     #[cfg(all(feature = "gas-constant-estimation", feature = "native"))]
@@ -942,6 +942,16 @@ impl<S: Spec> GetGasPrice for BasicGasMeter<S> {
     fn gas_price(&self) -> &<<Self::Spec as Spec>::Gas as Gas>::Price {
         &self.gas_price
     }
+}
+
+/// A subset of BasicGasMeter used to compute EVM gas limit
+pub struct BasicGasState<S: Spec> {
+    /// Amount of gas available
+    pub gas: S::Gas,
+    /// Amount of funds available
+    pub funds: Amount,
+    /// Gas price
+    pub price: <<S as Spec>::Gas as Gas>::Price,
 }
 
 #[cfg(test)]
