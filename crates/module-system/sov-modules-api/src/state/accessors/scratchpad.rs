@@ -161,6 +161,12 @@ impl<S: Spec, I: TxState<S>> GasMeter for RevertableTxState<'_, S, I> {
     fn charge_gas(&mut self, amount: &S::Gas) -> Result<(), GasMeteringError<S::Gas>> {
         self.inner.charge_gas(amount)
     }
+    fn remaining_gas(
+        &mut self,
+    ) -> anyhow::Result<<Self::Spec as Spec>::Gas, GasMeteringError<<Self::Spec as Spec>::Gas>>
+    {
+        self.inner.remaining_gas()
+    }
 
     fn charge_linear_gas(
         &mut self,
@@ -370,7 +376,12 @@ impl<S: Spec, I: StateProvider<S>> GasMeter for PreExecWorkingSet<S, I> {
     fn charge_gas(&mut self, amount: &S::Gas) -> anyhow::Result<(), GasMeteringError<S::Gas>> {
         self.gas_meter.charge_gas(amount)
     }
-
+    fn remaining_gas(
+        &mut self,
+    ) -> anyhow::Result<<Self::Spec as Spec>::Gas, GasMeteringError<<Self::Spec as Spec>::Gas>>
+    {
+        self.gas_meter.remaining_gas()
+    }
     fn charge_linear_gas(
         &mut self,
         amount: &<Self::Spec as Spec>::Gas,
@@ -640,6 +651,13 @@ impl<S: Spec, I: StateProvider<S>> GasMeter for WorkingSet<S, I> {
 
     fn charge_gas(&mut self, gas: &S::Gas) -> Result<(), GasMeteringError<S::Gas>> {
         self.gas_meter.charge_gas(gas)
+    }
+
+    fn remaining_gas(
+        &mut self,
+    ) -> anyhow::Result<<Self::Spec as Spec>::Gas, GasMeteringError<<Self::Spec as Spec>::Gas>>
+    {
+        self.gas_meter.remaining_gas()
     }
 
     fn charge_linear_gas(
