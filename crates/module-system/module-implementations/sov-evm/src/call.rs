@@ -60,7 +60,7 @@ where
             block_number: block_env.number.to::<u64>(),
         };
 
-        let cfg = self.cfg(state)?.expect("Evm config must be set");
+        let cfg = self.cfg(state)?;
         let cfg_env = get_cfg_env(&block_env, cfg, None);
         let evm_db: EvmDb<_, S> = self.get_db(state);
 

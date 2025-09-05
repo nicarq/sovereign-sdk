@@ -56,12 +56,6 @@ use crate::evm::primitive_types::{
     Block, PendingTransaction, Receipt, SealedBlock, TransactionSignedAndRecovered,
 };
 
-// Gas per transaction not creating a contract.
-#[cfg(feature = "native")]
-pub(crate) const MIN_TRANSACTION_GAS: u64 = 21_000u64;
-#[cfg(feature = "native")]
-pub(crate) const MIN_CREATE_GAS: u64 = 53_000u64;
-
 pub use conversions::convert_to_transaction_signed;
 pub use conversions::create_tx_env;
 
@@ -225,11 +219,8 @@ impl<S: Spec> Evm<S> {
         &self,
         number: u64,
         state: &mut Accessor,
-    ) -> SealedBlock {
-        self.blocks
-            .get(&number, state)
-            .unwrap_infallible()
-            .expect("Block number for known transaction must be set")
+    ) -> Option<SealedBlock> {
+        self.blocks.get(&number, state).unwrap_infallible()
     }
 
     /// Lookup an Ethereum account by address.
@@ -279,8 +270,12 @@ impl<S: Spec> Evm<S> {
     pub fn cfg<Accessor: StateReader<User>>(
         &self,
         state: &mut Accessor,
-    ) -> Result<Option<EvmRuntimeConfig>, Accessor::Error> {
-        self.cfg.get(state)
+    ) -> Result<EvmRuntimeConfig, Accessor::Error> {
+        let cfg = self
+            .cfg
+            .get(state)? // The config must be set at genesis.
+            .expect("The impossible happened: EVM config is not set");
+        Ok(cfg)
     }
 
     /// Get the Evm chain config.
@@ -291,7 +286,8 @@ impl<S: Spec> Evm<S> {
         self.cfg
             .get(state)
             .unwrap_infallible()
-            .expect("EVM config must be set at genesis")
+            // The config must be set at genesis.
+            .expect("The impossible happened: EVM config is not set")
     }
 
     /// Access the pending Ethereum transactions.
