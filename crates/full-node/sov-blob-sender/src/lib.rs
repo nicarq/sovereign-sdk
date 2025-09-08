@@ -578,6 +578,7 @@ impl<Da: DaService, FM: FinalizationManager> TaskState<Da, FM> {
 
                     match receipt_fut.await {
                         Ok(Ok(receipt)) => {
+                            trace!(%blob_id, %receipt, "Blob status set from MustSubmit to Published.");
                             blob_status = BlobExecutionStatus {
                                 blob_submission_status: BlobSubmissionStatus::Published { receipt },
                                 blob_selector_status: None,
@@ -634,6 +635,7 @@ impl<Da: DaService, FM: FinalizationManager> TaskState<Da, FM> {
                                 return;
                             }
 
+                            debug!(%blob_id, %receipt, "Timeout: Blob status set from Published to MustSubmit.");
                             blob_status = BlobExecutionStatus {
                                 blob_submission_status: BlobSubmissionStatus::MustSubmit,
                                 blob_selector_status: None,
@@ -658,6 +660,8 @@ impl<Da: DaService, FM: FinalizationManager> TaskState<Da, FM> {
                             Some((_, blob_selector_status)) => {
                                 // Never skip directly to `Finalized` state, or
                                 // we won't send out the notification.
+
+                                trace!(%blob_id, %receipt, "Blob status set from Published to Processed.");
                                 blob_status = BlobExecutionStatus {
                                     blob_submission_status: BlobSubmissionStatus::Processed {
                                         receipt: receipt.clone(),
@@ -668,6 +672,7 @@ impl<Da: DaService, FM: FinalizationManager> TaskState<Da, FM> {
                                 break;
                             }
                             None => {
+                                trace!(%blob_id, %receipt, "Waiting for blob to be published");
                                 sleep(Duration::from_secs(1)).await;
                             }
                         }
@@ -703,11 +708,13 @@ impl<Da: DaService, FM: FinalizationManager> TaskState<Da, FM> {
                         };
 
                         match finality_status {
-                            Some((false, _)) => {
+                            Some((false, blob_selector_status)) => {
+                                trace!(%blob_id, %receipt, ?blob_selector_status, "Waiting for blob finalization.");
                                 sleep(self.ledger_pool_interval).await;
                                 continue;
                             }
                             Some((true, blob_selector_status)) => {
+                                trace!(%blob_id, %receipt, "Blob status set from Processed to Finalized.");
                                 blob_status = BlobExecutionStatus {
                                     blob_submission_status: BlobSubmissionStatus::Finalized {
                                         receipt: receipt.clone(),
@@ -724,6 +731,7 @@ impl<Da: DaService, FM: FinalizationManager> TaskState<Da, FM> {
                                     "Re-org detected; resubmitting blob"
                                 );
 
+                                trace!(%blob_id, %receipt, "Blob status set from Processed to MustSubmit.");
                                 blob_status = BlobExecutionStatus {
                                     blob_submission_status: BlobSubmissionStatus::MustSubmit,
                                     blob_selector_status: None,
@@ -739,6 +747,8 @@ impl<Da: DaService, FM: FinalizationManager> TaskState<Da, FM> {
                         | Some(BlobSelectorStatus::Discarded(
                             BlobDiscardReason::SequenceNumberTooLow,
                         )) => {
+                            trace!(%blob_id, %receipt, ?blob_status, "Blob was discarded. Removing it form the blob sender");
+
                             self.send_notification(blob_status.clone()).await;
                             // Upon crashing, we'd rather call the hook twice rather than not
                             // calling it at all. So, we call it *before* removing the blob from
@@ -752,11 +762,13 @@ impl<Da: DaService, FM: FinalizationManager> TaskState<Da, FM> {
                                 .await;
 
                             // We won't shut down the rollup in case of this error, but we will log the error.
+
                             let _ = self.remove_blob_or_err(blob_id).await;
                             break;
                         }
                         // Resubmit if discarded for any reason except `SequenceNumberTooLow`
                         Some(BlobSelectorStatus::Discarded(reason)) => {
+                            trace!(%blob_id, %receipt, ?reason, "Blob was discarded. Setting status to MustSubmit.");
                             blob_status = BlobExecutionStatus {
                                 blob_submission_status: BlobSubmissionStatus::MustSubmit,
                                 blob_selector_status: None,
@@ -793,6 +805,8 @@ impl<Da: DaService, FM: FinalizationManager> TaskState<Da, FM> {
     }
 }
 
+#[derive(derive_more::Debug)]
+#[debug(bounds())]
 struct BlobSubmissionRequest<Da: DaSpec> {
     blob: BlobToSend,
     blob_id: BlobInternalId,
