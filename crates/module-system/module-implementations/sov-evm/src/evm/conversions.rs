@@ -27,10 +27,9 @@ impl From<SealedBlock> for BlockEnv {
 }
 
 /// Converts tx to TxEnv while overriding the signer and nonce
-pub fn create_tx_env(tx: &TransactionSigned, signer: Address, nonce: u64, gas_limit: u64) -> TxEnv {
+pub fn create_tx_env(tx: &TransactionSigned, signer: Address, nonce: u64) -> TxEnv {
     TxEnv {
         caller: signer,
-        gas_limit,
         nonce,
 
         tx_type: TransactionType::Eip1559.into(),
@@ -38,6 +37,7 @@ pub fn create_tx_env(tx: &TransactionSigned, signer: Address, nonce: u64, gas_li
         value: tx.value(),
         data: tx.input().clone(),
         chain_id: tx.chain_id(),
+        gas_limit: tx.gas_limit(),
         // We don't set gas_price nor the gas_priority_fee.
         // We disable the EVM logic charging gas at the beginning of the TX and instead rely on sov gas metering
         ..Default::default()

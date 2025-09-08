@@ -16,6 +16,8 @@ use revm::Database;
 use sov_address::{EthereumAddress, FromVmAddress};
 use sov_modules_api::macros::{config_value, rpc_gen};
 use sov_modules_api::prelude::UnwrapInfallible;
+use sov_modules_api::BasicGasState;
+use sov_modules_api::TxState;
 use sov_modules_api::{ApiStateAccessor, Spec, StateAccessor};
 use tracing::debug;
 
@@ -359,10 +361,9 @@ where
         &self,
         _request: TransactionRequest,
         _block_number: Option<String>,
-        _state: &mut ApiStateAccessor<S>,
+        state: &mut ApiStateAccessor<S>,
     ) -> RpcResult<U64> {
-        // TODO EVM: #1510
-        Ok(U64::from(100_000))
+        Ok(U64::from(self.gas_limit(state)))
     }
 }
 
@@ -468,6 +469,24 @@ where
             _ => {
                 let block = self.get_sealed_block_by_number(block_number, state)?;
                 Some(BlockEnv::from(block))
+            }
+        }
+    }
+
+    fn gas_limit(&self, state: &mut impl TxState<S>) -> u64 {
+        let BasicGasState { gas, funds, price } = state
+            .try_as_basic_gas_state()
+            // Justified, `impl TxState` has access to `BasicGasState`.
+            .expect("The impossible happened: BasicGasState is absent.");
+        let funds = funds.0;
+        let gas = gas.as_ref()[0];
+        let price = price.as_ref()[0].0;
+        match (funds, gas) {
+            (0, 0) => 0,
+            (_, 0) => u64::MAX,
+            (funds, gas) => {
+                let gas_from_funds = (funds / price).min(u64::MAX as u128) as u64;
+                gas.min(gas_from_funds)
             }
         }
     }
