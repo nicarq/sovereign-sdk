@@ -60,14 +60,14 @@ where
         batch: PreferredSequencerReadBatch,
         info_to_store: BatchToStore,
     ) -> anyhow::Result<()> {
-        self.db.terminate_batch(info_to_store).await?;
-        self.update_api_state(checkpoint);
-
         // Publish the batch.
         self.blob_sender
             .add_txs(batch.blob_id, batch.tx_hashes.clone())
             .await;
         self.blob_sender.publish_batch(batch).await?;
+
+        self.db.terminate_batch(info_to_store).await?;
+        self.update_api_state(checkpoint);
 
         Ok(())
     }
