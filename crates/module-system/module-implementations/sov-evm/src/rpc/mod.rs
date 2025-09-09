@@ -1,3 +1,6 @@
+use crate::db::commit::FallibleDatabaseCommit;
+use crate::sov_evm::SovEvm;
+use crate::sov_evm::UnmeteredStorageAccessInspector;
 use alloy_consensus::{Transaction as TransactionTrait, TxReceipt};
 use alloy_primitives::{Address, U64};
 use alloy_primitives::{Bytes, TxKind, B256, U256};
@@ -13,9 +16,13 @@ use jsonrpsee::types::{ErrorObject, ErrorObjectOwned};
 use reth_primitives::{Recovered, TransactionSigned};
 use reth_primitives_traits::AlloyBlockHeader;
 use reth_rpc_eth_types::{EthApiError, RpcInvalidTransactionError};
-use revm::context::result::{EVMError, InvalidHeader};
+use revm::context::result::InvalidHeader;
+use revm::context::result::{EVMError, ExecResultAndState, ExecutionResult};
+use revm::context::Context;
 use revm::context::{BlockEnv, CfgEnv};
 use revm::Database;
+use revm::InspectEvm;
+use revm::MainContext;
 use sov_address::{EthereumAddress, FromVmAddress};
 use sov_modules_api::macros::{config_value, rpc_gen};
 use sov_modules_api::prelude::UnwrapInfallible;
@@ -378,25 +385,78 @@ where
     ) -> RpcResult<GethTrace> {
         let index = self.get_tx_index_by_hash(&tx_hash, state).unwrap();
         let tx = self.transaction(index, state).unwrap();
-        let block = self.get_maybe_sealed_block(&tx, state);
 
-        let nr = block.number();
+        let nr = tx.block_number;
+        let block = self.blocks.get(&nr, state).unwrap_infallible().unwrap();
 
-        println!("nr: {nr:?}");
+        //println!("nr: {nr:?}");
 
         let h = self.head.get(state).unwrap().unwrap().header;
         println!("h {}", h.number());
-        let mut state = state.get_archival_state(RollupHeight::new(nr)).unwrap();
+
+        // assert_eq!(block.number(), latest_block.header.number());
+
+        let mut txs = vec![];
+        for i in block.transactions {
+            println!("i {}", i);
+            let tx = self.transaction(i, state).unwrap();
+            txs.push(tx.clone());
+            if tx.signed_transaction.hash() == &tx_hash {
+                break;
+            }
+        }
+
+        // ===
+        let mut state = state.get_archival_state(RollupHeight::new(nr - 1)).unwrap();
+        /*
         let latest_block = self
             .get_block_by_number(Some("latest".to_string()), None, &mut state)
             .unwrap()
-            .unwrap()
-            .header;
+            .unwrap();
 
         println!("");
         let h = self.head.get(&mut state).unwrap().unwrap().header;
         println!("h {}", h.number());
-        println!("latest_block n {}", latest_block.number());
+        println!("latest_block n {}", latest_block.header.number());*/
+
+        // 1 apply_pre_execution_changes
+        // 2 replay_transactions_until
+        // 3 tx_env
+        // 4 trace_transaction
+
+        let block_env = &self
+            .block_env
+            .get(&mut state)?
+            // Justified, we set it in `begin_rollup_block_hook`.
+            .expect("The impossible happened: block_env is not set.");
+
+        for tx in txs {
+            let gas_limit = 100000000;
+            let account_nonce = 0;
+            let tx_env = crate::create_tx_env(
+                &tx.signed_transaction(),
+                tx.signer,
+                account_nonce,
+                gas_limit,
+            );
+
+            let cfg = self.cfg(&mut state).unwrap();
+
+            let cfg_env: CfgEnv = get_cfg_env(block_env, cfg, None);
+            let mut evm_db: EvmDb<_, S> = self.get_db(&mut state);
+
+            let context = Context::mainnet()
+                .with_db(evm_db)
+                .with_block(block_env)
+                .with_cfg(cfg_env);
+
+            let inspector = UnmeteredStorageAccessInspector::new();
+            let mut evm = SovEvm::new(context, inspector);
+            let ExecResultAndState { result, state: xx } = evm.inspect_tx(tx_env).unwrap();
+
+            let mut evm_db: EvmDb<_, S> = self.get_db(&mut state);
+            evm_db.commit(xx).unwrap();
+        }
 
         todo!()
     }
