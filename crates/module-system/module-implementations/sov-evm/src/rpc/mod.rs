@@ -7,11 +7,11 @@ use alloy_rpc_types::{
 };
 use alloy_rpc_types_trace::geth::GethDebugTracingOptions;
 use alloy_rpc_types_trace::geth::GethTrace;
-
 use error::ensure_success;
 use jsonrpsee::core::RpcResult;
 use jsonrpsee::types::{ErrorObject, ErrorObjectOwned};
 use reth_primitives::{Recovered, TransactionSigned};
+use reth_primitives_traits::AlloyBlockHeader;
 use reth_rpc_eth_types::{EthApiError, RpcInvalidTransactionError};
 use revm::context::result::{EVMError, InvalidHeader};
 use revm::context::{BlockEnv, CfgEnv};
@@ -31,7 +31,7 @@ use crate::helpers::{
 };
 use crate::primitive_types::MaybeSealedBlock;
 use crate::Evm;
-
+use sov_rollup_interface::common::RollupHeight;
 pub(crate) mod error;
 
 #[rpc_gen(client, server)]
@@ -376,8 +376,23 @@ where
         _opts: Option<GethDebugTracingOptions>,
         state: &mut ApiStateAccessor<S>,
     ) -> RpcResult<GethTrace> {
-        let tx = self.get_tx_index_by_hash(tx_hash, state).unwrap();
+        let index = self.get_tx_index_by_hash(&tx_hash, state).unwrap();
+        let tx = self.transaction(index, state).unwrap();
         let block = self.get_maybe_sealed_block(&tx, state);
+
+        let nr = block.number();
+
+        println!("nr: {nr:?}");
+
+        let h = self.head.get(state).unwrap().unwrap().header;
+        println!("h {}", h.number());
+        let mut state = state.get_archival_state(RollupHeight::new(nr)).unwrap();
+
+        println!("");
+        let h = self.head.get(&mut state).unwrap().unwrap().header;
+        println!("h {}", h.number());
+
+        todo!()
     }
 }
 
