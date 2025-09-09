@@ -31,10 +31,7 @@ enum Access {
         original: Option<NodeLeafAndMaybeValue>,
     },
     /// Write access to a storage value.
-    Write {
-        modified: Option<SlotValue>,
-        at_rollup_height: u64,
-    },
+    Write { modified: Option<SlotValue> },
 }
 
 /// [`AccessSize`] represents a cache event that occurred on a particular value with the size of the value.
@@ -62,7 +59,7 @@ impl Access {
             Access::Read { original } => {
                 AccessSize::Read(original.as_ref().map(|node| node.leaf.size).unwrap_or(0))
             }
-            Access::Write { modified, .. } => {
+            Access::Write { modified } => {
                 AccessSize::Write(modified.as_ref().map(|v| v.size()).unwrap_or(0))
             }
         }
@@ -71,33 +68,24 @@ impl Access {
     fn modified(&self) -> Option<Option<&SlotValue>> {
         match self {
             Access::Read { .. } => None,
-            Access::Write { modified, .. } => Some(modified.as_ref()),
+            Access::Write { modified } => Some(modified.as_ref()),
         }
     }
 
     fn modified_mut(&mut self) -> Option<&mut Option<SlotValue>> {
         match self {
             Access::Read { .. } => None,
-            Access::Write { modified, .. } => Some(modified),
+            Access::Write { modified } => Some(modified),
         }
     }
 
-    fn add_write(&mut self, write: Option<SlotValue>, rollup_height: u64) {
+    fn add_write(&mut self, write: Option<SlotValue>) {
         match self {
-            Access::Read { original: _ } => {
-                *self = Access::Write {
-                    modified: write,
-                    at_rollup_height: rollup_height,
-                }
-            }
-            Access::Write {
-                modified,
-                at_rollup_height: at_version,
-            } => {
+            Access::Read { original: _ } => *self = Access::Write { modified: write },
+            Access::Write { modified } => {
                 // Simply override the modified value with the new modified
                 // value.
                 *modified = write;
-                *at_version = rollup_height;
             }
         }
     }
@@ -123,41 +111,6 @@ mod internal {
                 "Revertable cache should be merged or discarded before calling `iter`"
             );
             self.log.iter()
-        }
-
-        #[cfg(feature = "native")]
-        pub(crate) fn prune_up_to(&mut self, rollup_height: u64) {
-            // We skip the expensive `retain` operation if the log is empty.
-            // According to its docs, `retain` runs in O(capacity) time rather than O(len); If the map is already empty from `.clear()`, that could be expensive!
-            if !self.revertable_log.is_empty() {
-                self.revertable_log.retain(|_, access| {
-                    if let Access::Write {
-                        at_rollup_height: at_version,
-                        ..
-                    } = access
-                    {
-                        *at_version >= rollup_height
-                    } else {
-                        false
-                    }
-                });
-            }
-
-            // NOTE: If we ever add back separate metering for hot vs cold reads, this will break since it clears out *all* reads, not just the ones before the given
-            // height. This was already broken, so we don't bother to fix it yet.
-            if !self.log.is_empty() {
-                self.log.retain(|_, access| {
-                    if let Access::Write {
-                        at_rollup_height: at_version,
-                        ..
-                    } = access
-                    {
-                        *at_version >= rollup_height
-                    } else {
-                        false
-                    }
-                });
-            }
         }
 
         // This method is used to take all the changeset from the cache. The `revertable_log`
@@ -203,7 +156,6 @@ mod internal {
             &mut self,
             key: SlotKey,
             value: Option<SlotValue>,
-            rollup_height: u64,
         ) -> IsValueCached {
             let out = IsValueCached::Yes(AccessSize::Write(
                 value.as_ref().map(|v| v.size()).unwrap_or(0),
@@ -211,7 +163,7 @@ mod internal {
 
             match self.revertable_log.entry(key.clone()) {
                 Entry::Occupied(mut existing) => {
-                    existing.get_mut().add_write(value, rollup_height);
+                    existing.get_mut().add_write(value);
                     out
                 }
                 Entry::Vacant(vacancy) => {
@@ -221,10 +173,7 @@ mod internal {
                     };
                     // The write is added only to `revertable_log`.
                     // It will later be either committed or discarded.
-                    vacancy.insert(Access::Write {
-                        modified: value,
-                        at_rollup_height: rollup_height,
-                    });
+                    vacancy.insert(Access::Write { modified: value });
                     out
                 }
             }
@@ -236,21 +185,15 @@ mod internal {
                     // 1. merge reads
                     Access::Read { original: _ } => {
                         let is_new = self.log.insert(k, v).is_none();
-                        assert!(is_new, "The same value was read twice from the DB in a single block; the value is already present in the log. This is a bug, please report it.");
+                        assert!(is_new, "The read is already present in the log");
                     }
                     // 2. merge writes
-                    Access::Write {
-                        modified,
-                        at_rollup_height: at_version,
-                    } => match self.log.entry(k) {
+                    Access::Write { modified } => match self.log.entry(k) {
                         Entry::Occupied(mut existing) => {
-                            existing.get_mut().add_write(modified, at_version);
+                            existing.get_mut().add_write(modified);
                         }
                         Entry::Vacant(vacancy) => {
-                            vacancy.insert(Access::Write {
-                                modified,
-                                at_rollup_height: at_version,
-                            });
+                            vacancy.insert(Access::Write { modified });
                         }
                     },
                 }
@@ -312,16 +255,6 @@ impl<N: ProvableCompileTimeNamespace> ProvableStorageCache<N> {
         self.cache.discard_revertable_log();
     }
 
-    /// Prunes all the entries in the cache that occurred before the given rollup height. Clears all read-only entries regardless of their rollup height.
-    /// We prune all reads because it's simpler to implement and we know that this method is only used in the sequencer, where we don't care about read tracking.
-    /// Pruning them aggressively allows us to save memory.
-    #[cfg(feature = "native")]
-    pub fn prune_writes_up_to_and_all_reads(&mut self, rollup_height: u64) {
-        self.ordered_db_reads.clear();
-        self.revertable_ordered_reads.clear();
-        self.cache.prune_up_to(rollup_height);
-    }
-
     /// Returns an iterator over the writes
     pub fn get_writes(&self) -> impl Iterator<Item = (&SlotKey, Option<&SlotValue>)> {
         self.cache
@@ -358,15 +291,14 @@ impl<N: ProvableCompileTimeNamespace> ProvableStorageCache<N> {
         key: &SlotKey,
         storage: &S,
         witness: &S::Witness,
-        version_to_fetch: Option<sov_rollup_interface::common::SlotNumber>,
+        version: Option<sov_rollup_interface::common::SlotNumber>,
         metric: &mut StateAccessMetric,
     ) -> anyhow::Result<Option<u32>> {
         match self.cache.get(key) {
             Some(Access::Read { original }) => Ok(original.as_ref().map(|node| node.leaf.size)),
-            Some(Access::Write { modified, .. }) => Ok(modified.as_ref().map(SlotValue::size)),
+            Some(Access::Write { modified }) => Ok(modified.as_ref().map(SlotValue::size)),
             None => {
-                let maybe_leaf =
-                    storage.get_leaf_historical::<N>(key, version_to_fetch, witness)?;
+                let maybe_leaf = storage.get_leaf_historical::<N>(key, version, witness)?;
                 let size = maybe_leaf.as_ref().map(|leaf| leaf.leaf.size);
                 metric.storage_read_size = Some(size.unwrap_or(0));
                 self.add_read(key.clone(), maybe_leaf);
@@ -385,7 +317,7 @@ impl<N: ProvableCompileTimeNamespace> ProvableStorageCache<N> {
     ) -> Option<u32> {
         match self.cache.get(key) {
             Some(Access::Read { original }) => original.as_ref().map(|node| node.leaf.size),
-            Some(Access::Write { modified, .. }) => modified.as_ref().map(SlotValue::size),
+            Some(Access::Write { modified }) => modified.as_ref().map(SlotValue::size),
             None => {
                 let maybe_leaf = storage.get_leaf::<N>(key, witness);
                 let size = maybe_leaf.as_ref().map(|leaf| leaf.leaf.size);
@@ -455,7 +387,7 @@ impl<N: ProvableCompileTimeNamespace> ProvableStorageCache<N> {
                     ReadType::Read(slot_value) => Ok(Some(slot_value)),
                 },
                 Access::Read { original: None } => Ok(None),
-                Access::Write { modified, .. } => Ok(modified.clone()),
+                Access::Write { modified } => Ok(modified.clone()),
             }
         } else {
             let storage_value = fetch_fn(key, witness, args)?;
@@ -492,14 +424,13 @@ impl<N: ProvableCompileTimeNamespace> ProvableStorageCache<N> {
     }
 
     /// Replaces the keyed value on the storage.
-    pub fn set(&mut self, key: &SlotKey, value: SlotValue, rollup_height: u64) {
-        self.cache
-            .add_write(key.clone(), Some(value), rollup_height);
+    pub fn set(&mut self, key: &SlotKey, value: SlotValue) {
+        self.cache.add_write(key.clone(), Some(value));
     }
 
     /// Deletes a keyed value from the cache.
-    pub fn delete(&mut self, key: &SlotKey, rollup_height: u64) {
-        self.cache.add_write(key.clone(), None, rollup_height);
+    pub fn delete(&mut self, key: &SlotKey) {
+        self.cache.add_write(key.clone(), None);
     }
 
     // This method can be called only once per given key.
@@ -590,7 +521,7 @@ mod tests {
         {
             let mut cache_log = CacheLog::default();
             let value = create_value(3);
-            cache_log.add_write(key.clone(), value.clone(), 1);
+            cache_log.add_write(key.clone(), value.clone());
 
             cache_log.commit_revertable_log();
             let writes = cache_log.take_writes();
@@ -609,7 +540,7 @@ mod tests {
             cache_log.add_read(key.clone(), value.clone());
 
             let next_value = create_value(5);
-            cache_log.add_write(key.clone(), next_value.clone(), 2);
+            cache_log.add_write(key.clone(), next_value.clone());
 
             cache_log.commit_revertable_log();
             let writes = cache_log.take_writes();
@@ -621,10 +552,10 @@ mod tests {
         {
             let mut cache_log = CacheLog::default();
             let value = create_value(4);
-            cache_log.add_write(key.clone(), value.clone(), 3);
+            cache_log.add_write(key.clone(), value.clone());
 
             let next_value = create_value(5);
-            cache_log.add_write(key.clone(), next_value.clone(), 3);
+            cache_log.add_write(key.clone(), next_value.clone());
 
             cache_log.commit_revertable_log();
             let writes = cache_log.take_writes();
@@ -636,7 +567,7 @@ mod tests {
         {
             let mut cache_log = CacheLog::default();
             let value = create_value(3);
-            cache_log.add_write(key.clone(), value.clone(), 4);
+            cache_log.add_write(key.clone(), value.clone());
 
             cache_log.discard_revertable_log();
             let writes = cache_log.take_writes();

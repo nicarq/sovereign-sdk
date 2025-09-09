@@ -25,29 +25,7 @@ pub(super) struct Delta<S: Storage> {
     witness: S::Witness,
     pub(crate) kernel_cache: ProvableStorageCache<namespaces::Kernel>,
     pub(crate) user_cache: ProvableStorageCache<namespaces::User>,
-    pub(crate) accessory_writes: HashMap<SlotKey, AccessoryWrite>,
-}
-
-#[derive(Debug, Clone)]
-pub(crate) struct AccessoryWrite {
-    #[cfg(feature = "native")]
-    pub at_rollup_height: u64,
-    pub value: Option<SlotValue>,
-}
-
-impl AccessoryWrite {
-    #[cfg(feature = "native")]
-    pub fn new(at_rollup_height: u64, value: Option<SlotValue>) -> Self {
-        Self {
-            at_rollup_height,
-            value,
-        }
-    }
-
-    #[cfg(not(feature = "native"))]
-    pub fn new(_at_rollup_height: u64, value: Option<SlotValue>) -> Self {
-        Self { value }
-    }
+    pub(crate) accessory_writes: HashMap<SlotKey, Option<SlotValue>>,
 }
 
 impl<S: Storage> Delta<S> {
@@ -67,17 +45,6 @@ impl<S: Storage> Delta<S> {
         &self.inner
     }
 
-    #[cfg(feature = "native")]
-    pub(super) fn replace_storage_and_prune(&mut self, storage: S, rollup_height: u64) {
-        self.inner = storage;
-        self.user_cache
-            .prune_writes_up_to_and_all_reads(rollup_height);
-        self.kernel_cache
-            .prune_writes_up_to_and_all_reads(rollup_height);
-        self.accessory_writes
-            .retain(|_, write| write.at_rollup_height >= rollup_height);
-    }
-
     pub(super) fn with_witness(inner: S, witness: S::Witness) -> Self {
         Self {
             inner,
@@ -88,10 +55,7 @@ impl<S: Storage> Delta<S> {
         }
     }
 
-    pub(super) fn freeze(
-        self,
-        rollup_height: u64,
-    ) -> (StateAccesses, AccessoryDelta<S>, S::Witness, S) {
+    pub(super) fn freeze(self) -> (StateAccesses, AccessoryDelta<S>, S::Witness, S) {
         let Self {
             inner,
             user_cache,
@@ -109,7 +73,6 @@ impl<S: Storage> Delta<S> {
                 writes: accessory_writes,
                 storage: inner.clone(),
                 metrics: StateMetrics::default(),
-                rollup_height,
             },
             witness,
             inner,
@@ -130,7 +93,7 @@ impl<S: Storage> Delta<S> {
             .chain(
                 self.accessory_writes
                     .iter()
-                    .map(|(k, w)| ((k.clone(), Namespace::Accessory), w.value.clone())),
+                    .map(|(k, v)| ((k.clone(), Namespace::Accessory), v.clone())),
             )
             .collect();
         ChangeSet { changes }
@@ -155,7 +118,7 @@ impl<S: Storage> Delta<S> {
             Namespace::Accessory => {
                 if let Some(access) = self.accessory_writes.get(key) {
                     IsValueCached::Yes(AccessSize::Write(
-                        access.value.as_ref().map(|v| v.size()).unwrap_or(0),
+                        access.as_ref().map(|v| v.size()).unwrap_or(0),
                     ))
                 } else {
                     IsValueCached::No
@@ -180,7 +143,8 @@ impl<S: Storage> Delta<S> {
                     .get_size_or_fetch(key, &self.inner, &self.witness, metric)
             }
             Namespace::Accessory => match self.accessory_writes.get(key).cloned() {
-                Some(write) => write.value.as_ref().map(|v| v.size()),
+                Some(Some(value)) => Some(value.size()),
+                Some(None) => None,
                 None => {
                     let val = self.inner.get_accessory(key);
                     let size = val.map(|v| v.size());
@@ -207,7 +171,8 @@ impl<S: Storage> Delta<S> {
                     .get_or_fetch(key, &self.inner, &self.witness, metric)
             }
             Namespace::Accessory => match self.accessory_writes.get(key).cloned() {
-                Some(write) => write.value,
+                Some(Some(value)) => Some(value),
+                Some(None) => None,
                 None => {
                     let val = self.inner.get_accessory(key);
                     let size = val.as_ref().map(|v| v.size());
@@ -218,27 +183,20 @@ impl<S: Storage> Delta<S> {
         }
     }
 
-    pub fn set(
-        &mut self,
-        namespace: Namespace,
-        key: &SlotKey,
-        value: SlotValue,
-        rollup_height: u64,
-    ) {
+    pub fn set(&mut self, namespace: Namespace, key: &SlotKey, value: SlotValue) {
         match namespace {
-            Namespace::User => self.user_cache.set(key, value, rollup_height),
-            Namespace::Kernel => self.kernel_cache.set(key, value, rollup_height),
+            Namespace::User => self.user_cache.set(key, value),
+            Namespace::Kernel => self.kernel_cache.set(key, value),
             Namespace::Accessory => {
-                self.accessory_writes
-                    .insert(key.clone(), AccessoryWrite::new(rollup_height, Some(value)));
+                self.accessory_writes.insert(key.clone(), Some(value));
             }
         }
     }
 
-    pub fn delete(&mut self, namespace: Namespace, key: &SlotKey, rollup_height: u64) {
+    pub fn delete(&mut self, namespace: Namespace, key: &SlotKey) {
         match namespace {
-            Namespace::User => self.user_cache.delete(key, rollup_height),
-            Namespace::Kernel => self.kernel_cache.delete(key, rollup_height),
+            Namespace::User => self.user_cache.delete(key),
+            Namespace::Kernel => self.kernel_cache.delete(key),
             Namespace::Accessory => {
                 self.accessory_writes.remove(key);
             }
@@ -254,10 +212,9 @@ impl<S: Storage> fmt::Debug for Delta<S> {
 
 /// A delta containing *only* the accessory state.
 pub struct AccessoryDelta<S: Storage> {
-    writes: HashMap<SlotKey, AccessoryWrite>,
+    writes: HashMap<SlotKey, Option<SlotValue>>,
     storage: S,
     metrics: StateMetrics,
-    rollup_height: u64,
 }
 
 impl<S: Storage> StateMetricsProvider for AccessoryDelta<S> {
@@ -269,7 +226,7 @@ impl<S: Storage> StateMetricsProvider for AccessoryDelta<S> {
 impl<S: Storage> AccessoryDelta<S> {
     /// Freeze the accessory delta, preventing further accesses.
     pub fn freeze(self) -> Vec<(SlotKey, Option<SlotValue>)> {
-        self.writes.into_iter().map(|(k, v)| (k, v.value)).collect()
+        self.writes.into_iter().collect()
     }
 }
 
@@ -280,8 +237,8 @@ impl<S: Storage> UniversalStateAccessor for AccessoryDelta<S> {
         key: &SlotKey,
         metric: &mut StateAccessMetric,
     ) -> Option<u32> {
-        if let Some(write) = self.writes.get(key) {
-            return write.value.as_ref().map(|v| v.size());
+        if let Some(value) = self.writes.get(key) {
+            return value.clone().map(|v| v.size());
         }
 
         let val = self.storage.get_accessory(key);
@@ -295,8 +252,8 @@ impl<S: Storage> UniversalStateAccessor for AccessoryDelta<S> {
         key: &SlotKey,
         metric: &mut StateAccessMetric,
     ) -> Option<SlotValue> {
-        if let Some(write) = self.writes.get(key) {
-            return write.value.clone();
+        if let Some(value) = self.writes.get(key) {
+            return value.clone();
         }
 
         let val = self.storage.get_accessory(key);
@@ -305,15 +262,11 @@ impl<S: Storage> UniversalStateAccessor for AccessoryDelta<S> {
     }
 
     fn set_value(&mut self, _namespace: Namespace, key: &SlotKey, value: SlotValue) {
-        self.writes.insert(
-            key.clone(),
-            AccessoryWrite::new(self.rollup_height, Some(value)),
-        );
+        self.writes.insert(key.clone(), Some(value));
     }
 
     fn delete_value(&mut self, _namespace: Namespace, key: &SlotKey) {
-        self.writes
-            .insert(key.clone(), AccessoryWrite::new(self.rollup_height, None));
+        self.writes.insert(key.clone(), None);
     }
 }
 

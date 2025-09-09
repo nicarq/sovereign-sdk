@@ -583,10 +583,7 @@ pub(crate) enum PreferredSeqOperation<S: Spec, Rt: Runtime<S>> {
     // This is by far the most common scenario, i.e. a nominal
     // `update_state` call during sequencer execution with no unusual
     // conditions.
-    ReplaySoftConfirmationsOnTopOfNodeStateIfNecessary(
-        Option<Box<RollupBlockExecutor<S, Rt>>>,
-        Duration,
-    ),
+    ReplaySoftConfirmationsOnTopOfNodeState(Box<RollupBlockExecutor<S, Rt>>, Duration),
 }
 
 #[tracing::instrument(skip_all, level = "debug")]
@@ -650,21 +647,17 @@ where
                 .await?;
         }
 
-        PreferredSeqOperation::ReplaySoftConfirmationsOnTopOfNodeStateIfNecessary(
+        PreferredSeqOperation::ReplaySoftConfirmationsOnTopOfNodeState(
             executor,
             time_spent_fetching_batches,
         ) => {
-            if let Some(executor) = executor {
-                seq.replay_soft_confirmations_on_top_of_node_state(
-                    info,
-                    timer_start,
-                    time_spent_fetching_batches,
-                    executor,
-                )
-                .await?;
-            } else {
-                seq.do_simple_state_update(info).await;
-            }
+            seq.replay_soft_confirmations_on_top_of_node_state(
+                info,
+                timer_start,
+                time_spent_fetching_batches,
+                executor,
+            )
+            .await?;
         }
     }
 
