@@ -387,10 +387,16 @@ where
         let h = self.head.get(state).unwrap().unwrap().header;
         println!("h {}", h.number());
         let mut state = state.get_archival_state(RollupHeight::new(nr)).unwrap();
+        let latest_block = self
+            .get_block_by_number(Some("latest".to_string()), None, &mut state)
+            .unwrap()
+            .unwrap()
+            .header;
 
         println!("");
         let h = self.head.get(&mut state).unwrap().unwrap().header;
         println!("h {}", h.number());
+        println!("latest_block n {}", latest_block.number());
 
         todo!()
     }
