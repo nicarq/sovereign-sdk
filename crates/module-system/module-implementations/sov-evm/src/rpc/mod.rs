@@ -349,6 +349,7 @@ where
         let gas_used = result.gas_used();
         const ABSOLUTE_MARGIN: f64 = 1.5;
         const RELATIVE_MARGIN: u64 = 100_000;
+        #[allow(clippy::float_arithmetic)]
         let gas_used_with_margins = ((gas_used as f64) * ABSOLUTE_MARGIN) as u64 + RELATIVE_MARGIN;
         Ok(U64::from(gas_used_with_margins))
     }
