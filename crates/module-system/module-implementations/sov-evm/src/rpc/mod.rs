@@ -380,7 +380,7 @@ where
     pub fn debug_trace_transaction(
         &self,
         tx_hash: B256,
-        _opts: Option<GethDebugTracingOptions>,
+        opts: Option<GethDebugTracingOptions>,
         state: &mut ApiStateAccessor<S>,
     ) -> RpcResult<GethTrace> {
         let index = self.get_tx_index_by_hash(&tx_hash, state).unwrap();
@@ -430,7 +430,7 @@ where
             // Justified, we set it in `begin_rollup_block_hook`.
             .expect("The impossible happened: block_env is not set.");
 
-        for tx in txs {
+        for tx in txs.clone() {
             let gas_limit = 100000000;
             let account_nonce = 0;
             let tx_env = crate::create_tx_env(
@@ -458,9 +458,63 @@ where
             evm_db.commit(xx).unwrap();
         }
 
+        let GethDebugTracingOptions {
+            config,
+            tracer,
+            tracer_config,
+            ..
+        } = opts.unwrap();
+
+        let tx = txs[0].clone();
+
+        if let Some(tracer) = tracer {
+            return match tracer {
+                GethDebugTracerType::BuiltInTracer(build_in_tracer) => match build_in_tracer {
+                    GethDebugBuiltInTracerType::FourByteTracer => {
+                        let mut inspector = FourByteInspector::default();
+
+                        let gas_limit = 100000000;
+                        let account_nonce = 0;
+                        let tx_env = crate::create_tx_env(
+                            &tx.signed_transaction(),
+                            tx.signer,
+                            account_nonce,
+                            gas_limit,
+                        );
+
+                        let cfg = self.cfg(&mut state).unwrap();
+
+                        let cfg_env: CfgEnv = get_cfg_env(block_env, cfg, None);
+                        let mut evm_db: EvmDb<_, S> = self.get_db(&mut state);
+
+                        let context = Context::mainnet()
+                            .with_db(evm_db)
+                            .with_block(block_env)
+                            .with_cfg(cfg_env);
+
+                        let mut evm = SovEvm::new(context, inspector);
+                        let ExecResultAndState { result, state: xx } =
+                            evm.inspect_tx(tx_env).unwrap();
+
+                        todo!();
+                    }
+                    GethDebugBuiltInTracerType::CallTracer => todo!(),
+                    GethDebugBuiltInTracerType::PreStateTracer => todo!(),
+                    GethDebugBuiltInTracerType::NoopTracer => todo!(),
+                    GethDebugBuiltInTracerType::MuxTracer => todo!(),
+                    GethDebugBuiltInTracerType::FlatCallTracer => todo!(),
+                },
+                GethDebugTracerType::JsTracer(_) => todo!(),
+            };
+        }
+
         todo!()
     }
 }
+
+use alloy_rpc_types_trace::geth::GethDebugBuiltInTracerType;
+use alloy_rpc_types_trace::geth::GethDebugTracerType;
+use revm_inspectors::tracing::FourByteInspector;
 
 impl<S: Spec> Evm<S>
 where
