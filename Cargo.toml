@@ -286,6 +286,7 @@ alloy-consensus = { version = "1.0.25", default-features = false }
 alloy-rpc-types = { version = "1.0.25", features = [
     "eth",
 ], default-features = false }
+
 alloy-rpc-types-trace = { version = "1.0.25" }
 reth-primitives = { git = "https://github.com/paradigmxyz/reth", rev = "d8451e54e7267f9f1634118d6d279b2216f7e2bb", default-features = false }
 reth-ethereum-primitives = { git = "https://github.com/paradigmxyz/reth", rev = "d8451e54e7267f9f1634118d6d279b2216f7e2bb", default-features = false }

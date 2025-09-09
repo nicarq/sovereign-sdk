@@ -5,6 +5,9 @@ use alloy_rpc_types::{
     state::StateOverride, Block, BlockOverrides, BlockTransactions, FeeHistory, Log,
     ReceiptEnvelope, ReceiptWithBloom, Transaction, TransactionReceipt, TransactionRequest,
 };
+use alloy_rpc_types_trace::geth::GethDebugTracingOptions;
+use alloy_rpc_types_trace::geth::GethTrace;
+
 use error::ensure_success;
 use jsonrpsee::core::RpcResult;
 use jsonrpsee::types::{ErrorObject, ErrorObjectOwned};
@@ -363,6 +366,18 @@ where
     ) -> RpcResult<U64> {
         // TODO EVM: #1510
         Ok(U64::from(100_000))
+    }
+
+    /// TODO
+    #[rpc_method(name = "traceTransaction")]
+    pub fn debug_trace_transaction(
+        &self,
+        tx_hash: B256,
+        _opts: Option<GethDebugTracingOptions>,
+        state: &mut ApiStateAccessor<S>,
+    ) -> RpcResult<GethTrace> {
+        let tx = self.get_tx_index_by_hash(tx_hash, state).unwrap();
+        let block = self.get_maybe_sealed_block(&tx, state);
     }
 }
 
