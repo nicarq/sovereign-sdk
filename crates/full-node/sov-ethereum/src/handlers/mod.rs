@@ -187,6 +187,9 @@ where
     })?;
 
     let evm = sov_evm::Evm::<S>::default();
-    let receipt = evm.get_transaction_receipt(tx_hash, &mut ethereum.sequencer.api_state().default_api_state_accessor())?;
+    let receipt = evm.get_transaction_receipt(
+        tx_hash,
+        &mut ethereum.sequencer.api_state().default_api_state_accessor(),
+    )?;
     Ok::<_, ErrorObjectOwned>(receipt)
 }
