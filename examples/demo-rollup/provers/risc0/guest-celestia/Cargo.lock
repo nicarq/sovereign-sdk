@@ -5059,6 +5059,7 @@ dependencies = [
 name = "sov-modules-api"
 version = "0.3.0"
 dependencies = [
+ "alloy-eips",
  "alloy-primitives",
  "alloy-sol-types",
  "anyhow",
@@ -5310,6 +5311,7 @@ dependencies = [
  "bs58",
  "hex",
  "nmt-rs",
+ "once_cell",
  "schemars 0.8.21",
  "serde",
  "serde_json",
