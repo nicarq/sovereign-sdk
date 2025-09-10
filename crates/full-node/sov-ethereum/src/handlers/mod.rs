@@ -2,6 +2,7 @@ use std::sync::Arc;
 
 use alloy_primitives::{Bytes, B256};
 
+use alloy_rpc_types::TransactionReceipt;
 use jsonrpsee::types::{ErrorObjectOwned, Params};
 use jsonrpsee::Extensions;
 use sov_address::{EthereumAddress, FromVmAddress};
@@ -155,4 +156,37 @@ where
     })?;
 
     Ok(tx_hash)
+}
+
+pub async fn realtime_send_raw_transaction<S, Seq>(
+    parameters: Params<'static>,
+    ethereum: Arc<Ethereum<S, Seq>>,
+    _: Extensions,
+) -> Result<Option<TransactionReceipt>, ErrorObjectOwned>
+where
+    S: Spec,
+    Seq: Sequencer<Spec = S>,
+    S::Address: FromVmAddress<EthereumAddress>,
+    Seq::Rt: HasKernel<S> + EthereumAuthenticator<S> + Default + Send + Sync + 'static,
+{
+    let data: Bytes = parameters.one().unwrap();
+
+    let raw_evm_tx = RlpEvmTransaction { rlp: data.to_vec() };
+
+    let (tx_hash, raw_message) = ethereum
+        .make_raw_tx(raw_evm_tx)
+        .map_err(|e| to_jsonrpsee_error_object(e, ETH_RPC_ERROR))?;
+
+    let tx = Seq::Rt::encode_with_ethereum_auth(RawTx::new(raw_message));
+
+    ethereum.sequencer.accept_tx(tx).await.map_err(|e| {
+        to_jsonrpsee_error_object(
+            format!("{} - '{}' ({:?})", e.status, e.message, e.details),
+            ETH_RPC_ERROR,
+        )
+    })?;
+
+    let evm = sov_evm::Evm::<S>::default();
+    let receipt = evm.get_transaction_receipt(tx_hash, &mut ethereum.sequencer.api_state().default_api_state_accessor())?;
+    Ok::<_, ErrorObjectOwned>(receipt)
 }
