@@ -417,7 +417,6 @@ async fn create_blob_sender(
         blob_processing_timeout,
         blob_status_sender,
         Duration::from_millis(1000),
-        Default::default(),
         nb_of_concurrent_blob_submissions,
     )
     .await

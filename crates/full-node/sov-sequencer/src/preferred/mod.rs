@@ -173,7 +173,6 @@ where
         let (blob_sender, blob_sender_handle) = PreferredBlobSender::new(
             da,
             ledger_db.clone(),
-            db_cache.all_completed_blobs().clone(),
             storage_path.into(),
             tx_status_manager.clone(),
             shutdown_sender.clone(),

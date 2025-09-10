@@ -84,7 +84,6 @@ where
                     TxStatusBlobSenderHooks::new(tx_status_manager.clone()),
                     shutdown_sender,
                     Duration::from_secs(config.blob_processing_timeout_secs),
-                    None,
                     Default::default(),
                     nb_of_concurrent_blob_submissions,
                 )

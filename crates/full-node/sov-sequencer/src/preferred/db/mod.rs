@@ -195,10 +195,6 @@ impl PreferredSequencerCache {
         self.in_progress_batch.as_ref()
     }
 
-    pub fn all_completed_blobs(&self) -> Vec<PreferredSequencerReadBlob> {
-        self.completed_blobs.clone().into()
-    }
-
     pub fn all_completed_blobs_greater_than_or_equal_to(
         &self,
         sequence_number: SequenceNumber,
