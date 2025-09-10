@@ -3074,32 +3074,11 @@ dependencies = [
 
 [[package]]
 name = "derive_more"
-version = "1.0.0"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "4a9b99b9cbbe49445b21764dc0625032a89b145a2642e67603e1c936f5458d05"
-dependencies = [
- "derive_more-impl 1.0.0",
-]
-
-[[package]]
-name = "derive_more"
 version = "2.0.1"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "093242cf7570c207c83073cf82f79706fe7b8317e98620a47d5be7c3d8497678"
 dependencies = [
- "derive_more-impl 2.0.1",
-]
-
-[[package]]
-name = "derive_more-impl"
-version = "1.0.0"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "cb7330aeadfbe296029522e6c40f315320aba36fc43a5b3632f3795348f3bd22"
-dependencies = [
- "proc-macro2",
- "quote",
- "syn 2.0.98",
- "unicode-xid",
+ "derive_more-impl",
 ]
 
 [[package]]
@@ -5332,7 +5311,7 @@ dependencies = [
  "alloy-sol-types",
  "anyhow",
  "borsh",
- "derive_more 1.0.0",
+ "derive_more 2.0.1",
  "hex",
  "jsonrpsee",
  "rockbound",
@@ -11179,7 +11158,7 @@ version = "0.3.0"
 dependencies = [
  "anyhow",
  "borsh",
- "derive_more 1.0.0",
+ "derive_more 2.0.1",
  "proptest",
  "schemars 0.8.21",
  "serde",
@@ -11207,7 +11186,7 @@ dependencies = [
  "criterion",
  "demo-stf",
  "derivative",
- "derive_more 1.0.0",
+ "derive_more 2.0.1",
  "futures",
  "humantime",
  "prettytable-rs",
@@ -11242,7 +11221,7 @@ dependencies = [
  "async-trait",
  "bincode",
  "borsh",
- "derive_more 1.0.0",
+ "derive_more 2.0.1",
  "futures",
  "rockbound",
  "serde",
@@ -11266,7 +11245,7 @@ version = "0.3.0"
 dependencies = [
  "anyhow",
  "borsh",
- "derive_more 1.0.0",
+ "derive_more 2.0.1",
  "hex",
  "schemars 0.8.21",
  "serde",
@@ -11329,7 +11308,7 @@ dependencies = [
  "borsh",
  "celestia-rpc",
  "celestia-types",
- "derive_more 1.0.0",
+ "derive_more 2.0.1",
  "futures",
  "hex",
  "jsonrpsee",
@@ -11389,7 +11368,7 @@ version = "0.3.0"
 dependencies = [
  "anyhow",
  "borsh",
- "derive_more 1.0.0",
+ "derive_more 2.0.1",
  "directories",
  "futures",
  "hex",
@@ -11651,7 +11630,7 @@ dependencies = [
  "borsh",
  "bytes",
  "derive-new",
- "derive_more 1.0.0",
+ "derive_more 2.0.1",
  "digest 0.10.7",
  "ethers",
  "hex",
@@ -11701,7 +11680,7 @@ dependencies = [
  "arbitrary",
  "base64 0.22.1",
  "borsh",
- "derive_more 1.0.0",
+ "derive_more 2.0.1",
  "futures",
  "hex",
  "indoc",
@@ -11759,7 +11738,7 @@ dependencies = [
  "axum-server",
  "base64 0.22.1",
  "borsh",
- "derive_more 1.0.0",
+ "derive_more 2.0.1",
  "futures",
  "hex",
  "insta",
@@ -11790,7 +11769,7 @@ dependencies = [
  "bincode",
  "chrono",
  "derivative",
- "derive_more 1.0.0",
+ "derive_more 2.0.1",
  "http 1.1.0",
  "insta",
  "risc0-zkvm",
@@ -11818,7 +11797,7 @@ dependencies = [
  "bytes",
  "chrono",
  "criterion",
- "derive_more 1.0.0",
+ "derive_more 2.0.1",
  "futures",
  "hex",
  "insta",
@@ -11899,7 +11878,7 @@ dependencies = [
  "bs58",
  "clap",
  "derivative",
- "derive_more 1.0.0",
+ "derive_more 2.0.1",
  "digest 0.10.7",
  "heck 0.5.0",
  "hex",
@@ -11949,7 +11928,7 @@ dependencies = [
  "borsh",
  "convert_case 0.6.0",
  "darling",
- "derive_more 1.0.0",
+ "derive_more 2.0.1",
  "hex",
  "jsonrpsee",
  "prettier-please",
@@ -12053,7 +12032,7 @@ version = "0.3.0"
 dependencies = [
  "anyhow",
  "borsh",
- "derive_more 1.0.0",
+ "derive_more 2.0.1",
  "schemars 0.8.21",
  "serde",
  "sov-modules-api",
@@ -12074,7 +12053,7 @@ dependencies = [
  "bcs",
  "borsh",
  "derivative",
- "derive_more 1.0.0",
+ "derive_more 2.0.1",
  "proptest",
  "proptest-derive",
  "schemars 0.8.21",
@@ -12097,7 +12076,7 @@ version = "0.3.0"
 dependencies = [
  "anyhow",
  "borsh",
- "derive_more 1.0.0",
+ "derive_more 2.0.1",
  "schemars 0.8.21",
  "serde",
  "sov-bank",
@@ -12124,7 +12103,7 @@ version = "0.3.0"
 dependencies = [
  "anyhow",
  "axum 0.7.9",
- "derive_more 1.0.0",
+ "derive_more 2.0.1",
  "futures",
  "proptest",
  "proptest-derive",
@@ -12206,7 +12185,7 @@ dependencies = [
  "base64 0.22.1",
  "borsh",
  "derivative",
- "derive_more 1.0.0",
+ "derive_more 2.0.1",
  "openapiv3",
  "serde",
  "serde_json",
@@ -12239,7 +12218,7 @@ dependencies = [
  "bincode",
  "borsh",
  "bytes",
- "derive_more 1.0.0",
+ "derive_more 2.0.1",
  "digest 0.10.7",
  "futures",
  "hex",
@@ -12272,7 +12251,7 @@ dependencies = [
  "bincode",
  "borsh",
  "derivative",
- "derive_more 1.0.0",
+ "derive_more 2.0.1",
  "full-node-configs",
  "futures",
  "hex",
@@ -12393,7 +12372,7 @@ dependencies = [
  "base64 0.22.1",
  "borsh",
  "bs58",
- "derive_more 1.0.0",
+ "derive_more 2.0.1",
  "hex",
  "jsonrpsee",
  "reqwest 0.12.9",
@@ -12464,7 +12443,7 @@ dependencies = [
  "bcs",
  "borsh",
  "derivative",
- "derive_more 1.0.0",
+ "derive_more 2.0.1",
  "hex",
  "jmt",
  "nomt",
@@ -12577,7 +12556,7 @@ dependencies = [
  "axum-server",
  "borsh",
  "derivative",
- "derive_more 1.0.0",
+ "derive_more 2.0.1",
  "ethereum-types",
  "ethers",
  "hex",
@@ -12634,7 +12613,7 @@ dependencies = [
  "backon",
  "borsh",
  "derivative",
- "derive_more 1.0.0",
+ "derive_more 2.0.1",
  "futures",
  "hex",
  "indexmap 2.5.0",
