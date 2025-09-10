@@ -26,7 +26,7 @@ const MAX_PRIORITY_FEE_PER_GAS: u64 = 1;
 pub struct TestClient {
     pub chain_id: u64,
     pub from_addr: Address,
-    contract: SimpleStorageContract,
+    pub contract: SimpleStorageContract,
     pub client: SignerMiddleware<Provider<Http>, Wallet<SigningKey>>,
     node_client: NodeClient,
     rpc: WsClient,
@@ -74,7 +74,7 @@ impl TestClient {
             .gas(GAS)
     }
 
-    fn make_eip1559_tx(
+    pub fn make_eip1559_tx(
         &self,
         nonce: u64,
         to_address: Option<Address>,
