@@ -80,6 +80,7 @@ members = [
     # TODO: https://github.com/Sovereign-Labs/sovereign-sdk-wip/issues/498
     # "crates/adapters/avail",
     "crates/adapters/celestia",
+    "crates/adapters/ligetron",
     "crates/adapters/risc0",
     "crates/adapters/sp1",
 ]
@@ -118,6 +119,7 @@ demo-stf = { path = "examples/demo-rollup/stf", default-features = false, versio
 sov-eth-client = { path = "crates/utils/sov-eth-client", default-features = false, version = "0.3" }
 sov-blob-sender = { path = "crates/full-node/sov-blob-sender", default-features = false, version = "0.3" }
 sov-celestia-adapter = { path = "crates/adapters/celestia", default-features = false, version = "0.3" }
+sov-ligetron-adapter = { path = "crates/adapters/ligetron", default-features = false, version = "0.3" }
 sov-risc0-adapter = { path = "crates/adapters/risc0", default-features = false, version = "0.3" }
 sov-sp1-adapter = { path = "crates/adapters/sp1", default-features = false, version = "0.3" }
 sov-ethereum = { path = "crates/full-node/sov-ethereum", default-features = false, version = "0.3" }

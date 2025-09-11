@@ -1,0 +1,2 @@
+/usr/bin/ar qc libbn254.a CMakeFiles/bn254.dir/src/bn254.cpp.o
+/usr/bin/ranlib libbn254.a
