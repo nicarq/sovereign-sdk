@@ -353,13 +353,20 @@ where
                 &<S as GasSpec>::gas_to_charge_per_evm_gas(),
                 gas_used as u32,
             )
-            .unwrap();
+            .expect("No underflow is possible here as we init EVM gas with gas meter gas");
         let total_gas_used =
             gas_meter.initial_gas.as_ref()[0] - gas_meter.remaining_gas.as_ref()[0];
-        const ABSOLUTE_MARGIN: u64 = 100_000;
-        let gas_used_with_margins = (total_gas_used * 3) / 2 + ABSOLUTE_MARGIN; // gas * 1.5 + 100_000
-        Ok(U64::from(gas_used_with_margins))
+        Ok(U64::from(apply_margins(total_gas_used)?))
     }
+}
+
+const ABSOLUTE_MARGIN: u64 = 100_000;
+/// gas * 1.5 + 100_000
+fn apply_margins(gas: u64) -> Result<u64, RpcInvalidTransactionError> {
+    (gas / 2)
+        .checked_mul(3)
+        .and_then(|with_relative_margin| with_relative_margin.checked_add(ABSOLUTE_MARGIN))
+        .ok_or(RpcInvalidTransactionError::GasUintOverflow)
 }
 
 impl<S: Spec> Evm<S>
