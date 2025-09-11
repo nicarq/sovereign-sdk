@@ -543,7 +543,6 @@ where
             relevant_blobs.as_iters(),
             ExecutionContext::Node,
         );
-
         let apply_slot_time = apply_slot_start.elapsed();
 
         // --- Before destructuring the receipt, extract some data for metrics ---
@@ -558,11 +557,18 @@ where
             .map(|b| b.verified_data().len() as u64)
             .sum();
         let proof_blobs_processed = slot_result.proof_receipts.len();
+        let processed_batches = slot_result
+            .batch_receipts
+            .iter()
+            .map(|b| b.batch_hash)
+            .collect::<Vec<_>>();
         tracing::trace!(
             ?apply_slot_time,
             batch_receipts = slot_result.batch_receipts.len(),
             %batch_bytes_processed,
             proof_receipts = proof_blobs_processed,
+            processed_batches = ?processed_batches,
+            discarded_blobs = ?slot_result.discarded_blobs,
             "Apply slot completed"
         );
         // --- End metric extraction ---
@@ -740,9 +746,9 @@ fn error_if_tokio_runtime_is_not_multi_threaded() -> anyhow::Result<()> {
     use tokio::runtime::{Handle, RuntimeFlavor};
 
     match Handle::current().runtime_flavor() {
-            RuntimeFlavor::CurrentThread => Err(anyhow::anyhow!("A multi-threaded Tokio runtime is required to run the rollup node. Check your Tokio configuration. If you're testing node functionality, make sure your test uses `#[tokio::test(flavor = \"multi_thread\")]` or an equivalent configuration. Aborting.")),
-            _ => Ok(())
-        }
+        RuntimeFlavor::CurrentThread => Err(anyhow::anyhow!("A multi-threaded Tokio runtime is required to run the rollup node. Check your Tokio configuration. If you're testing node functionality, make sure your test uses `#[tokio::test(flavor = \"multi_thread\")]` or an equivalent configuration. Aborting.")),
+        _ => Ok(())
+    }
 }
 
 /// Creats a new `DaSyncState`
