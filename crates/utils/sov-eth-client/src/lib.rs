@@ -9,10 +9,11 @@ use ethers::core::types::{Block, Eip1559TransactionRequest, TransactionRequest, 
 use ethers::core::types::{Transaction, TransactionReceipt};
 use ethers::middleware::signer::SignerMiddlewareError;
 use ethers::middleware::SignerMiddleware;
-use ethers::providers::{Http, Middleware, PendingTransaction, Provider};
+use ethers::providers::{Http, Middleware, PendingTransaction, Provider, Ws};
 use ethers::signers::Wallet;
+use ethers::types::Log;
 use futures::StreamExt;
-use jsonrpsee::core::client::ClientT;
+use jsonrpsee::core::client::{ClientT, SubscriptionClientT};
 use jsonrpsee::rpc_params;
 use jsonrpsee::ws_client::{WsClient, WsClientBuilder};
 use sov_cli::NodeClient;
@@ -27,7 +28,7 @@ pub struct TestClient {
     pub chain_id: u64,
     pub from_addr: Address,
     contract: SimpleStorageContract,
-    pub client: SignerMiddleware<Provider<Http>, Wallet<SigningKey>>,
+    pub client: SignerMiddleware<Provider<Ws>, Wallet<SigningKey>>,
     node_client: NodeClient,
     rpc: WsClient,
 }
@@ -42,7 +43,13 @@ impl TestClient {
     ) -> Self {
         let provider =
             Provider::try_from(&format!("http://127.0.0.1:{}/rpc", http_addr.port())).unwrap();
-        let client = SignerMiddleware::new_with_provider_chain(provider, key)
+
+        let provider_ws =
+            Provider::<Ws>::connect(&format!("ws://127.0.0.1:{}/rpc", http_addr.port()))
+                .await
+                .unwrap();
+
+        let client = SignerMiddleware::new_with_provider_chain(provider_ws, key)
             .await
             .unwrap();
 
@@ -95,7 +102,7 @@ impl TestClient {
 
     pub async fn deploy_contract(
         &self,
-    ) -> Result<PendingTransaction<'_, Http>, Box<dyn std::error::Error>> {
+    ) -> Result<PendingTransaction<'_, Ws>, Box<dyn std::error::Error>> {
         let typed_transaction = self.make_eip1559_tx(0, None, Some(self.contract.byte_code()));
         let receipt_req = self
             .client
@@ -116,7 +123,7 @@ impl TestClient {
         &self,
         contract_address: H160,
         set_arg: u32,
-    ) -> PendingTransaction<'_, Http> {
+    ) -> PendingTransaction<'_, Ws> {
         // TODO: Re-evaluate if it's still needed after we migrate from ethers
         let nonce = self.eth_get_transaction_count(self.from_addr).await;
         tracing::info!(from = %self.from_addr, nonce, "SmartContract::set_value");
@@ -134,7 +141,7 @@ impl TestClient {
         &self,
         contract_address: H160,
         set_args: Vec<u32>,
-    ) -> Vec<PendingTransaction<'_, Http>> {
+    ) -> Vec<PendingTransaction<'_, Ws>> {
         let mut requests: Vec<_> = Vec::with_capacity(set_args.len());
         let nonce = self.eth_get_transaction_count(self.from_addr).await;
 
@@ -159,7 +166,7 @@ impl TestClient {
         &self,
         contract_address: H160,
         set_arg: u32,
-    ) -> PendingTransaction<'_, Http> {
+    ) -> PendingTransaction<'_, Ws> {
         let nonce = self.eth_get_transaction_count(self.from_addr).await;
         tracing::info!(from = %self.from_addr, nonce, "SmartContract::set_value");
 
@@ -175,7 +182,7 @@ impl TestClient {
             .unwrap()
     }
 
-    pub async fn emit_one_log(&self, contract_address: H160) -> PendingTransaction<'_, Http> {
+    pub async fn emit_one_log(&self, contract_address: H160) -> PendingTransaction<'_, Ws> {
         let nonce = self.eth_get_transaction_count(self.from_addr).await;
         tracing::info!(from = %self.from_addr, nonce, "SmartContract::set_value");
 
@@ -239,10 +246,8 @@ impl TestClient {
     pub async fn always_reverts(
         &self,
         contract_address: H160,
-    ) -> Result<
-        PendingTransaction<'_, Http>,
-        SignerMiddlewareError<Provider<Http>, Wallet<SigningKey>>,
-    > {
+    ) -> Result<PendingTransaction<'_, Ws>, SignerMiddlewareError<Provider<Ws>, Wallet<SigningKey>>>
+    {
         let nonce = self.eth_get_transaction_count(self.from_addr).await;
 
         let typed_transaction = self.make_eip1559_tx(
@@ -277,7 +282,7 @@ impl TestClient {
         self.client.get_accounts().await.unwrap()
     }
 
-    pub async fn eth_send_transaction(&self, tx: TypedTransaction) -> PendingTransaction<'_, Http> {
+    pub async fn eth_send_transaction(&self, tx: TypedTransaction) -> PendingTransaction<'_, Ws> {
         self.client
             .provider()
             .send_transaction(tx, None)
@@ -360,7 +365,7 @@ impl TestClient {
         Ok(())
     }
 
-    pub async fn send_eth(&self, reciever: H160, eth_value: u128) -> PendingTransaction<'_, Http> {
+    pub async fn send_eth(&self, reciever: H160, eth_value: u128) -> PendingTransaction<'_, Ws> {
         let nonce = self.eth_get_transaction_count(self.from_addr).await;
         tracing::info!(from = %self.from_addr, nonce, "SmartContract::set_value");
 
@@ -388,5 +393,11 @@ impl TestClient {
 
     pub async fn block_number(&self) -> u64 {
         self.client.get_block_number().await.unwrap().as_u64()
+    }
+
+    pub async fn xxx(&self) {
+        use ethers::types::Filter;
+        let filter = Filter::new();
+        let sub = self.client.subscribe_logs(&filter).await.unwrap();
     }
 }

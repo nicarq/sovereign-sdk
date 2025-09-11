@@ -271,7 +271,7 @@ risc0-build = "2.1"
 
 # EVM dependencies
 ethereum-types = "0.14.1"
-ethers = { version = "=2.0.14" }
+ethers = { version = "=2.0.14", features = ["ws"]  }
 
 
 alloy-serde = { version = "1.0.24" }
