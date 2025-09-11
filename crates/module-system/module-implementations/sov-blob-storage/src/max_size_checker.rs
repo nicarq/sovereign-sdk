@@ -1,8 +1,8 @@
+use crate::{SequencerType, ValidatedBlob};
 use sov_modules_api::macros::config_value;
 use sov_modules_api::{BatchWithId, DaSpec, Spec};
+use sov_rollup_interface::common::HexHash;
 use tracing::{error, warn};
-
-use crate::{SequencerType, ValidatedBlob};
 
 /// We put a cap on how much space preferred blobs can use, but we allow
 /// non-preferred blobs to use any and all space if needed.
@@ -120,6 +120,8 @@ impl<S: Spec> BlobsAccumulatorWithSizeLimit<S> {
         sequencer_type: SequencerType,
         elem: ValidatedBlob<S, BatchWithId<S>>,
     ) -> PushOrIgnore<S> {
+        let blob_hash = HexHash::new(elem.blob.id());
+        let _span = tracing::debug_span!("push_or_ignore", %blob_hash).entered();
         let can_process_blob = self
             .blob_size_checker
             .can_process_blob(sequencer_type, elem.blob.blob_size());
@@ -130,6 +132,7 @@ impl<S: Spec> BlobsAccumulatorWithSizeLimit<S> {
             self.blobs_with_address.push(elem);
             PushOrIgnore::Accepted
         } else {
+            tracing::trace!(%blob_hash, "Ignoring blob");
             PushOrIgnore::IgnoredBlob(elem.blob.id(), elem.sender)
         }
     }

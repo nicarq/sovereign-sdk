@@ -495,6 +495,7 @@ impl<Da: DaService, FM: FinalizationManager> TaskState<Da, FM> {
         start_time: SystemTime,
         blob_hash: HexHash,
         da_tx_id: &<<Da as DaService>::Spec as DaSpec>::TransactionId,
+        blob_id: BlobInternalId,
     ) -> bool {
         let elapsed = match start_time.elapsed() {
             Ok(elapsed) => elapsed,
@@ -503,7 +504,8 @@ impl<Da: DaService, FM: FinalizationManager> TaskState<Da, FM> {
                     %blob_hash,
                     ?da_tx_id,
                     error = ?err,
-                    timer = ?start_time,
+                    timer = ?start_time.elapsed(),
+                    blob_id,
                     "BlobSender: unable to get elapsed time for blob submission.",
                 );
                 return true;
@@ -605,13 +607,17 @@ impl<Da: DaService, FM: FinalizationManager> TaskState<Da, FM> {
                     loop {
                         let blob_hash = receipt.blob_hash;
                         let da_tx_id = &receipt.da_transaction_id;
-                        if self.check_timeout(timer, blob_hash, da_tx_id).await {
+                        if self
+                            .check_timeout(timer, blob_hash, da_tx_id, blob_id)
+                            .await
+                        {
                             if nb_of_retries_attempted >= MAX_NB_OF_BLOB_SUBMISSION_RETRIES {
                                 tracing::error!(
                                     nb_of_retries_attempted,
                                     MAX_NB_OF_BLOB_SUBMISSION_RETRIES,
                                     ?da_tx_id,
                                     %blob_hash,
+                                    blob_id,
                                     "Shutting down the rollup. Blob submission failed."
                                 );
                                 let _ = self.shutdown_sender.send(());

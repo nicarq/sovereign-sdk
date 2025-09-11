@@ -8,10 +8,10 @@ use sov_modules_api::macros::config_value;
 use sov_modules_api::prelude::UnwrapInfallible;
 use sov_modules_api::{
     as_u32_or_panic, Amount, BatchWithId, BlobData, BlobDataWithId, BlobReaderTrait, DaSpec,
-    FullyBakedTx, Gas, GasArray, GasSpec, HexString, InjectedControlFlow, IterableBatchWithId,
+    FullyBakedTx, Gas, GasArray, GasSpec, InjectedControlFlow, IterableBatchWithId,
     KernelStateAccessor, ModuleInfo, PrivilegedKernelAccessor, SelectedBlob, Spec,
 };
-use sov_rollup_interface::common::SlotNumber;
+use sov_rollup_interface::common::{HexHash, SlotNumber};
 use sov_rollup_interface::da::RelevantBlobIters;
 use sov_rollup_interface::stf::BlobDiscardReason;
 use sov_rollup_interface::stf::DiscardedBlob;
@@ -144,7 +144,8 @@ impl<S: Spec> BlobStorage<S> {
         let mut unregistered_blob_count = 0;
         let gas_price_for_new_block = self.get_new_gas_price(visible_height_increase, state);
         for (idx, item) in blob_iter.enumerate() {
-            tracing::trace!(idx, "Processing blob");
+            let blob_hash = item.get().hash();
+            tracing::trace!(idx, %blob_hash, "Processing blob");
 
             let sequencer_type = SequencerType::NonPreferred;
             if !blobs_with_total_size_limit.can_accept_blob(sequencer_type, item.get().total_len())
@@ -189,7 +190,7 @@ impl<S: Spec> BlobStorage<S> {
                     }
                 }
                 BlobOrigin::Batch(blob) => {
-                    tracing::trace!("Processing as batch");
+                    tracing::trace!(blob_hash = %blob.hash(), "Processing as batch");
                     match self.pre_validate_blob_and_sender(blob, unregistered_blob_count, state) {
                         ValidateBlobOutcome::Accept(SequencerStatus::Registered(sequencer)) => {
                             let Some(validated) = self
@@ -309,7 +310,7 @@ impl<S: Spec> BlobStorage<S> {
         raw_blob_hash: [u8; 32],
         reason: BlobDiscardReason,
     ) {
-        let blob_hash = HexString(raw_blob_hash);
+        let blob_hash = HexHash::new(raw_blob_hash);
         info!(
             %blob_hash,
             sender = %sender,
@@ -447,11 +448,23 @@ impl<S: Spec> BlobStorage<S> {
             .unwrap_or_default();
 
         // 1. Extract all the new preferred blobs from the input
-
         let separated_proofs =
             self.separate_preferred_blobs(current_blobs.proof_blobs, preferred_sender);
         let separated_batches =
             self.separate_preferred_blobs(current_blobs.batch_blobs, preferred_sender);
+
+        for blob in &separated_batches.preferred_blobs {
+            let blob_hash = blob.hash();
+            let sender = blob.sender();
+            tracing::trace!(%blob_hash, %sender, "Separated blob");
+        }
+
+        for blob in &separated_proofs.preferred_blobs {
+            let blob_hash = blob.hash();
+            let sender = blob.sender();
+            tracing::trace!(%blob_hash, %sender, "Separated proof");
+        }
+
         let well_formed_preferred_blobs = separated_proofs
             .preferred_blobs
             .into_iter()
@@ -592,9 +605,16 @@ impl<S: Spec> BlobStorage<S> {
             self.store_batches(&new_blob_deferral_limiter.inner(), state);
         }
 
+        let inner = blobs_to_select.inner();
+
+        tracing::trace!(blobs = inner.len(), "Selected blobs");
+        for validated_blob in &inner {
+            let blob_hash = HexHash::new(validated_blob.blob.id());
+            tracing::trace!(%blob_hash, "Selected blob");
+        }
+
         BlobSelectorOutput {
-            selected_blobs: blobs_to_select
-                .inner()
+            selected_blobs: inner
                 .into_iter()
                 .map(|b| b.into_selected_blob(cf.clone()))
                 .collect(),
