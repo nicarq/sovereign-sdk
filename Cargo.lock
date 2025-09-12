@@ -11768,6 +11768,7 @@ dependencies = [
  "alloy-eips",
  "alloy-primitives",
  "alloy-rpc-types",
+ "alloy-rpc-types-eth",
  "anyhow",
  "borsh",
  "ethereum-types",
