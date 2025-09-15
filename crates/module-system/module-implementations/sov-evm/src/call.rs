@@ -5,7 +5,7 @@ use sov_address::{EthereumAddress, FromVmAddress};
 use sov_modules_api::macros::{serialize, UniversalWallet};
 #[cfg(feature = "native")]
 use sov_modules_api::prelude::UnwrapInfallible;
-use sov_modules_api::{BasicGasState, Context, GasSpec, Spec, TxState};
+use sov_modules_api::{Context, GasSpec, Spec, TxState};
 #[cfg(feature = "native")]
 use std::convert::Infallible;
 
@@ -82,16 +82,17 @@ where
                     );
                     anyhow::bail!("EVM execution error: {:?}", &result);
                 }
-                self.get_receipt(&transaction, result, state)?
+                let receipt = self.get_receipt(&transaction, result, state)?;
+                state.charge_linear_gas(
+                    &<S as GasSpec>::gas_to_charge_per_evm_gas(),
+                    gas_used as u32,
+                )?;
+                receipt
             }
             Err(err) => {
                 return self.handle_execution_error(transaction.signed_transaction.hash(), err)
             }
         };
-        state.charge_linear_gas(
-            &<S as GasSpec>::gas_to_charge_per_evm_gas(),
-            receipt.gas_used as u32,
-        )?;
 
         let pending_transaction = PendingTransaction::new(transaction, receipt);
         self.pending_transactions
@@ -117,13 +118,16 @@ where
     }
 
     fn gas_limit(&self, state: &mut impl TxState<S>) -> u64 {
-        let BasicGasState { gas, funds, price } = state
-            .try_as_basic_gas_state()
+        let gas_meter = state
+            .try_as_basic_gas_meter()
             // Justified, `impl TxState` has access to `BasicGasState`.
             .expect("The impossible happened: BasicGasState is absent.");
-        let funds = funds.0;
-        let gas = gas.as_ref()[0];
-        let price = price.as_ref()[0].0;
+        let funds = gas_meter
+            .remaining_funds
+            .expect("This method is used in the context where the amount is set")
+            .0;
+        let gas = gas_meter.remaining_gas.as_ref()[0];
+        let price = gas_meter.gas_price.as_ref()[0].0;
         match (funds, gas) {
             (0, 0) => 0,
             (_, 0) => u64::MAX,
@@ -153,7 +157,15 @@ where
                 .expect("Impossible happened: Log index overflow.")
         });
         let is_success = result.is_success();
-        let gas_used = result.gas_used();
+        let gas_meter = state.try_as_basic_gas_meter().unwrap();
+        let sequencer_gas_used =
+            gas_meter.initial_gas.as_ref()[0] - gas_meter.remaining_gas.as_ref()[0];
+        let evm_gas_to_sequencer_gas_ratio =
+            <S as GasSpec>::gas_to_charge_per_evm_gas().as_ref()[0];
+        let scaled_sequencer_gas_used = sequencer_gas_used
+            .checked_div(evm_gas_to_sequencer_gas_ratio)
+            .expect("gas_to_charge_per_evm_gas() is zero");
+        let gas_used = scaled_sequencer_gas_used + result.gas_used();
         let logs = result.into_logs();
         tracing::debug!(
             hash = hex::encode(tx.signed_transaction.hash()),

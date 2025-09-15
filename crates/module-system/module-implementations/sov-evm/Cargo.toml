@@ -22,6 +22,7 @@ sov-state = { workspace = true }
 sov-address = { workspace = true, features = ["evm"] }
 sov-bank = { workspace = true }
 sov-uniqueness = { workspace = true }
+sov-chain-state = { workspace = true }
 
 anyhow = { workspace = true }
 arbitrary = { workspace = true, optional = true }
@@ -83,8 +84,7 @@ strum = { workspace = true }
 tokio = { workspace = true, features = ["macros", "rt", "rt-multi-thread"] }
 tempfile = { workspace = true }
 bytes = { workspace = true }
-ethers-signers = { workspace = true }
-ethers-core = { workspace = true }
+ethers = { workspace = true }
 secp256k1 = { workspace = true, features = ["rand"] }
 lazy_static = "1.5.0"
 jsonschema = { workspace = true }
@@ -140,4 +140,6 @@ native = [
 	"sov-kernels/native",
 	"sov-bank/native",
 	"sov-uniqueness/native",
+	"sov-chain-state/native",
+	
 ]
