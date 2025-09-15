@@ -40,7 +40,7 @@ pub struct TransactionSignedAndRecovered {
     #[serde_as(as = "EthereumTxEnvelopeBincodeCompat")]
     pub(crate) signed_transaction: TransactionSigned,
     /// Block the transaction was added to
-    pub(crate) block_number: u64,
+    pub block_number: u64,
 }
 
 impl TransactionSignedAndRecovered {
@@ -72,10 +72,10 @@ pub struct Block {
     /// Block header.
     /// https://reth.rs/docs/reth_primitives/serde_bincode_compat/index.html
     #[serde_as(as = "HeaderBincodeCompat")]
-    pub(crate) header: Header,
+    pub header: Header,
 
     /// Transactions in this block.
-    pub(crate) transactions: Range<u64>,
+    pub transactions: Range<u64>,
 }
 
 impl Block {
@@ -152,7 +152,8 @@ impl<'de> serde::Deserialize<'de> for SealedBlock {
 }
 
 #[cfg(feature = "native")]
-pub(crate) enum MaybeSealedBlock {
+/// Sealed or pending block.
+pub enum MaybeSealedBlock {
     Sealed(Box<SealedBlock>),
     Pending {
         block_number: u64,

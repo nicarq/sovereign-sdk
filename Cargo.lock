@@ -12211,6 +12211,9 @@ dependencies = [
 name = "sov-demo-rollup"
 version = "0.3.0"
 dependencies = [
+ "alloy-primitives",
+ "alloy-pubsub",
+ "alloy-rpc-types-eth",
  "anyhow",
  "async-trait",
  "axum 0.7.9",
@@ -13335,6 +13338,9 @@ dependencies = [
 name = "sov-test-utils"
 version = "0.3.0"
 dependencies = [
+ "alloy-primitives",
+ "alloy-rpc-types-eth",
+ "alloy-sol-types",
  "anyhow",
  "async-trait",
  "axum-server",
