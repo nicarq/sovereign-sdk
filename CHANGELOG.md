@@ -1,3 +1,6 @@
+# 2025-09-15
+- #1660 **Breaking change** The UniversalWallet schema has been restructured to use internal mutability, removing the need for mutable references in its user-facing APIs. In the process, the convenient method `Schema::cached_chain_hash()` has been removed; use `Schema::chain_hash()` for this purpose now. This may require adjusting build-scripts that generate the schema for a rollup. A new web3 sdk version will be provided shortly to be compatible with the upgrade. The chain hash has not changed and rollup consensus is not affected.
+
 # 2025-09-12
 - #1672 Fixes some minor bugs related to pruning in the sequencer DB which could cause duplicate blob submission on restart.
 - #1682 Removes `body_to_save` from TransactionReceipt. Please use original transaction bytes which have been sent.
