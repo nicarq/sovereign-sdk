@@ -482,30 +482,11 @@ where
     ) -> MaybeSealedBlock {
         let block = self.blocks.get(&block_number, state).unwrap_infallible();
         if let Some(block) = block {
-            return MaybeSealedBlock::Sealed(block.into());
+            return MaybeSealedBlock::Sealed(block);
         }
-        let current_block_env = self
-            .block_env
-            .get(state)
-            .unwrap_infallible()
-            .unwrap_or_default();
-        let env_block_num: u64 = current_block_env.number.try_into().expect(
-            "The impossible happened: block number is too large to fit in a u64. It's over!",
-        );
-        assert_eq!(env_block_num, block_number, "Transaction is in a block that is not yet sealed, but that block is not yet pending! This is impossible!");
 
-        let head = self
-            .head
-            .get(state)
-            .unwrap_infallible()
-            // Justified, the head is initialized at genesis and modified only later through overrides.
-            .expect("The impossible happened: head was not set.");
-        let first_tx_index = head.transactions.end;
-
-        MaybeSealedBlock::Pending {
-            block_number,
-            first_tx_number: first_tx_index,
-        }
+        let pending = self.pending_block(state);
+        MaybeSealedBlock::Pending(pending)
     }
 
     /// Retrieves a sealed block by number.
@@ -582,6 +563,12 @@ where
             // This is justified, as we just fetched `block_numbers`.
             .expect("The impossible happened: parent_block was not set.");
 
+        let current_block_env = self
+            .block_env
+            .get(state)
+            .unwrap_infallible()
+            .unwrap_or_default();
+
         assert_eq!(&head_block.header.number, block_numbers.end());
 
         let pending_transactions_len = self.pending_transactions.len(state).unwrap_infallible();
@@ -594,6 +581,10 @@ where
         let header = alloy_consensus::Header {
             parent_hash: head_block.header.seal(),
             number: pending_block_number,
+            timestamp: current_block_env
+                .timestamp
+                .try_into()
+                .expect("The impossible happened: timestamp overflow u64"),
             ..Default::default()
         };
 
@@ -661,7 +652,7 @@ pub(crate) fn build_rpc_receipt(
             inner: log,
             block_hash,
             block_number,
-            block_timestamp: block.timestamp(),
+            block_timestamp: Some(block.timestamp()),
             transaction_hash: Some(transaction_hash),
             transaction_index: Some(transaction_index),
             log_index: Some(receipt.log_index_start + tx_log_idx as u64),

@@ -36,7 +36,7 @@ async fn evm_test_log_subscription() {
         send_txs_and_pause(10..15, contract_address, &evm_client, &test_rollup).await;
 
     // Log listening started.
-    log_collector.spawn_log_watcher(sub).await;
+    log_collector.spawn_log_watcher(sub, None).await;
 
     // Logs from this txs will shouw up in the subscription.
     let mut tx_hashes_2 =
@@ -71,6 +71,51 @@ async fn evm_test_log_subscription() {
     }
 
     assert!(block_nr > 0);
+}
+
+// Tests for logs from pending block.
+#[tokio::test(flavor = "multi_thread")]
+async fn evm_test_log_subscription_with_pending_blcok() {
+    let (test_rollup, evm_client, _) = setup(0).await;
+    let mut log_collector = LogCollector::new();
+
+    let contract_address = evm_client.alloy_deploy_contract().await;
+    test_rollup.wait_for_next_blocks(1).await;
+    test_rollup.pause_preferred_batches().await;
+
+    let nb_of_txs = 100;
+
+    let sub = evm_client.alloy_subscribe_logs(&Filter::new()).await;
+
+    log_collector
+        .spawn_log_watcher(sub, Some(nb_of_txs as usize))
+        .await;
+
+    let mut tx_hashes = Vec::new();
+
+    for i in 0..nb_of_txs {
+        let hash = evm_client.alloy_set_value(contract_address, i).await;
+        tx_hashes.push(hash);
+    }
+
+    log_collector.wait().await;
+
+    let logs_from_subscription = log_collector.logs().await;
+    assert_eq!(logs_from_subscription.len(), nb_of_txs as usize);
+
+    let block_nr = evm_client
+        .eth_get_block_by_number(Some("pending".to_string()))
+        .await
+        .number
+        .unwrap()
+        .as_u64();
+
+    // Verify conditions for logs in the pending block.
+    for log in logs_from_subscription {
+        assert!(log.block_hash.is_none());
+        assert_eq!(log.block_number.unwrap(), block_nr);
+        assert!(log.block_timestamp.unwrap() > 0);
+    }
 }
 
 // Subscription test with filtering.
@@ -198,12 +243,22 @@ impl LogCollector {
     async fn spawn_log_watcher(
         &mut self,
         mut sub: alloy_pubsub::Subscription<alloy_rpc_types_eth::Log>,
+        expected_nr_of_logs: Option<usize>,
     ) {
         let logs_from_subscription = self.logs_from_subscription.clone();
         let snd = self.snd.clone();
 
         tokio::spawn(async move {
             loop {
+                if let Some(expected_nr_of_logs) = expected_nr_of_logs {
+                    let len = logs_from_subscription.lock().await.len();
+
+                    if len >= expected_nr_of_logs {
+                        snd.send(()).unwrap();
+                        return;
+                    }
+                }
+
                 match sub.recv().await {
                     Ok(log) => {
                         logs_from_subscription.lock().await.push(log);
@@ -211,12 +266,11 @@ impl LogCollector {
                     Err(e) => match e {
                         broadcast::error::RecvError::Closed => {
                             snd.send(()).unwrap();
-
                             break;
                         }
-                        broadcast::error::RecvError::Lagged(_) => {
-                            println!("======Lagged");
-                        } //panic!("Lagged"),
+                        broadcast::error::RecvError::Lagged(err) => {
+                            panic!("Log watcher error: {:?}", err)
+                        }
                     },
                 }
             }
@@ -280,7 +334,7 @@ async fn get_filtered_logs(
     let sub = evm_client.alloy_subscribe_logs(&filter).await;
     let sub_id = sub.local_id().clone();
 
-    log_collector.spawn_log_watcher(sub).await;
+    log_collector.spawn_log_watcher(sub, None).await;
 
     for i in 0..number_of_txs {
         let _ = evm_client
