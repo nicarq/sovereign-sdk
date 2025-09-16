@@ -1,0 +1,59 @@
+[package]
+name = "sov-ligetron-adapter"
+description = "Adapter allowing Ligetron to be used with the Sovereign SDK"
+authors = { workspace = true }
+edition = { workspace = true }
+homepage = { workspace = true }
+license = { workspace = true }
+repository = { workspace = true }
+version = { workspace = true }
+readme = "README.md"
+
+[lints]
+workspace = true
+
+[dependencies]
+anyhow = { workspace = true }
+bincode = { workspace = true }
+borsh = { workspace = true, features = ["derive"] }
+ed25519-dalek = { version = "2.1", features = ["serde"] }
+hex = { workspace = true }
+rand = { workspace = true, optional = true }
+schemars = { workspace = true, features = ["derive"] }
+serde = { workspace = true, features = ["alloc", "derive"] }
+serde_json = { workspace = true, features = ["alloc"] }
+sha2 = { workspace = true }
+tempfile = { workspace = true, optional = true }
+thiserror = { workspace = true }
+tracing = { workspace = true }
+
+sov-rollup-interface = { workspace = true }
+
+[dev-dependencies]
+sov-ligetron-adapter = { path = ".", features = ["native"] }
+serde_json = { workspace = true, features = ["alloc"] }
+tempfile = { workspace = true }
+which = "4.4"
+
+[build-dependencies]
+anyhow = { workspace = true }
+sov-zkvm-utils = { workspace = true }
+
+[features]
+default = []
+native = [
+    "rand",
+    "tempfile",
+    "sov-rollup-interface/native",
+    "sov-ligetron-adapter/native"
+]
+bench = [
+    "sov-ligetron-adapter/bench"
+]
+# UNSAFE: Allows fallback journal extraction for development only
+# DO NOT enable in production - not cryptographically sound
+unsafe-fallback = []
+
+[[test]]
+name = "native"
+required-features = ["native"]

@@ -1,0 +1,7 @@
+{
+	"InstallScripts" : 
+	[
+		"/Users/nicolasarqueros/midnight/external-develop/ligero-prover/build/_deps/json-subbuild/cmake_install.cmake"
+	],
+	"Parallel" : false
+}
