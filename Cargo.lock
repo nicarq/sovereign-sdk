@@ -12607,12 +12607,34 @@ dependencies = [
  "sov-paymaster",
  "sov-rollup-interface",
  "sov-sequencer",
+ "sov-soak-testing-lib",
  "sov-state",
  "sov-synthetic-load",
  "sov-test-utils",
  "sov-transaction-generator",
  "sov-value-setter",
  "strum 0.26.3",
+ "tokio",
+]
+
+[[package]]
+name = "sov-soak-testing-lib"
+version = "0.1.0"
+dependencies = [
+ "anyhow",
+ "borsh",
+ "clap",
+ "rand 0.8.5",
+ "schemars 0.8.22",
+ "serde",
+ "sov-api-spec",
+ "sov-bank",
+ "sov-mock-da",
+ "sov-modules-api",
+ "sov-synthetic-load",
+ "sov-test-utils",
+ "sov-transaction-generator",
+ "sov-value-setter",
  "tokio",
 ]
 
