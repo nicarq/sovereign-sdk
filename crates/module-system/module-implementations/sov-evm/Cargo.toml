@@ -63,7 +63,7 @@ revm = { workspace = true, features = [
 	"optional_balance_check",
 	"std",
 ] }
-reth-revm = { workspace = true }
+revm-database-interface = { workspace = true }
 reth-ethereum-primitives = { workspace = true, features = [
 	"serde",
 	"serde-bincode-compat",
@@ -76,6 +76,7 @@ rand = { workspace = true, optional = true }
 proptest = { workspace = true, optional = true }
 
 [dev-dependencies]
+alloy-consensus = { workspace = true, features = ["secp256k1"] }
 sov-evm = { path = ".", features = ["native"] }
 strum = { workspace = true }
 tokio = { workspace = true, features = ["macros", "rt", "rt-multi-thread"] }
