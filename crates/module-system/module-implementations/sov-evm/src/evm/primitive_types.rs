@@ -155,11 +155,8 @@ impl<'de> serde::Deserialize<'de> for SealedBlock {
 #[cfg(feature = "native")]
 /// Sealed or pending block.
 pub enum MaybeSealedBlock {
-    Sealed(Box<SealedBlock>),
-    Pending {
-        block_number: u64,
-        first_tx_number: u64,
-    },
+    Sealed(SealedBlock),
+    Pending(crate::Block),
 }
 
 #[cfg(feature = "native")]
@@ -174,23 +171,21 @@ impl MaybeSealedBlock {
     pub fn number(&self) -> u64 {
         match self {
             Self::Sealed(block) => block.header.number,
-            Self::Pending { block_number, .. } => *block_number,
+            Self::Pending(pending) => pending.header.number,
         }
     }
 
     pub fn transactions_start(&self) -> u64 {
         match self {
             Self::Sealed(block) => block.transactions.start,
-            Self::Pending {
-                first_tx_number, ..
-            } => *first_tx_number,
+            Self::Pending(pending) => pending.transactions.start,
         }
     }
 
-    pub fn timestamp(&self) -> Option<u64> {
+    pub fn timestamp(&self) -> u64 {
         match self {
-            Self::Sealed(block) => Some(block.header.timestamp),
-            Self::Pending { .. } => None,
+            Self::Sealed(block) => block.header.timestamp,
+            Self::Pending(pending) => pending.header.timestamp,
         }
     }
 }
