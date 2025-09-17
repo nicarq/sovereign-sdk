@@ -84,22 +84,12 @@ async fn stream_logs<S, Seq>(
         }
 
         for index in prev_last_tx_index..curr_last_tx_index {
-            // TODO: #1510
-            // The module state currently stores very little metadata about blocks and transactions.
-            // As a result, to create a log, we need to:
-            //   1. Fetch the corresponding transaction,
-            //   2. Fetch the corresponding receipt,
-            //   3. Occasionally fetch the corresponding block (if the cached one becomes outdated).
-            //
-            // If we store the block number and transaction hash in the receipt,
-            // we can avoid fetching transactions entirely.
-            let tx = evm.transaction(index, state).unwrap();
+            let receipt = evm.receipt(index, state).unwrap();
 
-            if block.number() != tx.block_number {
-                block = evm.get_maybe_sealed_block(tx.block_number, state);
+            if block.number() != receipt.block_number {
+                block = evm.get_maybe_sealed_block(receipt.block_number, state);
             }
 
-            let receipt = evm.receipt(index, state).unwrap();
             let transaction_index = index - block.transactions_start();
 
             for (log_index_in_tx, log) in receipt.receipt.logs.into_iter().enumerate() {
@@ -108,9 +98,8 @@ async fn stream_logs<S, Seq>(
                         inner: log,
                         block_hash: block.hash(),
                         block_number: Some(block.number()),
-                        // TODO: #1510. The block_timestamp is not set.
                         block_timestamp: block.timestamp(),
-                        transaction_hash: Some(*tx.signed_transaction().hash()),
+                        transaction_hash: Some(receipt.transaction_hash),
                         transaction_index: Some(transaction_index),
                         log_index: Some(receipt.log_index_start + log_index_in_tx as u64),
                         removed: false,

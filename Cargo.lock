@@ -10656,7 +10656,7 @@ dependencies = [
 [[package]]
 name = "rockbound"
 version = "1.0.0"
-source = "git+https://github.com/sovereign-labs/rockbound?rev=26c54301e2bda3f7e88bee40831675f5d81b698e#26c54301e2bda3f7e88bee40831675f5d81b698e"
+source = "git+https://github.com/sovereign-labs/rockbound?rev=49eaf881b37f7906302197c6a85cd984773cc151#49eaf881b37f7906302197c6a85cd984773cc151"
 dependencies = [
  "anyhow",
  "once_cell",
@@ -12052,6 +12052,7 @@ name = "sov-build"
 version = "0.3.0"
 dependencies = [
  "anyhow",
+ "borsh",
  "serde",
  "serde_json",
  "sov-modules-api",
@@ -12410,6 +12411,7 @@ dependencies = [
  "alloy-eips",
  "alloy-primitives",
  "alloy-rpc-types",
+ "alloy-rpc-types-trace",
  "alloy-sol-types",
  "anyhow",
  "arbitrary",
@@ -12453,6 +12455,7 @@ dependencies = [
  "sov-state",
  "sov-test-utils",
  "sov-uniqueness",
+ "sov-universal-wallet",
  "strum 0.26.3",
  "tempfile",
  "thiserror 1.0.69",
@@ -13475,6 +13478,7 @@ dependencies = [
  "bs58",
  "hex",
  "nmt-rs",
+ "once_cell",
  "schemars 0.8.22",
  "serde",
  "serde_arrays",
