@@ -35,7 +35,7 @@ use crate::executor::{get_cfg_env, inspect, transact_commit};
 use crate::helpers::{
     from_primitive_with_hash, from_recovered_with_block_context, prepare_call_env,
 };
-use crate::primitive_types::MaybeSealedBlock;
+pub use crate::primitive_types::MaybeSealedBlock;
 use crate::Evm;
 
 pub(crate) mod error;
@@ -512,7 +512,7 @@ where
             .map_err(|err| eth_api_into_rpc_error(eth_from_evm_error(err)))
     }
 
-    /// Retrieves a sealed block generated from an existing or pending block..
+    /// Retrieves a sealed block generated from an existing or pending block.
     pub fn get_maybe_sealed_block(
         &self,
         block_number: u64,
