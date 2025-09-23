@@ -401,7 +401,11 @@ impl<'a> LigetronHost<'a> {
                 let _ = stdin.write_all(config_json.as_bytes());
             }
             if let Ok(output) = child.wait_with_output() {
-                if !output.stdout.is_empty() || !output.stderr.is_empty() || output.status.success() {
+                // Only accept stdin mode if the process succeeded. Some binaries print
+                // error messages to stderr (non-empty) but still exit with failure.
+                // In that case, fall through to file-based config passing which is
+                // more commonly supported.
+                if output.status.success() {
                     return Ok(output);
                 }
             }

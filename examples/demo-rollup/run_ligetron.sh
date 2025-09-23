@@ -29,6 +29,7 @@ DA_LAYER="mock"      # mock | celestia
 STORAGE="jmt"        # jmt | nomt
 MODE="execute"       # skip | execute | prove
 
+UNSAFE_JOURNAL=0
 while [[ $# -gt 0 ]]; do
   case "$1" in
     --da)
@@ -37,6 +38,8 @@ while [[ $# -gt 0 ]]; do
       STORAGE="$2"; shift 2 ;;
     --mode)
       MODE="$2"; shift 2 ;;
+    --unsafe-journal)
+      UNSAFE_JOURNAL=1; shift 1 ;;
     -h|--help)
       cat <<EOF
 Run demo-rollup with Ligetron zkVM
@@ -45,6 +48,7 @@ Options:
   --da <mock|celestia>       Data availability layer (default: mock)
   --storage <jmt|nomt>       Storage type (default: jmt)
   --mode <skip|execute|prove> Prover mode (default: execute)
+  --unsafe-journal           Enable UNSAFE journal fallback in adapter (dev only)
 
 Environment overrides:
   LIGETRON_PROVER, LIGETRON_VERIFIER, LIGETRON_SHADER_PATH
@@ -87,6 +91,11 @@ export SKIP_GUEST_BUILD=1
 # Enable Rust backtraces unless the caller overrides it
 export RUST_BACKTRACE="${RUST_BACKTRACE:-1}"
 
+# Optionally enable UNSAFE journal fallback (dev/demo only)
+if [ "$UNSAFE_JOURNAL" = "1" ]; then
+  export LIGETRON_UNSAFE_JOURNAL_FALLBACK=1
+fi
+
 echo "==> Ligetron settings"
 echo "    PROVER:   $LIGETRON_PROVER"
 echo "    VERIFIER: $LIGETRON_VERIFIER"
@@ -95,6 +104,7 @@ if [ -n "${LIGETRON_WASM_MOCK:-}" ]; then echo "    WASM(mock):     $LIGETRON_WA
 if [ -n "${LIGETRON_WASM_CELESTIA:-}" ]; then echo "    WASM(celestia): $LIGETRON_WASM_CELESTIA"; fi
 echo "    MODE:     $SOV_PROVER_MODE"
 echo "    BACKTRACE:$RUST_BACKTRACE"
+if [ "$UNSAFE_JOURNAL" = "1" ]; then echo "    UNSAFE_JOURNAL: enabled"; fi
 echo "    DA:       $DA_LAYER"
 echo "    STORAGE:  $STORAGE"
 
