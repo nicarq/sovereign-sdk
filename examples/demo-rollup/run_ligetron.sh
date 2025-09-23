@@ -13,6 +13,18 @@ set -euo pipefail
 SCRIPT_DIR="$(cd "$(dirname "$0")" && pwd -P)"
 REPO_ROOT="$(cd "$SCRIPT_DIR/../.." && pwd -P)"
 
+# Resolve a path to absolute, relative to SCRIPT_DIR if not absolute
+abs_path() {
+  case "$1" in
+    /*) printf "%s" "$1" ;;
+    *) (
+         cd "$SCRIPT_DIR" >/dev/null 2>&1 || exit 1
+         cd "$(dirname "$1")" >/dev/null 2>&1 || exit 1
+         printf "%s/%s" "$PWD" "$(basename "$1")"
+       ) ;;
+  esac
+}
+
 DA_LAYER="mock"      # mock | celestia
 STORAGE="jmt"        # jmt | nomt
 MODE="execute"       # skip | execute | prove
@@ -53,6 +65,19 @@ done
 : "${LIGETRON_VERIFIER:=$REPO_ROOT/crates/adapters/ligetron/test_binaries/webgpu_verifier}"
 : "${LIGETRON_SHADER_PATH:=$REPO_ROOT/crates/adapters/ligetron/shader}"
 
+# Normalize to absolute paths (handles user-provided relative env values)
+LIGETRON_PROVER="$(abs_path "$LIGETRON_PROVER")"
+LIGETRON_VERIFIER="$(abs_path "$LIGETRON_VERIFIER")"
+LIGETRON_SHADER_PATH="$(abs_path "$LIGETRON_SHADER_PATH")"
+
+# Optional: normalize guest WASM overrides if provided
+if [ -n "${LIGETRON_WASM_MOCK:-}" ]; then
+  LIGETRON_WASM_MOCK="$(abs_path "$LIGETRON_WASM_MOCK")"
+fi
+if [ -n "${LIGETRON_WASM_CELESTIA:-}" ]; then
+  LIGETRON_WASM_CELESTIA="$(abs_path "$LIGETRON_WASM_CELESTIA")"
+fi
+
 export LIGETRON_PROVER LIGETRON_VERIFIER LIGETRON_SHADER_PATH
 export SOV_PROVER_MODE="$MODE"
 
@@ -66,6 +91,8 @@ echo "==> Ligetron settings"
 echo "    PROVER:   $LIGETRON_PROVER"
 echo "    VERIFIER: $LIGETRON_VERIFIER"
 echo "    SHADERS:  $LIGETRON_SHADER_PATH"
+if [ -n "${LIGETRON_WASM_MOCK:-}" ]; then echo "    WASM(mock):     $LIGETRON_WASM_MOCK"; fi
+if [ -n "${LIGETRON_WASM_CELESTIA:-}" ]; then echo "    WASM(celestia): $LIGETRON_WASM_CELESTIA"; fi
 echo "    MODE:     $SOV_PROVER_MODE"
 echo "    BACKTRACE:$RUST_BACKTRACE"
 echo "    DA:       $DA_LAYER"
