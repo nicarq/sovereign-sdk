@@ -49,9 +49,6 @@ impl ZkvmGuest for LigetronGuest {
         // Create a cursor from the current hints blob
         let mut cursor = std::io::Cursor::new(std::mem::take(&mut *hints_guard));
         
-        // Get the current position before deserializing
-        let _position_before = cursor.position() as usize;
-        
         // Deserialize the next item from the blob
         let item: T = bincode::deserialize_from(&mut cursor)
             .expect("Failed to deserialize hint from host. Ensure hint types match between host and guest.");

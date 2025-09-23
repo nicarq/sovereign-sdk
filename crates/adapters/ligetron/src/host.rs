@@ -28,6 +28,21 @@ pub struct LigetronHost<'a> {
 }
 
 impl<'a> LigetronHost<'a> {
+    /// Redact private args (1-based indices) while preserving type/lengths.
+    fn redact_private_typed(args: &[LigetronArg], private_1based: &[usize]) -> Vec<LigetronArg> {
+        use std::collections::HashSet;
+        let privset: HashSet<usize> = private_1based.iter().copied().collect();
+        args.iter().enumerate().map(|(i, a)| {
+            // arg[1] (i == 0) is the public digest; do not redact it
+            if i == 0 || !privset.contains(&(i + 1)) { return a.clone(); }
+            match a {
+                LigetronArg::Hex(bytes) => LigetronArg::Hex(vec![0u8; bytes.len()]),
+                LigetronArg::Str(s)     => LigetronArg::Str("0".repeat(s.len())),
+                LigetronArg::I64(_)     => LigetronArg::I64(0),
+            }
+        }).collect()
+    }
+
     /// Create a new LigetronHost to prove the given WASM program.
     pub fn new(program_wasm: &'a [u8]) -> Self {
         Self {
@@ -177,6 +192,8 @@ impl<'a> LigetronHost<'a> {
             &program_path.to_string_lossy(),
             &journal_digest_hex
         );
+        // Never store secrets in the package: keep a redacted copy for serialization.
+        let redacted_args = Self::redact_private_typed(&final_args, &final_private_indices);
 
         // Second pass: run prover with correct digest if proof is requested
         let (proof_bytes, final_journal_bytes) = if with_proof {
@@ -259,7 +276,8 @@ impl<'a> LigetronHost<'a> {
             packing: self.packing,
             shader_path_hint: self.shader_path.clone(),
             private_indices_1based: final_private_indices,
-            args: final_args,
+            // Store only a privacy-preserving view of args
+            args: redacted_args,
             journal_bytes: final_journal_bytes,
             proof_bytes,
         })
@@ -362,7 +380,7 @@ impl<'a> LigetronHost<'a> {
         }
     }
 
-    /// Run binary with config, trying privacy-safe CLI compatibility modes
+    /// Run binary with config, using privacy-safe order (stdin -> file -> arg)
     fn run_with_config(
         &self,
         bin: &str,
@@ -371,22 +389,7 @@ impl<'a> LigetronHost<'a> {
     ) -> anyhow::Result<std::process::Output> {
         use std::io::Write;
 
-        // 1) Try JSON directly as argument first (this is what Ligetron prover expects)
-        if config_json.len() < 32768 { // Avoid hitting command line limits
-            let output = std::process::Command::new(bin)
-                .arg(config_json)
-                .current_dir(cwd)
-                .stdout(std::process::Stdio::piped())
-                .stderr(std::process::Stdio::piped())
-                .output();
-            
-            if let Ok(output) = output {
-                // Accept any output, even with non-zero exit codes (program may enforce digest)
-                return Ok(output);
-            }
-        }
-
-        // 2) Try stdin (privacy-safe fallback)
+        // 1) Try stdin (privacy-safe default)
         if let Ok(mut child) = std::process::Command::new(bin)
             .stdin(std::process::Stdio::piped())
             .stdout(std::process::Stdio::piped())
@@ -404,7 +407,7 @@ impl<'a> LigetronHost<'a> {
             }
         }
 
-        // 3) Try --config <tempfile> with 0600 perms (privacy-safe fallback)
+        // 2) Try --config <tempfile> with 0600 perms (privacy-safe)
         let mut cfg = tempfile::NamedTempFile::new_in(cwd)
             .context("Failed to create temp config file")?;
         
@@ -430,6 +433,18 @@ impl<'a> LigetronHost<'a> {
         
         if let Ok(output) = output {
             return Ok(output); // file is removed when cfg drops
+        }
+
+        // 3) Final fallback: pass JSON directly as an argument (may leak to `ps`)
+        if config_json.len() < 32768 {
+            let output = std::process::Command::new(bin)
+                .arg(config_json)
+                .current_dir(cwd)
+                .stdout(std::process::Stdio::piped())
+                .stderr(std::process::Stdio::piped())
+                .output()
+                .context("Failed to run prover with JSON argument")?;
+            return Ok(output);
         }
 
         anyhow::bail!("All methods to pass config to {} failed", bin)

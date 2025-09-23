@@ -1,0 +1,22 @@
+[package]
+name = "sov-demo-prover-guest-celestia-ligetron"
+version = "0.1.0"
+edition = "2021"
+
+[lib]
+crate-type = ["cdylib"]
+
+[dependencies]
+const-rollup-config = { path = "../../../const-rollup-config" }
+demo-stf = { path = "../../../stf" }
+sov-address = { path = "../../../../../crates/module-system/sov-address" }
+sov-celestia-adapter = { path = "../../../../../crates/adapters/celestia" }
+sov-ligetron-adapter = { path = "../../../../../crates/adapters/ligetron" }
+sov-mock-zkvm = { path = "../../../../../crates/adapters/mock-zkvm" }
+sov-modules-api = { path = "../../../../../crates/module-system/sov-modules-api" }
+sov-modules-stf-blueprint = { path = "../../../../../crates/module-system/sov-modules-stf-blueprint" }
+sov-state = { path = "../../../../../crates/module-system/sov-state" }
+
+[profile.release]
+opt-level = 3
+lto = true

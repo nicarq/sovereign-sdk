@@ -27,7 +27,7 @@ extern bool   ligetron_arg_copy(size_t i, uint8_t* out, size_t out_len);
 #if defined(__wasm__) || defined(__wasm32__) || defined(__EMSCRIPTEN__)
 #  define SOV_TRAP() __builtin_trap()
 #else
-#  define SOV_TRAP() do { fflush(stdout); fflush(stderr); abort(); } while (0)
+#  define SOV_TRAP() do { fflush(stdout); fflush(stderr); exit(3); } while (0)
 #endif
 
 // ======== HEX UTILS ========
@@ -210,17 +210,17 @@ static inline void sov_emit_journal_hex(const uint8_t* data, size_t len) {
 
 static inline void sov_assert_digest_matches(const uint8_t* journal, size_t len) {
     uint8_t expected[32], got[32];
-    if (!sov_load_digest(expected)) {
+    if (!sov_load_digest(expected)) { 
         // No expected digest provided: treat as the "first pass".
         // Do not enforce, just return so the host can read the journal
         // and re-run with the real digest.
         return;
     }
-
+    
     sha256(journal, len, got);
-
+    
     // Constant-time compare
-    uint8_t diff = 0;
+    uint8_t diff = 0; 
     for (int i = 0; i < 32; ++i) {
         diff |= (uint8_t)(expected[i] ^ got[i]);
     }
@@ -235,14 +235,8 @@ static inline void sov_assert_digest_matches(const uint8_t* journal, size_t len)
         for (int i = 0; i < 32; i++) fprintf(stderr, "%02x", got[i]);
         fprintf(stderr, "\n");
         fflush(stderr);
-        // Exit with non-zero so the prover fails on the second pass.
-#if defined(__wasm__)
-        __builtin_trap();
-#else
-        // If not in WASM, exiting is fine.
-        // (Under WASM, __builtin_trap shelves a trap opcode.)
-        exit(3);
-#endif
+        // Non-zero failure/trap for the prover
+        SOV_TRAP();
     }
 }
 

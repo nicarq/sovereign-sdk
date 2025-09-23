@@ -1,0 +1,12 @@
+[package]
+name = "ligetron"
+version = "0.1.0"
+edition = "2021"
+
+[dependencies]
+lazy_static = "1.4"
+once_cell = "1.19"
+
+[build-dependencies]
+anyhow = { workspace = true }
+sov-zkvm-utils = { workspace = true }

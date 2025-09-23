@@ -7,8 +7,18 @@ use demo_stf::genesis_config::GenesisPaths;
 use sov_address::MultiAddressEvm;
 use sov_celestia_adapter::CelestiaService;
 use sov_demo_rollup::{
-    celestia_risc0_host_args, mock_da_risc0_host_args, CelestiaDemoRollup, CelestiaNomtDemoRollup,
-    MockDemoRollup, MockNomtDemoRollup,
+    celestia_risc0_host_args,
+    celestia_ligetron_host_args,
+    mock_da_risc0_host_args,
+    mock_da_ligetron_host_args,
+    CelestiaDemoRollup,
+    CelestiaDemoRollupLigetron,
+    CelestiaNomtDemoRollup,
+    CelestiaNomtDemoRollupLigetron,
+    MockDemoRollup,
+    MockDemoRollupLigetron,
+    MockNomtDemoRollup,
+    MockNomtDemoRollupLigetron,
 };
 use sov_mock_da::storable::service::StorableMockDaService;
 use sov_modules_api::capabilities::RollupHeight;
@@ -16,6 +26,7 @@ use sov_modules_api::execution_mode::Native;
 use sov_modules_rollup_blueprint::logging::initialize_logging;
 use sov_modules_rollup_blueprint::{FullNodeBlueprint, Rollup};
 use sov_risc0_adapter::Risc0;
+use sov_ligetron_adapter::Ligetron;
 use sov_stf_runner::processes::{RollupProverConfig, RollupProverConfigDiscriminants};
 use sov_stf_runner::{from_toml_path, RollupConfig};
 use tracing::debug;
@@ -33,6 +44,10 @@ struct Args {
     /// The storage implementation
     #[arg(long, default_value = "jmt")]
     storage: SupportedStorage,
+
+    /// The zkVM to use for inner proofs
+    #[arg(long, default_value = "risc0")]
+    zkvm: SupportedZkvm,
 
     /// The path to the rollup config.
     #[arg(long, default_value = "mock_rollup_config.toml")]
@@ -67,6 +82,12 @@ enum SupportedStorage {
     Nomt,
 }
 
+#[derive(clap::ValueEnum, Clone, Debug)]
+enum SupportedZkvm {
+    Risc0,
+    Ligetron,
+}
+
 #[tokio::main]
 async fn main() {
     // Keep for preventing a opentelemtry export shutdown
@@ -99,8 +120,8 @@ async fn run() -> anyhow::Result<()> {
     let start_at_rollup_height = args.start_at_rollup_height.map(RollupHeight::new);
     let stop_at_rollup_height = args.stop_at_rollup_height.map(RollupHeight::new);
 
-    match (args.da_layer, args.storage) {
-        (SupportedDaLayer::Mock, SupportedStorage::Jmt) => {
+    match (args.da_layer, args.storage, args.zkvm) {
+        (SupportedDaLayer::Mock, SupportedStorage::Jmt, SupportedZkvm::Risc0) => {
             let prover_config = prover_config_disc
                 .map(|config_disc| config_disc.into_config(mock_da_risc0_host_args()));
             let rollup = new_rollup_with_mock_da_and_jmt(
@@ -114,7 +135,21 @@ async fn run() -> anyhow::Result<()> {
             .context("Failed to initialize MockDa rollup")?;
             rollup.run().await
         }
-        (SupportedDaLayer::Mock, SupportedStorage::Nomt) => {
+        (SupportedDaLayer::Mock, SupportedStorage::Jmt, SupportedZkvm::Ligetron) => {
+            let prover_config = prover_config_disc
+                .map(|config_disc| config_disc.into_config::<Ligetron>(mock_da_ligetron_host_args()));
+            let rollup = new_rollup_with_mock_da_and_jmt_ligetron(
+                &GenesisPaths::from_dir(&args.genesis_config_dir),
+                rollup_config_path,
+                prover_config,
+                start_at_rollup_height,
+                stop_at_rollup_height,
+            )
+            .await
+            .context("Failed to initialize MockDa rollup (Ligetron)")?;
+            rollup.run().await
+        }
+        (SupportedDaLayer::Mock, SupportedStorage::Nomt, SupportedZkvm::Risc0) => {
             let prover_config = prover_config_disc
                 .map(|config_disc| config_disc.into_config(mock_da_risc0_host_args()));
             let rollup = new_rollup_with_mock_da_and_nomt(
@@ -128,7 +163,21 @@ async fn run() -> anyhow::Result<()> {
             .context("Failed to initialize NOMT based MockDa rollup")?;
             rollup.run().await
         }
-        (SupportedDaLayer::Celestia, SupportedStorage::Jmt) => {
+        (SupportedDaLayer::Mock, SupportedStorage::Nomt, SupportedZkvm::Ligetron) => {
+            let prover_config = prover_config_disc
+                .map(|config_disc| config_disc.into_config::<Ligetron>(mock_da_ligetron_host_args()));
+            let rollup = new_rollup_with_mock_da_and_nomt_ligetron(
+                &GenesisPaths::from_dir(&args.genesis_config_dir),
+                rollup_config_path,
+                prover_config,
+                start_at_rollup_height,
+                stop_at_rollup_height,
+            )
+            .await
+            .context("Failed to initialize NOMT based MockDa rollup (Ligetron)")?;
+            rollup.run().await
+        }
+        (SupportedDaLayer::Celestia, SupportedStorage::Jmt, SupportedZkvm::Risc0) => {
             let prover_config = prover_config_disc
                 .map(|config_disc| config_disc.into_config(celestia_risc0_host_args()));
             let rollup = new_rollup_with_celestia_da(
@@ -142,7 +191,21 @@ async fn run() -> anyhow::Result<()> {
             .context("Failed to initialize Celestia rollup")?;
             rollup.run().await
         }
-        (SupportedDaLayer::Celestia, SupportedStorage::Nomt) => {
+        (SupportedDaLayer::Celestia, SupportedStorage::Jmt, SupportedZkvm::Ligetron) => {
+            let prover_config = prover_config_disc
+                .map(|config_disc| config_disc.into_config::<Ligetron>(celestia_ligetron_host_args()));
+            let rollup = new_rollup_with_celestia_da_ligetron(
+                &GenesisPaths::from_dir(&args.genesis_config_dir),
+                rollup_config_path,
+                prover_config,
+                start_at_rollup_height,
+                stop_at_rollup_height,
+            )
+            .await
+            .context("Failed to initialize Celestia rollup (Ligetron)")?;
+            rollup.run().await
+        }
+        (SupportedDaLayer::Celestia, SupportedStorage::Nomt, SupportedZkvm::Risc0) => {
             let prover_config = prover_config_disc
                 .map(|config_disc| config_disc.into_config(celestia_risc0_host_args()));
             let rollup = new_rollup_with_celestia_da_and_nomt(
@@ -154,6 +217,20 @@ async fn run() -> anyhow::Result<()> {
             )
             .await
             .context("Failed to initialize Celestia rollup")?;
+            rollup.run().await
+        }
+        (SupportedDaLayer::Celestia, SupportedStorage::Nomt, SupportedZkvm::Ligetron) => {
+            let prover_config = prover_config_disc
+                .map(|config_disc| config_disc.into_config::<Ligetron>(celestia_ligetron_host_args()));
+            let rollup = new_rollup_with_celestia_da_and_nomt_ligetron(
+                &GenesisPaths::from_dir(&args.genesis_config_dir),
+                rollup_config_path,
+                prover_config,
+                start_at_rollup_height,
+                stop_at_rollup_height,
+            )
+            .await
+            .context("Failed to initialize Celestia rollup (Ligetron)")?;
             rollup.run().await
         }
     }
@@ -202,6 +279,32 @@ async fn new_rollup_with_celestia_da(
         .await
 }
 
+async fn new_rollup_with_celestia_da_ligetron(
+    rt_genesis_paths: &GenesisPaths,
+    rollup_config_path: &str,
+    prover_config: Option<RollupProverConfig<Ligetron>>,
+    start_at_rollup_height: Option<RollupHeight>,
+    stop_at_rollup_height: Option<RollupHeight>,
+) -> anyhow::Result<Rollup<CelestiaDemoRollupLigetron<Native>, Native>> {
+    debug!(config_path = rollup_config_path, "Starting Celestia rollup (Ligetron)");
+
+    let rollup_config: RollupConfig<MultiAddressEvm, CelestiaService> =
+        from_toml_path(rollup_config_path).with_context(|| {
+            format!("Failed to read rollup configuration from {rollup_config_path}")
+        })?;
+
+    let celestia_rollup = CelestiaDemoRollupLigetron::<Native>::default();
+    celestia_rollup
+        .create_new_rollup(
+            rt_genesis_paths,
+            rollup_config,
+            prover_config,
+            start_at_rollup_height,
+            stop_at_rollup_height,
+        )
+        .await
+}
+
 async fn new_rollup_with_celestia_da_and_nomt(
     rt_genesis_paths: &GenesisPaths,
     rollup_config_path: &str,
@@ -217,6 +320,32 @@ async fn new_rollup_with_celestia_da_and_nomt(
         })?;
 
     let celestia_rollup = CelestiaNomtDemoRollup::<Native>::default();
+    celestia_rollup
+        .create_new_rollup(
+            rt_genesis_paths,
+            rollup_config,
+            prover_config,
+            start_at_rollup_height,
+            stop_at_rollup_height,
+        )
+        .await
+}
+
+async fn new_rollup_with_celestia_da_and_nomt_ligetron(
+    rt_genesis_paths: &GenesisPaths,
+    rollup_config_path: &str,
+    prover_config: Option<RollupProverConfig<Ligetron>>,
+    start_at_rollup_height: Option<RollupHeight>,
+    stop_at_rollup_height: Option<RollupHeight>,
+) -> anyhow::Result<Rollup<CelestiaNomtDemoRollupLigetron<Native>, Native>> {
+    debug!(config_path = rollup_config_path, "Starting Celestia rollup (Ligetron)");
+
+    let rollup_config: RollupConfig<MultiAddressEvm, CelestiaService> =
+        from_toml_path(rollup_config_path).with_context(|| {
+            format!("Failed to read rollup configuration from {rollup_config_path}")
+        })?;
+
+    let celestia_rollup = CelestiaNomtDemoRollupLigetron::<Native>::default();
     celestia_rollup
         .create_new_rollup(
             rt_genesis_paths,
@@ -257,6 +386,35 @@ async fn new_rollup_with_mock_da_and_jmt(
         .await
 }
 
+async fn new_rollup_with_mock_da_and_jmt_ligetron(
+    rt_genesis_paths: &GenesisPaths,
+    rollup_config_path: &str,
+    prover_config: Option<RollupProverConfig<Ligetron>>,
+    start_at_rollup_height: Option<RollupHeight>,
+    stop_at_rollup_height: Option<RollupHeight>,
+) -> anyhow::Result<Rollup<MockDemoRollupLigetron<Native>, Native>> {
+    debug!(
+        config_path = rollup_config_path,
+        "Starting rollup on mock DA (Ligetron)"
+    );
+
+    let rollup_config: RollupConfig<MultiAddressEvm, StorableMockDaService> =
+        from_toml_path(rollup_config_path).with_context(|| {
+            format!("Failed to read rollup configuration from {rollup_config_path}")
+        })?;
+
+    let mock_rollup = MockDemoRollupLigetron::<Native>::default();
+    mock_rollup
+        .create_new_rollup(
+            rt_genesis_paths,
+            rollup_config,
+            prover_config,
+            start_at_rollup_height,
+            stop_at_rollup_height,
+        )
+        .await
+}
+
 async fn new_rollup_with_mock_da_and_nomt(
     rt_genesis_paths: &GenesisPaths,
     rollup_config_path: &str,
@@ -275,6 +433,35 @@ async fn new_rollup_with_mock_da_and_nomt(
         })?;
 
     let mock_rollup = MockNomtDemoRollup::<Native>::default();
+    mock_rollup
+        .create_new_rollup(
+            rt_genesis_paths,
+            rollup_config,
+            prover_config,
+            stop_at_rollup_height,
+            start_at_rollup_height,
+        )
+        .await
+}
+
+async fn new_rollup_with_mock_da_and_nomt_ligetron(
+    rt_genesis_paths: &GenesisPaths,
+    rollup_config_path: &str,
+    prover_config: Option<RollupProverConfig<Ligetron>>,
+    start_at_rollup_height: Option<RollupHeight>,
+    stop_at_rollup_height: Option<RollupHeight>,
+) -> anyhow::Result<Rollup<MockNomtDemoRollupLigetron<Native>, Native>> {
+    debug!(
+        config_path = rollup_config_path,
+        "Starting NOMT rollup on mock DA (Ligetron)"
+    );
+
+    let rollup_config: RollupConfig<MultiAddressEvm, StorableMockDaService> =
+        from_toml_path(rollup_config_path).with_context(|| {
+            format!("Failed to read rollup configuration from {rollup_config_path}")
+        })?;
+
+    let mock_rollup = MockNomtDemoRollupLigetron::<Native>::default();
     mock_rollup
         .create_new_rollup(
             rt_genesis_paths,

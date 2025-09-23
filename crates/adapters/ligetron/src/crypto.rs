@@ -10,7 +10,7 @@ use ed25519_dalek::{
     Signature as DalekSignature, VerifyingKey as DalekPublicKey, PUBLIC_KEY_LENGTH,
     Verifier, // <-- bring the trait into scope
 };
-use sov_rollup_interface::crypto::SigVerificationError;
+use sov_rollup_interface::crypto::{PublicKeyHex, SigVerificationError};
 use sov_rollup_interface::reexports::schemars::{self, JsonSchema};
 use sov_rollup_interface::sov_universal_wallet::UniversalWallet;
 
@@ -191,6 +191,36 @@ impl TryFrom<[u8; 32]> for LigetronPublicKey {
     }
 }
 
+#[cfg(feature = "native")]
+impl std::str::FromStr for LigetronPublicKey {
+    type Err = anyhow::Error;
+
+    fn from_str(s: &str) -> Result<Self, Self::Err> {
+        let pk_hex = PublicKeyHex::try_from(s)?;
+        LigetronPublicKey::try_from(&pk_hex)
+    }
+}
+
+impl From<&LigetronPublicKey> for PublicKeyHex {
+    fn from(pub_key: &LigetronPublicKey) -> Self {
+        let hex = hex::encode(pub_key.pub_key.as_bytes());
+        Self { hex: hex.try_into().unwrap() }
+    }
+}
+
+impl TryFrom<&PublicKeyHex> for LigetronPublicKey {
+    type Error = anyhow::Error;
+
+    fn try_from(pub_key: &PublicKeyHex) -> Result<Self, Self::Error> {
+        let bytes = hex::decode(&pub_key.hex)?;
+        let bytes: [u8; PUBLIC_KEY_LENGTH] =
+            bytes.try_into().map_err(|_| anyhow::anyhow!("Invalid public key size"))?;
+        let pub_key = DalekPublicKey::from_bytes(&bytes)
+            .map_err(|_| anyhow::anyhow!("Invalid public key"))?;
+        Ok(LigetronPublicKey { pub_key })
+    }
+}
+
 /// A signature in the Ligetron signature scheme.
 #[derive(
     PartialEq,
@@ -264,6 +294,21 @@ impl sov_rollup_interface::crypto::Signature for LigetronSignature {
             .map_err(|e| SigVerificationError {
                 error: e.to_string(),
             })
+    }
+}
+
+#[cfg(feature = "native")]
+impl std::str::FromStr for LigetronSignature {
+    type Err = anyhow::Error;
+
+    fn from_str(s: &str) -> Result<Self, Self::Err> {
+        let bytes = hex::decode(s)?;
+        let bytes: [u8; 64] = bytes
+            .try_into()
+            .map_err(|_| anyhow::anyhow!("Invalid signature"))?;
+        Ok(LigetronSignature {
+            msg_sig: DalekSignature::from_bytes(&bytes),
+        })
     }
 }
 
