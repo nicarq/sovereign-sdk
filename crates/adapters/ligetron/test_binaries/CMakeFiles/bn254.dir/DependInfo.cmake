@@ -8,7 +8,7 @@ set(CMAKE_DEPENDS_LANGUAGES
 
 # The set of dependency files which are needed:
 set(CMAKE_DEPENDS_DEPENDENCY_FILES
-  "/Users/nicolasarqueros/midnight/external-develop/ligero-prover/src/bn254.cpp" "CMakeFiles/bn254.dir/src/bn254.cpp.o" "gcc" "CMakeFiles/bn254.dir/src/bn254.cpp.o.d"
+  "/Users/guillevalin/Documents/dcSpark/ligero-vm/ligero-prover/src/bn254.cpp" "CMakeFiles/bn254.dir/src/bn254.cpp.o" "gcc" "CMakeFiles/bn254.dir/src/bn254.cpp.o.d"
   )
 
 # Targets to which this target links which contain Fortran sources.

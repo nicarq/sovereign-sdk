@@ -57,10 +57,10 @@ RM = /opt/homebrew/bin/cmake -E rm -f
 EQUALS = =
 
 # The top-level source directory on which CMake was run.
-CMAKE_SOURCE_DIR = /Users/nicolasarqueros/midnight/external-develop/ligero-prover
+CMAKE_SOURCE_DIR = /Users/guillevalin/Documents/dcSpark/ligero-vm/ligero-prover
 
 # The top-level build directory on which CMake was run.
-CMAKE_BINARY_DIR = /Users/nicolasarqueros/midnight/external-develop/ligero-prover/build
+CMAKE_BINARY_DIR = /Users/guillevalin/Documents/dcSpark/ligero-vm/ligero-prover/build
 
 #=============================================================================
 # Targets provided globally by CMake.
@@ -97,14 +97,14 @@ rebuild_cache/fast: rebuild_cache
 
 # The main all target
 all: cmake_check_build_system
-	cd /Users/nicolasarqueros/midnight/external-develop/ligero-prover/build && $(CMAKE_COMMAND) -E cmake_progress_start /Users/nicolasarqueros/midnight/external-develop/ligero-prover/build/CMakeFiles /Users/nicolasarqueros/midnight/external-develop/ligero-prover/build/tests//CMakeFiles/progress.marks
-	cd /Users/nicolasarqueros/midnight/external-develop/ligero-prover/build && $(MAKE) $(MAKESILENT) -f CMakeFiles/Makefile2 tests/all
-	$(CMAKE_COMMAND) -E cmake_progress_start /Users/nicolasarqueros/midnight/external-develop/ligero-prover/build/CMakeFiles 0
+	cd /Users/guillevalin/Documents/dcSpark/ligero-vm/ligero-prover/build && $(CMAKE_COMMAND) -E cmake_progress_start /Users/guillevalin/Documents/dcSpark/ligero-vm/ligero-prover/build/CMakeFiles /Users/guillevalin/Documents/dcSpark/ligero-vm/ligero-prover/build/tests//CMakeFiles/progress.marks
+	cd /Users/guillevalin/Documents/dcSpark/ligero-vm/ligero-prover/build && $(MAKE) $(MAKESILENT) -f CMakeFiles/Makefile2 tests/all
+	$(CMAKE_COMMAND) -E cmake_progress_start /Users/guillevalin/Documents/dcSpark/ligero-vm/ligero-prover/build/CMakeFiles 0
 .PHONY : all
 
 # The main clean target
 clean:
-	cd /Users/nicolasarqueros/midnight/external-develop/ligero-prover/build && $(MAKE) $(MAKESILENT) -f CMakeFiles/Makefile2 tests/clean
+	cd /Users/guillevalin/Documents/dcSpark/ligero-vm/ligero-prover/build && $(MAKE) $(MAKESILENT) -f CMakeFiles/Makefile2 tests/clean
 .PHONY : clean
 
 # The main clean target
@@ -113,17 +113,17 @@ clean/fast: clean
 
 # Prepare targets for installation.
 preinstall: all
-	cd /Users/nicolasarqueros/midnight/external-develop/ligero-prover/build && $(MAKE) $(MAKESILENT) -f CMakeFiles/Makefile2 tests/preinstall
+	cd /Users/guillevalin/Documents/dcSpark/ligero-vm/ligero-prover/build && $(MAKE) $(MAKESILENT) -f CMakeFiles/Makefile2 tests/preinstall
 .PHONY : preinstall
 
 # Prepare targets for installation.
 preinstall/fast:
-	cd /Users/nicolasarqueros/midnight/external-develop/ligero-prover/build && $(MAKE) $(MAKESILENT) -f CMakeFiles/Makefile2 tests/preinstall
+	cd /Users/guillevalin/Documents/dcSpark/ligero-vm/ligero-prover/build && $(MAKE) $(MAKESILENT) -f CMakeFiles/Makefile2 tests/preinstall
 .PHONY : preinstall/fast
 
 # clear depends
 depend:
-	cd /Users/nicolasarqueros/midnight/external-develop/ligero-prover/build && $(CMAKE_COMMAND) -S$(CMAKE_SOURCE_DIR) -B$(CMAKE_BINARY_DIR) --check-build-system CMakeFiles/Makefile.cmake 1
+	cd /Users/guillevalin/Documents/dcSpark/ligero-vm/ligero-prover/build && $(CMAKE_COMMAND) -S$(CMAKE_SOURCE_DIR) -B$(CMAKE_BINARY_DIR) --check-build-system CMakeFiles/Makefile.cmake 1
 .PHONY : depend
 
 # Help Target
@@ -146,6 +146,6 @@ help:
 # No rule that depends on this can have commands that come from listfiles
 # because they might be regenerated.
 cmake_check_build_system:
-	cd /Users/nicolasarqueros/midnight/external-develop/ligero-prover/build && $(CMAKE_COMMAND) -S$(CMAKE_SOURCE_DIR) -B$(CMAKE_BINARY_DIR) --check-build-system CMakeFiles/Makefile.cmake 0
+	cd /Users/guillevalin/Documents/dcSpark/ligero-vm/ligero-prover/build && $(CMAKE_COMMAND) -S$(CMAKE_SOURCE_DIR) -B$(CMAKE_BINARY_DIR) --check-build-system CMakeFiles/Makefile.cmake 0
 .PHONY : cmake_check_build_system
 

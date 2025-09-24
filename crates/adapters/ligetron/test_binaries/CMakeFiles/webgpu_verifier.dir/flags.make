@@ -4,7 +4,7 @@
 # compile CXX with /usr/bin/c++
 CXX_DEFINES = -DBOOST_ATOMIC_DYN_LINK -DBOOST_ATOMIC_NO_LIB -DBOOST_CHRONO_DYN_LINK -DBOOST_CHRONO_NO_LIB -DBOOST_CONTAINER_DYN_LINK -DBOOST_CONTAINER_NO_LIB -DBOOST_DATE_TIME_DYN_LINK -DBOOST_DATE_TIME_NO_LIB -DBOOST_FILESYSTEM_DYN_LINK -DBOOST_FILESYSTEM_NO_LIB -DBOOST_LOG_DYN_LINK -DBOOST_LOG_NO_LIB -DBOOST_PROGRAM_OPTIONS_DYN_LINK -DBOOST_PROGRAM_OPTIONS_NO_LIB -DBOOST_RANDOM_DYN_LINK -DBOOST_RANDOM_NO_LIB -DBOOST_REGEX_DYN_LINK -DBOOST_REGEX_NO_LIB -DBOOST_SERIALIZATION_DYN_LINK -DBOOST_SERIALIZATION_NO_LIB -DBOOST_THREAD_DYN_LINK -DBOOST_THREAD_NO_LIB -DDAWN_NATIVE_SHARED_LIBRARY -DLIGETRON_GIT_BRANCH=\"main\" -DLIGETRON_GIT_COMMIT_HASH=\"7f4e277d5215588475650862d8168d44cf6b618d\" -DLIGETRON_VERSION_MAJOR=0 -DLIGETRON_VERSION_MINOR=9 -DLIGETRON_VERSION_PATCH=9 -DNDEBUG -DWGPU_SHARED_LIBRARY
 
-CXX_INCLUDES = -I/Users/nicolasarqueros/midnight/external-develop/ligero-prover/include -I/include -I/Users/nicolasarqueros/midnight/external-develop/ligero-prover/build/_deps/json-src/include -isystem /opt/homebrew/include -isystem /opt/homebrew/Cellar/gmp/6.3.0/include -isystem /opt/homebrew/Cellar/openssl@3/3.5.2/include
+CXX_INCLUDES = -I/Users/guillevalin/Documents/dcSpark/ligero-vm/ligero-prover/include -I/include -I/Users/guillevalin/Documents/dcSpark/ligero-vm/ligero-prover/build/_deps/json-src/include -isystem /opt/homebrew/include -isystem /opt/homebrew/Cellar/gmp/6.3.0/include -isystem /opt/homebrew/Cellar/openssl@3/3.5.2/include
 
 CXX_FLAGSarm64 = -O3 -DNDEBUG -std=gnu++20 -arch arm64 -O3
 

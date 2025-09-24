@@ -3,9 +3,9 @@
 # No other meaning or use of this file is supported.
 
 method=url
-command=/opt/homebrew/bin/cmake;-DCMAKE_MESSAGE_LOG_LEVEL=VERBOSE;-P;/Users/nicolasarqueros/midnight/external-develop/ligero-prover/build/_deps/json-subbuild/json-populate-prefix/src/json-populate-stamp/download-json-populate.cmake;COMMAND;/opt/homebrew/bin/cmake;-DCMAKE_MESSAGE_LOG_LEVEL=VERBOSE;-P;/Users/nicolasarqueros/midnight/external-develop/ligero-prover/build/_deps/json-subbuild/json-populate-prefix/src/json-populate-stamp/verify-json-populate.cmake;COMMAND;/opt/homebrew/bin/cmake;-DCMAKE_MESSAGE_LOG_LEVEL=VERBOSE;-P;/Users/nicolasarqueros/midnight/external-develop/ligero-prover/build/_deps/json-subbuild/json-populate-prefix/src/json-populate-stamp/extract-json-populate.cmake
-source_dir=/Users/nicolasarqueros/midnight/external-develop/ligero-prover/build/_deps/json-src
-work_dir=/Users/nicolasarqueros/midnight/external-develop/ligero-prover/build/_deps
+command=/opt/homebrew/bin/cmake;-DCMAKE_MESSAGE_LOG_LEVEL=VERBOSE;-P;/Users/guillevalin/Documents/dcSpark/ligero-vm/ligero-prover/build/_deps/json-subbuild/json-populate-prefix/src/json-populate-stamp/download-json-populate.cmake;COMMAND;/opt/homebrew/bin/cmake;-DCMAKE_MESSAGE_LOG_LEVEL=VERBOSE;-P;/Users/guillevalin/Documents/dcSpark/ligero-vm/ligero-prover/build/_deps/json-subbuild/json-populate-prefix/src/json-populate-stamp/verify-json-populate.cmake;COMMAND;/opt/homebrew/bin/cmake;-DCMAKE_MESSAGE_LOG_LEVEL=VERBOSE;-P;/Users/guillevalin/Documents/dcSpark/ligero-vm/ligero-prover/build/_deps/json-subbuild/json-populate-prefix/src/json-populate-stamp/extract-json-populate.cmake
+source_dir=/Users/guillevalin/Documents/dcSpark/ligero-vm/ligero-prover/build/_deps/json-src
+work_dir=/Users/guillevalin/Documents/dcSpark/ligero-vm/ligero-prover/build/_deps
 url(s)=https://github.com/nlohmann/json/releases/download/v3.11.3/json.tar.xz
 hash=
       no_extract=

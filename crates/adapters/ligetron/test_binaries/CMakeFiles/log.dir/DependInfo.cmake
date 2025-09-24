@@ -8,7 +8,7 @@ set(CMAKE_DEPENDS_LANGUAGES
 
 # The set of dependency files which are needed:
 set(CMAKE_DEPENDS_DEPENDENCY_FILES
-  "/Users/nicolasarqueros/midnight/external-develop/ligero-prover/include/util/log.cpp" "CMakeFiles/log.dir/include/util/log.cpp.o" "gcc" "CMakeFiles/log.dir/include/util/log.cpp.o.d"
+  "/Users/guillevalin/Documents/dcSpark/ligero-vm/ligero-prover/include/util/log.cpp" "CMakeFiles/log.dir/include/util/log.cpp.o" "gcc" "CMakeFiles/log.dir/include/util/log.cpp.o.d"
   )
 
 # Targets to which this target links which contain Fortran sources.

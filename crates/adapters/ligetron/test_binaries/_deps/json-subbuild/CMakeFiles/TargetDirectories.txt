@@ -1,3 +1,3 @@
-/Users/nicolasarqueros/midnight/external-develop/ligero-prover/build/_deps/json-subbuild/CMakeFiles/json-populate.dir
-/Users/nicolasarqueros/midnight/external-develop/ligero-prover/build/_deps/json-subbuild/CMakeFiles/edit_cache.dir
-/Users/nicolasarqueros/midnight/external-develop/ligero-prover/build/_deps/json-subbuild/CMakeFiles/rebuild_cache.dir
+/Users/guillevalin/Documents/dcSpark/ligero-vm/ligero-prover/build/_deps/json-subbuild/CMakeFiles/json-populate.dir
+/Users/guillevalin/Documents/dcSpark/ligero-vm/ligero-prover/build/_deps/json-subbuild/CMakeFiles/edit_cache.dir
+/Users/guillevalin/Documents/dcSpark/ligero-vm/ligero-prover/build/_deps/json-subbuild/CMakeFiles/rebuild_cache.dir

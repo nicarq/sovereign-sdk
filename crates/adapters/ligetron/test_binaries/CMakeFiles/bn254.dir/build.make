@@ -53,10 +53,10 @@ RM = /opt/homebrew/bin/cmake -E rm -f
 EQUALS = =
 
 # The top-level source directory on which CMake was run.
-CMAKE_SOURCE_DIR = /Users/nicolasarqueros/midnight/external-develop/ligero-prover
+CMAKE_SOURCE_DIR = /Users/guillevalin/Documents/dcSpark/ligero-vm/ligero-prover
 
 # The top-level build directory on which CMake was run.
-CMAKE_BINARY_DIR = /Users/nicolasarqueros/midnight/external-develop/ligero-prover/build
+CMAKE_BINARY_DIR = /Users/guillevalin/Documents/dcSpark/ligero-vm/ligero-prover/build
 
 # Include any dependencies generated for this target.
 include CMakeFiles/bn254.dir/depend.make
@@ -73,18 +73,18 @@ CMakeFiles/bn254.dir/codegen:
 .PHONY : CMakeFiles/bn254.dir/codegen
 
 CMakeFiles/bn254.dir/src/bn254.cpp.o: CMakeFiles/bn254.dir/flags.make
-CMakeFiles/bn254.dir/src/bn254.cpp.o: /Users/nicolasarqueros/midnight/external-develop/ligero-prover/src/bn254.cpp
+CMakeFiles/bn254.dir/src/bn254.cpp.o: /Users/guillevalin/Documents/dcSpark/ligero-vm/ligero-prover/src/bn254.cpp
 CMakeFiles/bn254.dir/src/bn254.cpp.o: CMakeFiles/bn254.dir/compiler_depend.ts
-	@$(CMAKE_COMMAND) -E cmake_echo_color "--switch=$(COLOR)" --green --progress-dir=/Users/nicolasarqueros/midnight/external-develop/ligero-prover/build/CMakeFiles --progress-num=$(CMAKE_PROGRESS_1) "Building CXX object CMakeFiles/bn254.dir/src/bn254.cpp.o"
-	/usr/bin/c++ $(CXX_DEFINES) $(CXX_INCLUDES) $(CXX_FLAGS) -MD -MT CMakeFiles/bn254.dir/src/bn254.cpp.o -MF CMakeFiles/bn254.dir/src/bn254.cpp.o.d -o CMakeFiles/bn254.dir/src/bn254.cpp.o -c /Users/nicolasarqueros/midnight/external-develop/ligero-prover/src/bn254.cpp
+	@$(CMAKE_COMMAND) -E cmake_echo_color "--switch=$(COLOR)" --green --progress-dir=/Users/guillevalin/Documents/dcSpark/ligero-vm/ligero-prover/build/CMakeFiles --progress-num=$(CMAKE_PROGRESS_1) "Building CXX object CMakeFiles/bn254.dir/src/bn254.cpp.o"
+	/usr/bin/c++ $(CXX_DEFINES) $(CXX_INCLUDES) $(CXX_FLAGS) -MD -MT CMakeFiles/bn254.dir/src/bn254.cpp.o -MF CMakeFiles/bn254.dir/src/bn254.cpp.o.d -o CMakeFiles/bn254.dir/src/bn254.cpp.o -c /Users/guillevalin/Documents/dcSpark/ligero-vm/ligero-prover/src/bn254.cpp
 
 CMakeFiles/bn254.dir/src/bn254.cpp.i: cmake_force
 	@$(CMAKE_COMMAND) -E cmake_echo_color "--switch=$(COLOR)" --green "Preprocessing CXX source to CMakeFiles/bn254.dir/src/bn254.cpp.i"
-	/usr/bin/c++ $(CXX_DEFINES) $(CXX_INCLUDES) $(CXX_FLAGS) -E /Users/nicolasarqueros/midnight/external-develop/ligero-prover/src/bn254.cpp > CMakeFiles/bn254.dir/src/bn254.cpp.i
+	/usr/bin/c++ $(CXX_DEFINES) $(CXX_INCLUDES) $(CXX_FLAGS) -E /Users/guillevalin/Documents/dcSpark/ligero-vm/ligero-prover/src/bn254.cpp > CMakeFiles/bn254.dir/src/bn254.cpp.i
 
 CMakeFiles/bn254.dir/src/bn254.cpp.s: cmake_force
 	@$(CMAKE_COMMAND) -E cmake_echo_color "--switch=$(COLOR)" --green "Compiling CXX source to assembly CMakeFiles/bn254.dir/src/bn254.cpp.s"
-	/usr/bin/c++ $(CXX_DEFINES) $(CXX_INCLUDES) $(CXX_FLAGS) -S /Users/nicolasarqueros/midnight/external-develop/ligero-prover/src/bn254.cpp -o CMakeFiles/bn254.dir/src/bn254.cpp.s
+	/usr/bin/c++ $(CXX_DEFINES) $(CXX_INCLUDES) $(CXX_FLAGS) -S /Users/guillevalin/Documents/dcSpark/ligero-vm/ligero-prover/src/bn254.cpp -o CMakeFiles/bn254.dir/src/bn254.cpp.s
 
 # Object files for target bn254
 bn254_OBJECTS = \
@@ -96,7 +96,7 @@ bn254_EXTERNAL_OBJECTS =
 libbn254.a: CMakeFiles/bn254.dir/src/bn254.cpp.o
 libbn254.a: CMakeFiles/bn254.dir/build.make
 libbn254.a: CMakeFiles/bn254.dir/link.txt
-	@$(CMAKE_COMMAND) -E cmake_echo_color "--switch=$(COLOR)" --green --bold --progress-dir=/Users/nicolasarqueros/midnight/external-develop/ligero-prover/build/CMakeFiles --progress-num=$(CMAKE_PROGRESS_2) "Linking CXX static library libbn254.a"
+	@$(CMAKE_COMMAND) -E cmake_echo_color "--switch=$(COLOR)" --green --bold --progress-dir=/Users/guillevalin/Documents/dcSpark/ligero-vm/ligero-prover/build/CMakeFiles --progress-num=$(CMAKE_PROGRESS_2) "Linking CXX static library libbn254.a"
 	$(CMAKE_COMMAND) -P CMakeFiles/bn254.dir/cmake_clean_target.cmake
 	$(CMAKE_COMMAND) -E cmake_link_script CMakeFiles/bn254.dir/link.txt --verbose=$(VERBOSE)
 
@@ -109,6 +109,6 @@ CMakeFiles/bn254.dir/clean:
 .PHONY : CMakeFiles/bn254.dir/clean
 
 CMakeFiles/bn254.dir/depend:
-	cd /Users/nicolasarqueros/midnight/external-develop/ligero-prover/build && $(CMAKE_COMMAND) -E cmake_depends "Unix Makefiles" /Users/nicolasarqueros/midnight/external-develop/ligero-prover /Users/nicolasarqueros/midnight/external-develop/ligero-prover /Users/nicolasarqueros/midnight/external-develop/ligero-prover/build /Users/nicolasarqueros/midnight/external-develop/ligero-prover/build /Users/nicolasarqueros/midnight/external-develop/ligero-prover/build/CMakeFiles/bn254.dir/DependInfo.cmake "--color=$(COLOR)"
+	cd /Users/guillevalin/Documents/dcSpark/ligero-vm/ligero-prover/build && $(CMAKE_COMMAND) -E cmake_depends "Unix Makefiles" /Users/guillevalin/Documents/dcSpark/ligero-vm/ligero-prover /Users/guillevalin/Documents/dcSpark/ligero-vm/ligero-prover /Users/guillevalin/Documents/dcSpark/ligero-vm/ligero-prover/build /Users/guillevalin/Documents/dcSpark/ligero-vm/ligero-prover/build /Users/guillevalin/Documents/dcSpark/ligero-vm/ligero-prover/build/CMakeFiles/bn254.dir/DependInfo.cmake "--color=$(COLOR)"
 .PHONY : CMakeFiles/bn254.dir/depend
 

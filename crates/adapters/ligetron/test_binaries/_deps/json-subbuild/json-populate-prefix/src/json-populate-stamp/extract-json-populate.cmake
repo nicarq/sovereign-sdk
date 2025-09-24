@@ -5,8 +5,8 @@ cmake_minimum_required(VERSION ${CMAKE_VERSION}) # this file comes with cmake
 
 # Make file names absolute:
 #
-get_filename_component(filename "/Users/nicolasarqueros/midnight/external-develop/ligero-prover/build/_deps/json-subbuild/json-populate-prefix/src/json.tar.xz" ABSOLUTE)
-get_filename_component(directory "/Users/nicolasarqueros/midnight/external-develop/ligero-prover/build/_deps/json-src" ABSOLUTE)
+get_filename_component(filename "/Users/guillevalin/Documents/dcSpark/ligero-vm/ligero-prover/build/_deps/json-subbuild/json-populate-prefix/src/json.tar.xz" ABSOLUTE)
+get_filename_component(directory "/Users/guillevalin/Documents/dcSpark/ligero-vm/ligero-prover/build/_deps/json-src" ABSOLUTE)
 
 message(VERBOSE "extracting...
      src='${filename}'

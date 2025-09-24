@@ -22,14 +22,14 @@ function(check_file_hash has_hash hash_is_good)
   set("${has_hash}" TRUE PARENT_SCOPE)
 
   message(VERBOSE "verifying file...
-       file='/Users/nicolasarqueros/midnight/external-develop/ligero-prover/build/_deps/json-subbuild/json-populate-prefix/src/json.tar.xz'")
+       file='/Users/guillevalin/Documents/dcSpark/ligero-vm/ligero-prover/build/_deps/json-subbuild/json-populate-prefix/src/json.tar.xz'")
 
-  file("" "/Users/nicolasarqueros/midnight/external-develop/ligero-prover/build/_deps/json-subbuild/json-populate-prefix/src/json.tar.xz" actual_value)
+  file("" "/Users/guillevalin/Documents/dcSpark/ligero-vm/ligero-prover/build/_deps/json-subbuild/json-populate-prefix/src/json.tar.xz" actual_value)
 
   if(NOT "${actual_value}" STREQUAL "")
     set("${hash_is_good}" FALSE PARENT_SCOPE)
     message(VERBOSE " hash of
-    /Users/nicolasarqueros/midnight/external-develop/ligero-prover/build/_deps/json-subbuild/json-populate-prefix/src/json.tar.xz
+    /Users/guillevalin/Documents/dcSpark/ligero-vm/ligero-prover/build/_deps/json-subbuild/json-populate-prefix/src/json.tar.xz
   does not match expected value
     expected: ''
       actual: '${actual_value}'")
@@ -71,32 +71,32 @@ function(sleep_before_download attempt)
   execute_process(COMMAND "${CMAKE_COMMAND}" -E sleep "${sleep_seconds}")
 endfunction()
 
-if(EXISTS "/Users/nicolasarqueros/midnight/external-develop/ligero-prover/build/_deps/json-subbuild/json-populate-prefix/src/json.tar.xz")
+if(EXISTS "/Users/guillevalin/Documents/dcSpark/ligero-vm/ligero-prover/build/_deps/json-subbuild/json-populate-prefix/src/json.tar.xz")
   check_file_hash(has_hash hash_is_good)
   if(has_hash)
     if(hash_is_good)
       message(VERBOSE "File already exists and hash match (skip download):
-  file='/Users/nicolasarqueros/midnight/external-develop/ligero-prover/build/_deps/json-subbuild/json-populate-prefix/src/json.tar.xz'
+  file='/Users/guillevalin/Documents/dcSpark/ligero-vm/ligero-prover/build/_deps/json-subbuild/json-populate-prefix/src/json.tar.xz'
   =''"
       )
       return()
     else()
       message(VERBOSE "File already exists but hash mismatch. Removing...")
-      file(REMOVE "/Users/nicolasarqueros/midnight/external-develop/ligero-prover/build/_deps/json-subbuild/json-populate-prefix/src/json.tar.xz")
+      file(REMOVE "/Users/guillevalin/Documents/dcSpark/ligero-vm/ligero-prover/build/_deps/json-subbuild/json-populate-prefix/src/json.tar.xz")
     endif()
   else()
     message(VERBOSE "File already exists but no hash specified (use URL_HASH):
-  file='/Users/nicolasarqueros/midnight/external-develop/ligero-prover/build/_deps/json-subbuild/json-populate-prefix/src/json.tar.xz'
+  file='/Users/guillevalin/Documents/dcSpark/ligero-vm/ligero-prover/build/_deps/json-subbuild/json-populate-prefix/src/json.tar.xz'
 Old file will be removed and new file downloaded from URL."
     )
-    file(REMOVE "/Users/nicolasarqueros/midnight/external-develop/ligero-prover/build/_deps/json-subbuild/json-populate-prefix/src/json.tar.xz")
+    file(REMOVE "/Users/guillevalin/Documents/dcSpark/ligero-vm/ligero-prover/build/_deps/json-subbuild/json-populate-prefix/src/json.tar.xz")
   endif()
 endif()
 
 set(retry_number 5)
 
 message(VERBOSE "Downloading...
-   dst='/Users/nicolasarqueros/midnight/external-develop/ligero-prover/build/_deps/json-subbuild/json-populate-prefix/src/json.tar.xz'
+   dst='/Users/guillevalin/Documents/dcSpark/ligero-vm/ligero-prover/build/_deps/json-subbuild/json-populate-prefix/src/json.tar.xz'
    timeout='none'
    inactivity timeout='none'"
 )
@@ -119,7 +119,7 @@ foreach(i RANGE ${retry_number})
 
       file(
         DOWNLOAD
-        "${url}" "/Users/nicolasarqueros/midnight/external-develop/ligero-prover/build/_deps/json-subbuild/json-populate-prefix/src/json.tar.xz"
+        "${url}" "/Users/guillevalin/Documents/dcSpark/ligero-vm/ligero-prover/build/_deps/json-subbuild/json-populate-prefix/src/json.tar.xz"
         SHOW_PROGRESS
         # no TIMEOUT
         # no INACTIVITY_TIMEOUT
@@ -136,7 +136,7 @@ foreach(i RANGE ${retry_number})
         check_file_hash(has_hash hash_is_good)
         if(has_hash AND NOT hash_is_good)
           message(VERBOSE "Hash mismatch, removing...")
-          file(REMOVE "/Users/nicolasarqueros/midnight/external-develop/ligero-prover/build/_deps/json-subbuild/json-populate-prefix/src/json.tar.xz")
+          file(REMOVE "/Users/guillevalin/Documents/dcSpark/ligero-vm/ligero-prover/build/_deps/json-subbuild/json-populate-prefix/src/json.tar.xz")
         else()
           message(VERBOSE "Downloading... done")
           return()

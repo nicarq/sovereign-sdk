@@ -54,10 +54,10 @@ RM = /opt/homebrew/bin/cmake -E rm -f
 EQUALS = =
 
 # The top-level source directory on which CMake was run.
-CMAKE_SOURCE_DIR = /Users/nicolasarqueros/midnight/external-develop/ligero-prover
+CMAKE_SOURCE_DIR = /Users/guillevalin/Documents/dcSpark/ligero-vm/ligero-prover
 
 # The top-level build directory on which CMake was run.
-CMAKE_BINARY_DIR = /Users/nicolasarqueros/midnight/external-develop/ligero-prover/build
+CMAKE_BINARY_DIR = /Users/guillevalin/Documents/dcSpark/ligero-vm/ligero-prover/build
 
 #=============================================================================
 # Directory level rules for the build root directory
@@ -139,14 +139,14 @@ tests/clean:
 CMakeFiles/log.dir/all:
 	$(MAKE) $(MAKESILENT) -f CMakeFiles/log.dir/build.make CMakeFiles/log.dir/depend
 	$(MAKE) $(MAKESILENT) -f CMakeFiles/log.dir/build.make CMakeFiles/log.dir/build
-	@$(CMAKE_COMMAND) -E cmake_echo_color "--switch=$(COLOR)" --progress-dir=/Users/nicolasarqueros/midnight/external-develop/ligero-prover/build/CMakeFiles --progress-num=3,4 "Built target log"
+	@$(CMAKE_COMMAND) -E cmake_echo_color "--switch=$(COLOR)" --progress-dir=/Users/guillevalin/Documents/dcSpark/ligero-vm/ligero-prover/build/CMakeFiles --progress-num=3,4 "Built target log"
 .PHONY : CMakeFiles/log.dir/all
 
 # Build rule for subdir invocation for target.
 CMakeFiles/log.dir/rule: cmake_check_build_system
-	$(CMAKE_COMMAND) -E cmake_progress_start /Users/nicolasarqueros/midnight/external-develop/ligero-prover/build/CMakeFiles 2
+	$(CMAKE_COMMAND) -E cmake_progress_start /Users/guillevalin/Documents/dcSpark/ligero-vm/ligero-prover/build/CMakeFiles 2
 	$(MAKE) $(MAKESILENT) -f CMakeFiles/Makefile2 CMakeFiles/log.dir/all
-	$(CMAKE_COMMAND) -E cmake_progress_start /Users/nicolasarqueros/midnight/external-develop/ligero-prover/build/CMakeFiles 0
+	$(CMAKE_COMMAND) -E cmake_progress_start /Users/guillevalin/Documents/dcSpark/ligero-vm/ligero-prover/build/CMakeFiles 0
 .PHONY : CMakeFiles/log.dir/rule
 
 # Convenience name for target.
@@ -156,7 +156,7 @@ log: CMakeFiles/log.dir/rule
 # codegen rule for target.
 CMakeFiles/log.dir/codegen:
 	$(MAKE) $(MAKESILENT) -f CMakeFiles/log.dir/build.make CMakeFiles/log.dir/codegen
-	@$(CMAKE_COMMAND) -E cmake_echo_color "--switch=$(COLOR)" --progress-dir=/Users/nicolasarqueros/midnight/external-develop/ligero-prover/build/CMakeFiles --progress-num=3,4 "Finished codegen for target log"
+	@$(CMAKE_COMMAND) -E cmake_echo_color "--switch=$(COLOR)" --progress-dir=/Users/guillevalin/Documents/dcSpark/ligero-vm/ligero-prover/build/CMakeFiles --progress-num=3,4 "Finished codegen for target log"
 .PHONY : CMakeFiles/log.dir/codegen
 
 # clean rule for target.
@@ -171,14 +171,14 @@ CMakeFiles/log.dir/clean:
 CMakeFiles/bn254.dir/all:
 	$(MAKE) $(MAKESILENT) -f CMakeFiles/bn254.dir/build.make CMakeFiles/bn254.dir/depend
 	$(MAKE) $(MAKESILENT) -f CMakeFiles/bn254.dir/build.make CMakeFiles/bn254.dir/build
-	@$(CMAKE_COMMAND) -E cmake_echo_color "--switch=$(COLOR)" --progress-dir=/Users/nicolasarqueros/midnight/external-develop/ligero-prover/build/CMakeFiles --progress-num=1,2 "Built target bn254"
+	@$(CMAKE_COMMAND) -E cmake_echo_color "--switch=$(COLOR)" --progress-dir=/Users/guillevalin/Documents/dcSpark/ligero-vm/ligero-prover/build/CMakeFiles --progress-num=1,2 "Built target bn254"
 .PHONY : CMakeFiles/bn254.dir/all
 
 # Build rule for subdir invocation for target.
 CMakeFiles/bn254.dir/rule: cmake_check_build_system
-	$(CMAKE_COMMAND) -E cmake_progress_start /Users/nicolasarqueros/midnight/external-develop/ligero-prover/build/CMakeFiles 2
+	$(CMAKE_COMMAND) -E cmake_progress_start /Users/guillevalin/Documents/dcSpark/ligero-vm/ligero-prover/build/CMakeFiles 2
 	$(MAKE) $(MAKESILENT) -f CMakeFiles/Makefile2 CMakeFiles/bn254.dir/all
-	$(CMAKE_COMMAND) -E cmake_progress_start /Users/nicolasarqueros/midnight/external-develop/ligero-prover/build/CMakeFiles 0
+	$(CMAKE_COMMAND) -E cmake_progress_start /Users/guillevalin/Documents/dcSpark/ligero-vm/ligero-prover/build/CMakeFiles 0
 .PHONY : CMakeFiles/bn254.dir/rule
 
 # Convenience name for target.
@@ -188,7 +188,7 @@ bn254: CMakeFiles/bn254.dir/rule
 # codegen rule for target.
 CMakeFiles/bn254.dir/codegen:
 	$(MAKE) $(MAKESILENT) -f CMakeFiles/bn254.dir/build.make CMakeFiles/bn254.dir/codegen
-	@$(CMAKE_COMMAND) -E cmake_echo_color "--switch=$(COLOR)" --progress-dir=/Users/nicolasarqueros/midnight/external-develop/ligero-prover/build/CMakeFiles --progress-num=1,2 "Finished codegen for target bn254"
+	@$(CMAKE_COMMAND) -E cmake_echo_color "--switch=$(COLOR)" --progress-dir=/Users/guillevalin/Documents/dcSpark/ligero-vm/ligero-prover/build/CMakeFiles --progress-num=1,2 "Finished codegen for target bn254"
 .PHONY : CMakeFiles/bn254.dir/codegen
 
 # clean rule for target.
@@ -204,14 +204,14 @@ CMakeFiles/webgpu_prover.dir/all: CMakeFiles/log.dir/all
 CMakeFiles/webgpu_prover.dir/all: CMakeFiles/bn254.dir/all
 	$(MAKE) $(MAKESILENT) -f CMakeFiles/webgpu_prover.dir/build.make CMakeFiles/webgpu_prover.dir/depend
 	$(MAKE) $(MAKESILENT) -f CMakeFiles/webgpu_prover.dir/build.make CMakeFiles/webgpu_prover.dir/build
-	@$(CMAKE_COMMAND) -E cmake_echo_color "--switch=$(COLOR)" --progress-dir=/Users/nicolasarqueros/midnight/external-develop/ligero-prover/build/CMakeFiles --progress-num=5,6 "Built target webgpu_prover"
+	@$(CMAKE_COMMAND) -E cmake_echo_color "--switch=$(COLOR)" --progress-dir=/Users/guillevalin/Documents/dcSpark/ligero-vm/ligero-prover/build/CMakeFiles --progress-num=5,6 "Built target webgpu_prover"
 .PHONY : CMakeFiles/webgpu_prover.dir/all
 
 # Build rule for subdir invocation for target.
 CMakeFiles/webgpu_prover.dir/rule: cmake_check_build_system
-	$(CMAKE_COMMAND) -E cmake_progress_start /Users/nicolasarqueros/midnight/external-develop/ligero-prover/build/CMakeFiles 6
+	$(CMAKE_COMMAND) -E cmake_progress_start /Users/guillevalin/Documents/dcSpark/ligero-vm/ligero-prover/build/CMakeFiles 6
 	$(MAKE) $(MAKESILENT) -f CMakeFiles/Makefile2 CMakeFiles/webgpu_prover.dir/all
-	$(CMAKE_COMMAND) -E cmake_progress_start /Users/nicolasarqueros/midnight/external-develop/ligero-prover/build/CMakeFiles 0
+	$(CMAKE_COMMAND) -E cmake_progress_start /Users/guillevalin/Documents/dcSpark/ligero-vm/ligero-prover/build/CMakeFiles 0
 .PHONY : CMakeFiles/webgpu_prover.dir/rule
 
 # Convenience name for target.
@@ -221,7 +221,7 @@ webgpu_prover: CMakeFiles/webgpu_prover.dir/rule
 # codegen rule for target.
 CMakeFiles/webgpu_prover.dir/codegen:
 	$(MAKE) $(MAKESILENT) -f CMakeFiles/webgpu_prover.dir/build.make CMakeFiles/webgpu_prover.dir/codegen
-	@$(CMAKE_COMMAND) -E cmake_echo_color "--switch=$(COLOR)" --progress-dir=/Users/nicolasarqueros/midnight/external-develop/ligero-prover/build/CMakeFiles --progress-num=5,6 "Finished codegen for target webgpu_prover"
+	@$(CMAKE_COMMAND) -E cmake_echo_color "--switch=$(COLOR)" --progress-dir=/Users/guillevalin/Documents/dcSpark/ligero-vm/ligero-prover/build/CMakeFiles --progress-num=5,6 "Finished codegen for target webgpu_prover"
 .PHONY : CMakeFiles/webgpu_prover.dir/codegen
 
 # clean rule for target.
@@ -237,14 +237,14 @@ CMakeFiles/webgpu_verifier.dir/all: CMakeFiles/log.dir/all
 CMakeFiles/webgpu_verifier.dir/all: CMakeFiles/bn254.dir/all
 	$(MAKE) $(MAKESILENT) -f CMakeFiles/webgpu_verifier.dir/build.make CMakeFiles/webgpu_verifier.dir/depend
 	$(MAKE) $(MAKESILENT) -f CMakeFiles/webgpu_verifier.dir/build.make CMakeFiles/webgpu_verifier.dir/build
-	@$(CMAKE_COMMAND) -E cmake_echo_color "--switch=$(COLOR)" --progress-dir=/Users/nicolasarqueros/midnight/external-develop/ligero-prover/build/CMakeFiles --progress-num=7,8 "Built target webgpu_verifier"
+	@$(CMAKE_COMMAND) -E cmake_echo_color "--switch=$(COLOR)" --progress-dir=/Users/guillevalin/Documents/dcSpark/ligero-vm/ligero-prover/build/CMakeFiles --progress-num=7,8 "Built target webgpu_verifier"
 .PHONY : CMakeFiles/webgpu_verifier.dir/all
 
 # Build rule for subdir invocation for target.
 CMakeFiles/webgpu_verifier.dir/rule: cmake_check_build_system
-	$(CMAKE_COMMAND) -E cmake_progress_start /Users/nicolasarqueros/midnight/external-develop/ligero-prover/build/CMakeFiles 6
+	$(CMAKE_COMMAND) -E cmake_progress_start /Users/guillevalin/Documents/dcSpark/ligero-vm/ligero-prover/build/CMakeFiles 6
 	$(MAKE) $(MAKESILENT) -f CMakeFiles/Makefile2 CMakeFiles/webgpu_verifier.dir/all
-	$(CMAKE_COMMAND) -E cmake_progress_start /Users/nicolasarqueros/midnight/external-develop/ligero-prover/build/CMakeFiles 0
+	$(CMAKE_COMMAND) -E cmake_progress_start /Users/guillevalin/Documents/dcSpark/ligero-vm/ligero-prover/build/CMakeFiles 0
 .PHONY : CMakeFiles/webgpu_verifier.dir/rule
 
 # Convenience name for target.
@@ -254,7 +254,7 @@ webgpu_verifier: CMakeFiles/webgpu_verifier.dir/rule
 # codegen rule for target.
 CMakeFiles/webgpu_verifier.dir/codegen:
 	$(MAKE) $(MAKESILENT) -f CMakeFiles/webgpu_verifier.dir/build.make CMakeFiles/webgpu_verifier.dir/codegen
-	@$(CMAKE_COMMAND) -E cmake_echo_color "--switch=$(COLOR)" --progress-dir=/Users/nicolasarqueros/midnight/external-develop/ligero-prover/build/CMakeFiles --progress-num=7,8 "Finished codegen for target webgpu_verifier"
+	@$(CMAKE_COMMAND) -E cmake_echo_color "--switch=$(COLOR)" --progress-dir=/Users/guillevalin/Documents/dcSpark/ligero-vm/ligero-prover/build/CMakeFiles --progress-num=7,8 "Finished codegen for target webgpu_verifier"
 .PHONY : CMakeFiles/webgpu_verifier.dir/codegen
 
 # clean rule for target.
