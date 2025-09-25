@@ -3,8 +3,11 @@ name = "sov-demo-prover-guest-celestia-ligetron"
 version = "0.1.0"
 edition = "2021"
 
-[lib]
-crate-type = ["cdylib"]
+[workspace]
+
+[[bin]]
+name = "sov_demo_prover_guest_celestia_ligetron"
+path = "src/main.rs"
 
 [dependencies]
 const-rollup-config = { path = "../../../const-rollup-config" }
@@ -16,6 +19,7 @@ sov-mock-zkvm = { path = "../../../../../crates/adapters/mock-zkvm" }
 sov-modules-api = { path = "../../../../../crates/module-system/sov-modules-api" }
 sov-modules-stf-blueprint = { path = "../../../../../crates/module-system/sov-modules-stf-blueprint" }
 sov-state = { path = "../../../../../crates/module-system/sov-state" }
+hex = "0.4"
 
 [profile.release]
 opt-level = 3

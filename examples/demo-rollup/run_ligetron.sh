@@ -27,7 +27,7 @@ abs_path() {
 
 DA_LAYER="mock"      # mock | celestia
 STORAGE="jmt"        # jmt | nomt
-MODE="execute"       # skip | execute | prove
+MODE="prove"       # skip | execute | prove
 
 UNSAFE_JOURNAL=0
 while [[ $# -gt 0 ]]; do
@@ -87,6 +87,78 @@ export SOV_PROVER_MODE="$MODE"
 
 # Speed up builds: we don't need risc0/sp1 guests for Ligetron runs
 export SKIP_GUEST_BUILD=1
+
+# Build the appropriate Ligetron guest WASM and set env var so the adapter can load it
+build_ligetron_guest() {
+  # Decide target triple: prefer explicit env, else autodetect, else install wasm32-wasip1
+  # Prefer current toolchain with WASI p1 target; avoid pinning older toolchains
+  if [ -n "${LIGETRON_WASM_TARGET:-}" ]; then
+    TARGET_TRIPLE="$LIGETRON_WASM_TARGET"
+  else
+    if rustc --print target-list | grep -q '^wasm32-wasip1$'; then
+      TARGET_TRIPLE="wasm32-wasip1"
+    elif rustc --print target-list | grep -q '^wasm32-wasi$'; then
+      TARGET_TRIPLE="wasm32-wasi"
+    else
+      TARGET_TRIPLE="wasm32-wasip1"
+    fi
+  fi
+  echo "==> Using WASM target: $TARGET_TRIPLE (toolchain: $(rustc -V))"
+
+  local pkg pkg_dir manifest file out
+  case "$DA_LAYER" in
+    mock)
+      pkg="sov-demo-prover-guest-mock-ligetron"
+      pkg_dir="$SCRIPT_DIR/provers/ligetron/guest-mock"
+      ;;
+    celestia)
+      pkg="sov-demo-prover-guest-celestia-ligetron"
+      pkg_dir="$SCRIPT_DIR/provers/ligetron/guest-celestia"
+      ;;
+    *)
+      echo "Unknown DA layer: $DA_LAYER" >&2
+      exit 1
+      ;;
+  esac
+
+  manifest="$pkg_dir/Cargo.toml"
+  if [ ! -f "$manifest" ]; then
+    echo "ERROR: guest manifest not found: $manifest" >&2
+    exit 1
+  fi
+  echo "==> Ensuring target for guest build"
+  rustup target add "$TARGET_TRIPLE" >/dev/null 2>&1 || true
+  echo "==> Building Ligetron guest ($pkg) for $TARGET_TRIPLE (features: tiny)"
+  cargo build --manifest-path "$manifest" --features tiny --release --target "$TARGET_TRIPLE" --target-dir "$REPO_ROOT/target"
+
+  file="${pkg//-/_}.wasm"
+  out="$REPO_ROOT/target/$TARGET_TRIPLE/release/$file"
+  if [ ! -f "$out" ]; then
+    # Some toolchains prefix cdylib with 'lib'
+    out="$REPO_ROOT/target/$TARGET_TRIPLE/release/lib${pkg//-/_}.wasm"
+  fi
+  if [ ! -f "$out" ]; then
+    echo "Error: expected guest artifact not found: $out" >&2
+    echo "Hint: ensure Rust WASI target is installed (wasm32-wasip1 or wasm32-wasi) and the build succeeded." >&2
+    exit 1
+  fi
+
+  if [ "$DA_LAYER" = "mock" ]; then
+    export LIGETRON_WASM_MOCK="$out"
+  else
+    export LIGETRON_WASM_CELESTIA="$out"
+  fi
+}
+
+# Build Ligetron guest when proving/executing
+case "$MODE" in
+  prove|execute)
+    build_ligetron_guest ;;
+  simulate)
+    # Simulation may not require the real prover, but building is cheap and avoids surprises
+    build_ligetron_guest || true ;;
+  *) ;;
+esac
 
 # Enable Rust backtraces unless the caller overrides it
 export RUST_BACKTRACE="${RUST_BACKTRACE:-1}"

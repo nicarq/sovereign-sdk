@@ -10,11 +10,14 @@
 use serde::{Deserialize, Serialize};
 use serde::de::DeserializeOwned;
 use sov_rollup_interface::zk::{CodeCommitment, CryptoSpec, ZkVerifier};
+#[cfg(feature = "native")]
 use anyhow::Context;
 use thiserror::Error;
+#[cfg(feature = "native")]
 use std::time::{SystemTime, UNIX_EPOCH};
 
 /// Safely truncate output to prevent secret spill in logs
+#[cfg(feature = "native")]
 fn clip_output(s: &str, max: usize) -> String {
     if s.len() > max {
         format!("{}… [truncated {} chars]", &s[..max], s.len() - max)
@@ -24,6 +27,7 @@ fn clip_output(s: &str, max: usize) -> String {
 }
 
 /// Run verifier binary with config, trying privacy-safe CLI compatibility modes
+#[cfg(feature = "native")]
 fn run_verifier_with_config(
     bin: &str,
     cwd: &std::path::Path,
@@ -99,6 +103,11 @@ pub mod guest;
 pub mod host;
 
 use crate::crypto::{LigetronPublicKey, LigetronSignature};
+
+// Re-export key types
+pub use guest::LigetronGuest;
+#[cfg(feature = "native")]
+pub use host::LigetronHost;
 
 /// Typed argument for Ligetron CLI, matching the JSON schema
 #[derive(Serialize, Deserialize, Debug, Clone, PartialEq)]

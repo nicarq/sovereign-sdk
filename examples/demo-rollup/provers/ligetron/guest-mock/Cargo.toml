@@ -3,8 +3,11 @@ name = "sov-demo-prover-guest-mock-ligetron"
 version = "0.1.0"
 edition = "2021"
 
-[lib]
-crate-type = ["cdylib"]
+[workspace]
+
+[[bin]]
+name = "sov_demo_prover_guest_mock_ligetron"
+path = "src/main.rs"
 
 [dependencies]
 demo-stf = { path = "../../../stf" }
@@ -16,6 +19,9 @@ sov-modules-api = { path = "../../../../../crates/module-system/sov-modules-api"
 sov-state = { path = "../../../../../crates/module-system/sov-state" }
 sov-modules-stf-blueprint = { path = "../../../../../crates/module-system/sov-modules-stf-blueprint" }
 sov-kernels = { path = "../../../../../crates/module-system/sov-kernels" }
+sov-rollup-interface = { path = "../../../../../crates/rollup-interface" }
+bincode = "1.3"
+hex = "0.4"
 wee_alloc = { version = "0.4", optional = true }
 
 [profile.release]

@@ -1,6 +1,7 @@
 //! This module implements the [`ZkvmHost`] trait for the Ligetron zkVM.
 
 use anyhow::Context;
+use bincode::Options;
 use serde::Serialize;
 use sov_rollup_interface::zk::ZkvmHost;
 use std::time::{SystemTime, UNIX_EPOCH};
@@ -100,6 +101,24 @@ impl<'a> LigetronHost<'a> {
         // Secure journal approach: Always use digest + hint chunks pattern
         // Chunk hints to avoid command-line length limits (32KB per chunk)
         const CHUNK_SIZE: usize = 32 * 1024;
+        
+        // Debug: log the size of hints_blob
+        tracing::debug!("hints_blob size: {} bytes", self.hints_blob.len());
+        if std::env::var("LIGETRON_LOG_FULL_IO").is_ok() {
+            tracing::debug!("hints_blob first 100 bytes: {:?}", &self.hints_blob[..std::cmp::min(100, self.hints_blob.len())]);
+            tracing::debug!("hints_blob hex: {}", hex::encode(&self.hints_blob));
+        }
+        if std::env::var("LIGETRON_LOG_HINTS").is_ok() {
+            let preview_len = self.hints_blob.len().min(64);
+            let hex = hex::encode(&self.hints_blob[..preview_len]);
+            eprintln!(
+                "[ligetron-host] build_config hints={} preview={}{}",
+                self.hints_blob.len(),
+                hex,
+                if preview_len < self.hints_blob.len() { "…" } else { "" }
+            );
+        }
+
         let hint_chunks = Self::hex_chunks(&self.hints_blob, CHUNK_SIZE);
         
         // Build typed args: [journal_digest, hint_chunk_0, hint_chunk_1, ...]
@@ -116,8 +135,14 @@ impl<'a> LigetronHost<'a> {
         let json_args: Vec<serde_json::Value> = typed_args.iter().map(Self::arg_to_json).collect();
         
         // Get shader path from environment or use default
+        // Since we change cwd to temp dir, ensure shader path is absolute
         let shader_path = std::env::var("LIGETRON_SHADER_PATH")
-            .unwrap_or_else(|_| self.shader_path.as_deref().unwrap_or("./shader").to_string());
+            .unwrap_or_else(|_| {
+                self.shader_path.as_deref().unwrap_or_else(|| {
+                    // Default to absolute path since we change working directory
+                    "/Users/guillevalin/Documents/dcSpark/sovereign-sdk/crates/adapters/ligetron/shader"
+                }).to_string()
+            });
             
         let config = serde_json::json!({
             "program": program_path,
@@ -135,6 +160,8 @@ impl<'a> LigetronHost<'a> {
     fn run_prover(&mut self, with_proof: bool) -> anyhow::Result<LigetronProofPackage> {
         // Create a unique per-run working directory (auto-cleaned on drop).
         // This isolates proof.data and config files across concurrent runs.
+        // IMPORTANT: run_dir must be kept alive throughout the entire function
+        // to prevent the temporary directory from being deleted while the prover is running.
         let run_dir = Self::make_run_dir().context("Failed to create ligetron run directory")?;
         let _run_id = Self::unique_run_id(); // For future use in config file naming
         let run_path = run_dir.path();
@@ -147,11 +174,11 @@ impl<'a> LigetronHost<'a> {
         // First pass: run prover with dummy digest to get journal
         tracing::debug!("Running Ligetron prover (first pass) to extract journal");
         let (dummy_config, _, _) = self.build_prover_config(
-            &program_path.to_string_lossy(),
+            "program.wasm",  // Use relative path since we set cwd to run_path
             "0x0000000000000000000000000000000000000000000000000000000000000000"
         );
         
-        // Debug: print the config we're trying to use (only if debug logging enabled)
+        // Debug: log the first pass config
         if std::env::var("LIGETRON_LOG_FULL_IO").is_ok() {
             eprintln!("🔧 First pass config: {}", dummy_config);
         }
@@ -188,10 +215,15 @@ impl<'a> LigetronHost<'a> {
         let journal_digest_hex = format!("0x{}", hex::encode(&journal_digest));
 
         // Build config for the final args (needed for both proof and simulation)
-        let (_, final_args, final_private_indices) = self.build_prover_config(
-            &program_path.to_string_lossy(),
+        let (final_config, final_args, final_private_indices) = self.build_prover_config(
+            "program.wasm",  // Use relative path since we set cwd to run_path
             &journal_digest_hex
         );
+        
+        // Debug: log the second pass config
+        if std::env::var("LIGETRON_LOG_FULL_IO").is_ok() {
+            eprintln!("🔧 Second pass config: {}", final_config);
+        }
         // Never store secrets in the package: keep a redacted copy for serialization.
         let redacted_args = Self::redact_private_typed(&final_args, &final_private_indices);
 
@@ -204,7 +236,7 @@ impl<'a> LigetronHost<'a> {
             let _ = std::fs::remove_file(&proof_path);
 
             let (final_config, package_args, package_priv_ix) = self.build_prover_config(
-                &program_path.to_string_lossy(),
+                "program.wasm",  // Use relative path since we set cwd to run_path
                 &journal_digest_hex
             );
 
@@ -295,8 +327,20 @@ impl ZkvmHost for LigetronHost<'static> {
     fn add_hint<T: Serialize>(&mut self, item: T) {
         // Append bincode-serialized item to the hints blob
         // All hints are concatenated into a single private argument
-        bincode::serialize_into(&mut self.hints_blob, &item)
+        let opts = bincode::DefaultOptions::new().with_big_endian();
+        opts.serialize_into(&mut self.hints_blob, &item)
             .expect("Ligetron hint serialization should be infallible");
+
+        if std::env::var("LIGETRON_LOG_HINTS").is_ok() {
+            let preview_len = self.hints_blob.len().min(32);
+            let hex = hex::encode(&self.hints_blob[..preview_len]);
+            eprintln!(
+                "[ligetron-host] add_hint: total={} bytes preview={}{}",
+                self.hints_blob.len(),
+                hex,
+                if preview_len < self.hints_blob.len() { "…" } else { "" }
+            );
+        }
     }
 
     #[cfg(feature = "native")]
@@ -380,85 +424,45 @@ impl<'a> LigetronHost<'a> {
         }
     }
 
-    /// Run binary with config, using privacy-safe order (stdin -> file -> arg)
+    /// Run binary with config, using the same simple approach as the working test project
     fn run_with_config(
         &self,
         bin: &str,
         cwd: &std::path::Path,
         config_json: &str,
     ) -> anyhow::Result<std::process::Output> {
-        use std::io::Write;
+        // Write config to a file in the working directory (like the test project does)
+        let config_path = cwd.join("config.json");
+        std::fs::write(&config_path, config_json)
+            .context("Failed to write config.json")?;
 
-        // 1) Try stdin (privacy-safe default)
-        if let Ok(mut child) = std::process::Command::new(bin)
-            .stdin(std::process::Stdio::piped())
+        // Debug: Log environment details for troubleshooting
+        if std::env::var("LIGETRON_LOG_FULL_IO").is_ok() {
+            eprintln!("🔧 Debug: Running {} from working dir {:?}", bin, cwd);
+            eprintln!("🔧 Debug: Using simple test project approach");
+        }
+
+        // Use the exact same simple approach as the test project
+        let mut cmd = std::process::Command::new(bin);
+        cmd.current_dir(cwd)
             .stdout(std::process::Stdio::piped())
             .stderr(std::process::Stdio::piped())
-            .current_dir(cwd)
-            .spawn()
-        {
-            if let Some(stdin) = child.stdin.as_mut() {
-                let _ = stdin.write_all(config_json.as_bytes());
-            }
-            if let Ok(output) = child.wait_with_output() {
-                // Only accept stdin mode if the process succeeded. Some binaries print
-                // error messages to stderr (non-empty) but still exit with failure.
-                // In that case, fall through to file-based config passing which is
-                // more commonly supported.
-                if output.status.success() {
-                    return Ok(output);
-                }
-            }
-        }
-
-        // 2) Try --config <tempfile> with 0600 perms (privacy-safe)
-        let mut cfg = tempfile::NamedTempFile::new_in(cwd)
-            .context("Failed to create temp config file")?;
-        
-        #[cfg(unix)]
-        {
-            use std::os::unix::fs::PermissionsExt;
-            std::fs::set_permissions(cfg.path(), std::fs::Permissions::from_mode(0o600))
-                .context("Failed to set config file permissions")?;
-        }
-        
-        cfg.write_all(config_json.as_bytes())
-            .context("Failed to write config to temp file")?;
-        let cfg_path = cfg.path().to_path_buf();
-
-        let output = std::process::Command::new(bin)
             .arg("--config")
-            .arg(&cfg_path)
-            .current_dir(cwd)
-            .stdout(std::process::Stdio::piped())
-            .stderr(std::process::Stdio::piped())
-            .output()
-            .context("Failed to run prover with --config");
-        
-        if let Ok(output) = output {
-            return Ok(output); // file is removed when cfg drops
-        }
+            .arg(&config_path);
 
-        // 3) Final fallback: pass JSON directly as an argument (may leak to `ps`)
-        if config_json.len() < 32768 {
-            let output = std::process::Command::new(bin)
-                .arg(config_json)
-                .current_dir(cwd)
-                .stdout(std::process::Stdio::piped())
-                .stderr(std::process::Stdio::piped())
-                .output()
-                .context("Failed to run prover with JSON argument")?;
-            return Ok(output);
-        }
+        // Execute the command (exactly like the test project)
+        let output = cmd.output()
+            .with_context(|| format!("Failed to execute prover command: {}", bin))?;
 
-        anyhow::bail!("All methods to pass config to {} failed", bin)
+        Ok(output)
     }
+
 
     /// Parse journal from output stream looking for SOV_JOURNAL_HEX: lines
     fn parse_journal_from_output(&self, output: &[u8]) -> anyhow::Result<Vec<u8>> {
         let text = String::from_utf8_lossy(output);
         for line in text.lines() {
-            if let Some(mut hex_data) = line.strip_prefix(SOV_JOURNAL_HEX_PREFIX) {
+            if let Some(hex_data) = line.strip_prefix(SOV_JOURNAL_HEX_PREFIX) {
                 // Trim whitespace and handle optional 0x prefix
                 let s = hex_data.trim();
                 let s = s.strip_prefix("0x").unwrap_or(s);
