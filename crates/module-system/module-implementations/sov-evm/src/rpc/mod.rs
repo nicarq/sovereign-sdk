@@ -225,7 +225,6 @@ where
         state: &mut ApiStateAccessor<S>,
     ) -> RpcResult<Bytes> {
         debug!("EVM module JSON-RPC request to `eth_getCode`");
-
         let mut state = self.resolve_state(block_number, state)?;
         let code = self
             .accounts
@@ -236,9 +235,10 @@ where
                     .get(&account.code_hash, state.deref_mut())
                     .unwrap_infallible()
             })
+            .map(|code| code.bytecode().clone())
             .unwrap_or_default();
 
-        Ok(code.bytecode().clone())
+        Ok(code.clone())
     }
 
     /// Handler for: `eth_feeHistory`
