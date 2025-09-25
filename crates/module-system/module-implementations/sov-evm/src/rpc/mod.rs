@@ -618,6 +618,10 @@ where
                 .timestamp
                 .try_into()
                 .expect("The impossible happened: timestamp overflow u64"),
+            excess_blob_gas: current_block_env
+                .blob_excess_gas_and_price
+                .map(|blob_gas| blob_gas.excess_blob_gas),
+
             ..Default::default()
         };
 
