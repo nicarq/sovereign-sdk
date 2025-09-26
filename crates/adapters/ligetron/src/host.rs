@@ -12,12 +12,7 @@ use crate::guest::LigetronGuest;
 /// Journal prefix that guest programs should emit to stdout for journal extraction
 pub const SOV_JOURNAL_HEX_PREFIX: &str = "SOV_JOURNAL_HEX:";
 
-// TEMPORARY: Hardcode the Ligetron guest to the demo backup program
-// This ensures the prover always runs the same WASM used by the demo script.
-// Path is resolved at compile time relative to this file.
-const LIGETRON_BACKUP_WASM: &[u8] = include_bytes!(
-    "../../../../examples/demo-rollup/ligetron_backup.wasm"
-);
+
 
 /// A [`LigetronHost`] stores a WASM program to execute in the Ligetron zkVM,
 /// and accumulates hints to be provided to its execution.
@@ -52,10 +47,9 @@ impl<'a> LigetronHost<'a> {
     }
 
     /// Create a new LigetronHost to prove the given WASM program.
-    pub fn new(_program_wasm: &'a [u8]) -> Self {
+    pub fn new(program_wasm: &'a [u8]) -> Self {
         Self {
-            // Hardcode to backup demo WASM regardless of caller input
-            wasm: LIGETRON_BACKUP_WASM,
+            wasm: program_wasm,
             hints_blob: Vec::new(),
             packing: Self::default_packing(),
             shader_path: std::env::var("LIGETRON_SHADER_PATH").ok(),
@@ -185,10 +179,6 @@ impl<'a> LigetronHost<'a> {
             "0x0000000000000000000000000000000000000000000000000000000000000000"
         );
         
-        // Debug: log the first pass config
-        if std::env::var("LIGETRON_LOG_FULL_IO").is_ok() {
-            eprintln!("🔧 First pass config: {}", dummy_config);
-        }
 
         let output = self.run_with_config(&self.prover_bin, run_path, &dummy_config.to_string())
             .with_context(|| format!("Failed to run Ligetron prover (first pass): {}", self.prover_bin))?;
@@ -227,10 +217,6 @@ impl<'a> LigetronHost<'a> {
             &journal_digest_hex
         );
         
-        // Debug: log the second pass config
-        if std::env::var("LIGETRON_LOG_FULL_IO").is_ok() {
-            eprintln!("🔧 Second pass config: {}", final_config);
-        }
         // Never store secrets in the package: keep a redacted copy for serialization.
         let redacted_args = Self::redact_private_typed(&final_args, &final_private_indices);
 

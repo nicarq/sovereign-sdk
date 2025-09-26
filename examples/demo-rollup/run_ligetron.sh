@@ -153,16 +153,11 @@ build_ligetron_guest() {
 # Build Ligetron guest when proving/executing
 case "$MODE" in
   prove|execute)
-    # TEMPORARILY DISABLED: build_ligetron_guest
-    # Use our custom WAT program instead via environment variable
-    echo "==> Using custom WAT program instead of building Rust guest"
-    export LIGETRON_WASM_MOCK="$SCRIPT_DIR/ligetron_backup.wasm"
+    build_ligetron_guest
     ;;
   simulate)
     # Simulation may not require the real prover, but building is cheap and avoids surprises
-    # TEMPORARILY DISABLED: build_ligetron_guest || true
-    echo "==> Using custom WAT program for simulation"
-    export LIGETRON_WASM_MOCK="$SCRIPT_DIR/ligetron_backup.wasm"
+    build_ligetron_guest || true
     ;;
   *) ;;
 esac
