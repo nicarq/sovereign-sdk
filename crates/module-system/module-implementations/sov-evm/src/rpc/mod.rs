@@ -352,18 +352,16 @@ where
         debug!("EVM module JSON-RPC request to `eth_estimateGas`");
         let result = self.call(request, block_number, state)?;
         let gas_used = result.gas_used();
-        state
+        let gas_meter = state.try_as_basic_gas_meter().unwrap();
+        gas_meter
             .charge_linear_gas(
                 &<S as GasSpec>::gas_to_charge_per_evm_gas(),
                 gas_used as u32,
             )
-            .unwrap();
-        let gas_meter = state.try_as_basic_gas_meter().unwrap();
+            .expect("No underflow is possible here as we init EVM gas with gas meter gas");
         let total_gas_used =
             gas_meter.initial_gas.as_ref()[0] - gas_meter.remaining_gas.as_ref()[0];
-        const RELATIVE_MARGIN: u64 = 100_000;
-        let gas_used_with_margins = (total_gas_used * 3) / 2 + RELATIVE_MARGIN; // gas * 1.5 + 100_000
-        Ok(U64::from(gas_used_with_margins))
+        Ok(U64::from(apply_margins(total_gas_used)?))
     }
 
     /// Handler for: `debug_traceTransaction`
@@ -438,6 +436,15 @@ pub enum PendingOrBlock {
     Number(u64),
     /// Invalid block number.
     Invalid(String),
+}
+
+const ABSOLUTE_MARGIN: u64 = 100_000;
+/// gas * 1.5 + 100_000
+fn apply_margins(gas: u64) -> Result<u64, RpcInvalidTransactionError> {
+    (gas / 2)
+        .checked_mul(3)
+        .and_then(|with_relative_margin| with_relative_margin.checked_add(ABSOLUTE_MARGIN))
+        .ok_or(RpcInvalidTransactionError::GasUintOverflow)
 }
 
 impl<S: Spec> Evm<S>
