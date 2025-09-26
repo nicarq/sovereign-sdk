@@ -153,10 +153,17 @@ build_ligetron_guest() {
 # Build Ligetron guest when proving/executing
 case "$MODE" in
   prove|execute)
-    build_ligetron_guest ;;
+    # TEMPORARILY DISABLED: build_ligetron_guest
+    # Use our custom WAT program instead via environment variable
+    echo "==> Using custom WAT program instead of building Rust guest"
+    export LIGETRON_WASM_MOCK="$SCRIPT_DIR/ligetron_backup.wasm"
+    ;;
   simulate)
     # Simulation may not require the real prover, but building is cheap and avoids surprises
-    build_ligetron_guest || true ;;
+    # TEMPORARILY DISABLED: build_ligetron_guest || true
+    echo "==> Using custom WAT program for simulation"
+    export LIGETRON_WASM_MOCK="$SCRIPT_DIR/ligetron_backup.wasm"
+    ;;
   *) ;;
 esac
 
@@ -172,7 +179,10 @@ echo "==> Ligetron settings"
 echo "    PROVER:   $LIGETRON_PROVER"
 echo "    VERIFIER: $LIGETRON_VERIFIER"
 echo "    SHADERS:  $LIGETRON_SHADER_PATH"
-if [ -n "${LIGETRON_WASM_MOCK:-}" ]; then echo "    WASM(mock):     $LIGETRON_WASM_MOCK"; fi
+if [ -n "${LIGETRON_WASM_MOCK:-}" ]; then 
+    echo "    WASM(mock):     $LIGETRON_WASM_MOCK"
+    echo "    WASM size:      $(wc -c < "$LIGETRON_WASM_MOCK" 2>/dev/null || echo "N/A") bytes"
+fi
 if [ -n "${LIGETRON_WASM_CELESTIA:-}" ]; then echo "    WASM(celestia): $LIGETRON_WASM_CELESTIA"; fi
 echo "    MODE:     $SOV_PROVER_MODE"
 echo "    BACKTRACE:$RUST_BACKTRACE"

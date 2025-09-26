@@ -10,19 +10,7 @@ name = "sov_demo_prover_guest_mock_ligetron"
 path = "src/main.rs"
 
 [dependencies]
-demo-stf = { path = "../../../stf" }
-sov-ligetron-adapter = { path = "../../../../../crates/adapters/ligetron" }
-sov-mock-da = { path = "../../../../../crates/adapters/mock-da" }
-sov-address = { path = "../../../../../crates/module-system/sov-address" }
-sov-mock-zkvm = { path = "../../../../../crates/adapters/mock-zkvm" }
-sov-modules-api = { path = "../../../../../crates/module-system/sov-modules-api" }
-sov-state = { path = "../../../../../crates/module-system/sov-state" }
-sov-modules-stf-blueprint = { path = "../../../../../crates/module-system/sov-modules-stf-blueprint" }
-sov-kernels = { path = "../../../../../crates/module-system/sov-kernels" }
-sov-rollup-interface = { path = "../../../../../crates/rollup-interface" }
-bincode = "1.3"
 hex = "0.4"
-wee_alloc = { version = "0.4", optional = true }
 
 [profile.release]
 opt-level = 3
@@ -30,9 +18,4 @@ lto = true
 
 [features]
 default = []
-tiny = ["wee_alloc"]
-bench = [
-    "sov-modules-api/bench",
-    "sov-state/bench",
-    "sov-modules-stf-blueprint/bench"
-]
+tiny = []

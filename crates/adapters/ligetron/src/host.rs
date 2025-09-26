@@ -12,6 +12,13 @@ use crate::guest::LigetronGuest;
 /// Journal prefix that guest programs should emit to stdout for journal extraction
 pub const SOV_JOURNAL_HEX_PREFIX: &str = "SOV_JOURNAL_HEX:";
 
+// TEMPORARY: Hardcode the Ligetron guest to the demo backup program
+// This ensures the prover always runs the same WASM used by the demo script.
+// Path is resolved at compile time relative to this file.
+const LIGETRON_BACKUP_WASM: &[u8] = include_bytes!(
+    "../../../../examples/demo-rollup/ligetron_backup.wasm"
+);
+
 /// A [`LigetronHost`] stores a WASM program to execute in the Ligetron zkVM,
 /// and accumulates hints to be provided to its execution.
 #[derive(Clone)]
@@ -45,9 +52,10 @@ impl<'a> LigetronHost<'a> {
     }
 
     /// Create a new LigetronHost to prove the given WASM program.
-    pub fn new(program_wasm: &'a [u8]) -> Self {
+    pub fn new(_program_wasm: &'a [u8]) -> Self {
         Self {
-            wasm: program_wasm,
+            // Hardcode to backup demo WASM regardless of caller input
+            wasm: LIGETRON_BACKUP_WASM,
             hints_blob: Vec::new(),
             packing: Self::default_packing(),
             shader_path: std::env::var("LIGETRON_SHADER_PATH").ok(),
@@ -139,8 +147,7 @@ impl<'a> LigetronHost<'a> {
         let shader_path = std::env::var("LIGETRON_SHADER_PATH")
             .unwrap_or_else(|_| {
                 self.shader_path.as_deref().unwrap_or_else(|| {
-                    // Default to absolute path since we change working directory
-                    "/Users/guillevalin/Documents/dcSpark/sovereign-sdk/crates/adapters/ligetron/shader"
+                    "shader"
                 }).to_string()
             });
             
