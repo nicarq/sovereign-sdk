@@ -90,19 +90,7 @@ export SKIP_GUEST_BUILD=1
 
 # Build the appropriate Ligetron guest WASM and set env var so the adapter can load it
 build_ligetron_guest() {
-  # Decide target triple: prefer explicit env, else autodetect, else install wasm32-wasip1
-  # Prefer current toolchain with WASI p1 target; avoid pinning older toolchains
-  if [ -n "${LIGETRON_WASM_TARGET:-}" ]; then
-    TARGET_TRIPLE="$LIGETRON_WASM_TARGET"
-  else
-    if rustc --print target-list | grep -q '^wasm32-wasip1$'; then
-      TARGET_TRIPLE="wasm32-wasip1"
-    elif rustc --print target-list | grep -q '^wasm32-wasi$'; then
-      TARGET_TRIPLE="wasm32-wasi"
-    else
-      TARGET_TRIPLE="wasm32-wasip1"
-    fi
-  fi
+  TARGET_TRIPLE="wasm32-wasip1"
   echo "==> Using WASM target: $TARGET_TRIPLE (toolchain: $(rustc -V))"
 
   local pkg pkg_dir manifest file out
@@ -139,7 +127,7 @@ build_ligetron_guest() {
   fi
   if [ ! -f "$out" ]; then
     echo "Error: expected guest artifact not found: $out" >&2
-    echo "Hint: ensure Rust WASI target is installed (wasm32-wasip1 or wasm32-wasi) and the build succeeded." >&2
+    echo "Hint: ensure Rust WASI target is installed (wasm32-wasip1) and the build succeeded." >&2
     exit 1
   fi
 
