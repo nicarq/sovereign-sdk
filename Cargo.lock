@@ -6688,6 +6688,22 @@ dependencies = [
 ]
 
 [[package]]
+name = "ligetron"
+version = "0.1.0"
+dependencies = [
+ "anyhow",
+ "lazy_static",
+ "once_cell",
+ "sov-zkvm-utils",
+]
+
+[[package]]
+name = "linux-raw-sys"
+version = "0.4.15"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "d26c52dbd32dccf2d10cac7725f8eae5296885fb5703b261f7d0a0739ec807ab"
+
+[[package]]
 name = "linux-raw-sys"
 version = "0.11.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -10865,6 +10881,19 @@ dependencies = [
 
 [[package]]
 name = "rustix"
+version = "0.38.44"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "fdb5bc1ae2baa591800df16c9ca78619bf65c0488b41b96ccec5d11220d8c154"
+dependencies = [
+ "bitflags 2.9.4",
+ "errno",
+ "libc",
+ "linux-raw-sys 0.4.15",
+ "windows-sys 0.59.0",
+]
+
+[[package]]
+name = "rustix"
 version = "1.1.2"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "cd15f8a2c5551a84d56efdc1cd049089e409ac19a3072d5037a17fd70719ff3e"
@@ -10872,7 +10901,7 @@ dependencies = [
  "bitflags 2.9.4",
  "errno",
  "libc",
- "linux-raw-sys",
+ "linux-raw-sys 0.11.0",
  "windows-sys 0.61.0",
 ]
 
@@ -12241,6 +12270,7 @@ dependencies = [
  "futures",
  "hex",
  "jsonrpsee",
+ "ligetron",
  "prettytable-rs",
  "prometheus_exporter",
  "proptest",
@@ -12266,6 +12296,7 @@ dependencies = [
  "sov-eth-client",
  "sov-ethereum",
  "sov-kernels",
+ "sov-ligetron-adapter",
  "sov-metrics",
  "sov-mock-da",
  "sov-mock-zkvm",
@@ -12551,6 +12582,29 @@ dependencies = [
  "tokio",
  "tracing",
  "utoipa-swagger-ui",
+]
+
+[[package]]
+name = "sov-ligetron-adapter"
+version = "0.3.0"
+dependencies = [
+ "anyhow",
+ "bincode",
+ "borsh",
+ "ed25519-dalek 2.2.0",
+ "hex",
+ "rand 0.8.5",
+ "schemars 0.8.22",
+ "serde",
+ "serde_json",
+ "sha2 0.10.9",
+ "sov-ligetron-adapter",
+ "sov-rollup-interface",
+ "sov-zkvm-utils",
+ "tempfile",
+ "thiserror 1.0.69",
+ "tracing",
+ "which",
 ]
 
 [[package]]
@@ -14590,7 +14644,7 @@ dependencies = [
  "fastrand",
  "getrandom 0.3.3",
  "once_cell",
- "rustix",
+ "rustix 1.1.2",
  "windows-sys 0.61.0",
 ]
 
@@ -16200,6 +16254,18 @@ dependencies = [
 ]
 
 [[package]]
+name = "which"
+version = "4.4.2"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "87ba24419a2078cd2b0f2ede2691b6c66d8e47836da3b6db8265ebad47afbfc7"
+dependencies = [
+ "either",
+ "home",
+ "once_cell",
+ "rustix 0.38.44",
+]
+
+[[package]]
 name = "whoami"
 version = "1.6.1"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -16794,7 +16860,7 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "af3a19837351dc82ba89f8a125e22a3c475f05aba604acc023d62b2739ae2909"
 dependencies = [
  "libc",
- "rustix",
+ "rustix 1.1.2",
 ]
 
 [[package]]

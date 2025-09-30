@@ -2,8 +2,10 @@
 
 PROVER_DIRS := examples/demo-rollup/provers/risc0/guest-mock \
                examples/demo-rollup/provers/risc0/guest-celestia \
-  			   examples/demo-rollup/provers/sp1/guest-mock \
-			   examples/demo-rollup/provers/sp1/guest-celestia
+               examples/demo-rollup/provers/sp1/guest-mock \
+               examples/demo-rollup/provers/sp1/guest-celestia \
+               examples/demo-rollup/provers/ligetron/guest-mock \
+               examples/demo-rollup/provers/ligetron/guest-celestia
 
 # Absolutely all dirs
 ALL_DIRS := $(PROVER_DIRS)

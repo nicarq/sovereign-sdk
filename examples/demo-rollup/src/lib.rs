@@ -13,14 +13,30 @@ mod mock_rollup;
 
 pub use mock_rollup::*;
 
+mod mock_rollup_ligetron;
+pub use mock_rollup_ligetron::*;
+
 mod celestia_rollup;
 pub use celestia_rollup::*;
+
+mod celestia_rollup_ligetron;
+pub use celestia_rollup_ligetron::*;
 
 mod celestia_nomt_rollup;
 pub use celestia_nomt_rollup::*;
 
+mod celestia_nomt_rollup_ligetron;
+pub use celestia_nomt_rollup_ligetron::*;
+
+mod mock_nomt_rollup_ligetron;
+pub use mock_nomt_rollup_ligetron::*;
+
 mod mock_nomt_rollup;
 pub use mock_nomt_rollup::*;
+
+mod mock_ligero_rollup;
+pub use mock_ligero_rollup::*;
+
 
 mod zk;
 pub use zk::*;
@@ -39,3 +55,6 @@ fn eth_dev_signer() -> sov_ethereum::Signers {
     )
     .unwrap()])
 }
+
+// Temporary export for alternate naming (ligero)
+// (Keep a single definition of this module.)

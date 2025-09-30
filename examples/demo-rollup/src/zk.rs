@@ -22,12 +22,42 @@ pub fn celestia_risc0_host_args() -> Arc<&'static [u8]> {
     Arc::new(risc0::ROLLUP_ELF)
 }
 
+/// Returns the ligetron host arguments for a rollup with mock da. This is the code that is zk-proven by the rollup
+pub fn mock_da_ligetron_host_args() -> Arc<&'static [u8]> {
+    if should_skip_ligetron_guest_build() {
+        return Arc::new(vec![].leak());
+    }
+    Arc::new(*ligetron::LIGETRON_GUEST_MOCK_WASM)
+}
+
+/// Returns the ligetron host arguments for a rollup with celestia da. This is the code that is zk-proven by the rollup
+pub fn celestia_ligetron_host_args() -> Arc<&'static [u8]> {
+    if should_skip_ligetron_guest_build() {
+        return Arc::new(vec![].leak());
+    }
+    Arc::new(*ligetron::LIGETRON_GUEST_CELESTIA_WASM)
+}
+
 fn should_skip_guest_build() -> bool {
     match std::env::var("SKIP_GUEST_BUILD")
         .as_ref()
         .map(|arg0: &String| String::as_str(arg0))
     {
-        Ok("1") | Ok("true") | Ok("risc0") => true,
+        Ok("1") | Ok("true") | Ok("risc0") | Ok("ligetron") => true,
         Ok("0") | Ok("false") | Ok(_) | Err(_) => false,
+    }
+}
+
+fn should_skip_ligetron_guest_build() -> bool {
+    match std::env::var("SKIP_GUEST_BUILD")
+        .as_ref()
+        .map(|arg0: &String| String::as_str(arg0))
+    {
+        // Only skip Ligetron guest when explicitly told to skip "ligetron"
+        // Don't skip when SKIP_GUEST_BUILD="1" (which is for RISC0/SP1)
+        Ok("ligetron") => true,
+        Ok("true") => false,  // Don't skip Ligetron for generic "true"
+        Ok("1") => false,     // Don't skip Ligetron for generic "1"
+        Ok("0") | Ok("false") | Ok("risc0") | Ok(_) | Err(_) => false,
     }
 }

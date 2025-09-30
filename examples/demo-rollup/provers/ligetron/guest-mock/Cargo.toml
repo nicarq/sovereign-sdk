@@ -1,0 +1,22 @@
+[package]
+name = "sov-demo-prover-guest-mock-ligetron"
+version = "0.1.0"
+edition = "2021"
+
+[workspace]
+
+[[bin]]
+name = "sov_demo_prover_guest_mock_ligetron"
+path = "src/main.rs"
+
+[dependencies]
+hex = "0.4"
+
+[profile.release]
+opt-level = "s"  # Optimize for size
+lto = true
+panic = "abort"
+
+[features]
+default = []
+tiny = []
