@@ -26,7 +26,6 @@ ed25519-dalek = { git = "https://github.com/risc0/curve25519-dalek", rev = "3dcc
 hex = { workspace = true }
 proptest = { workspace = true, features = ["alloc", "std"], optional = true }
 rand = { workspace = true, optional = true }
-risc0-zkvm = { workspace = true, features = ["std", "metal"] }
 risc0-zkvm-platform = { workspace = true }
 schemars = { workspace = true, features = ["derive"] }
 serde = { workspace = true, features = [
@@ -61,6 +60,7 @@ native = [
     "rand",
     "sov-metrics?/native",
     "risc0-zkvm/prove",
+    "risc0-zkvm/metal",
     "sov-rollup-interface/native",
     "home",
     "sov-risc0-adapter/native"
@@ -76,6 +76,13 @@ arbitrary = [
     "sov-risc0-adapter/arbitrary"
 ]
 bincode = []
+
+[target.'cfg(not(target_os = "zkvm"))'.dependencies]
+risc0-zkvm = { workspace = true, features = ["std"] }
+
+[target.'cfg(target_os = "zkvm")'.dependencies]
+# Guest compiles against the 2.1.x series explicitly.
+risc0-zkvm = { version = "2.1", default-features = false, features = ["std"] }
 
 [[test]]
 name = "native"

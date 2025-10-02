@@ -21,6 +21,12 @@ fn main() {
 
         std::fs::write(methods_path, elf).expect("Failed to write mock rollup elf");
     } else {
+        // Ensure host-side build scripts (build-dependencies, proc-macros) use host toolchain.
+        // This prevents cc-rs from invoking the riscv toolchain for host crates and
+        // accidentally passing macOS-only flags to it.
+        std::env::set_var("HOST_CC", "clang");
+        std::env::set_var("HOST_CXX", "clang++");
+        std::env::set_var("HOST_AR", "ar");
         let guest_pkg_to_options = get_guest_options();
         risc0_build::embed_methods_with_options(guest_pkg_to_options);
     }
