@@ -1,0 +1,960 @@
+==============================================
+Git Diff Report - Tue Sep 30 21:04:40 CDT 2025
+==============================================
+Branch: nico/ligero
+Commit: 3e937ff0f
+Base commit: 3e937ff0f
+
+==============================================
+Git Status Summary
+==============================================
+?? crates/module-system/module-implementations/midnight-privacy/
+
+==============================================
+Diff of Modified Files (against HEAD)
+==============================================
+
+==============================================
+Untracked Files Content
+==============================================
+Untracked files found:
+crates/module-system/module-implementations/midnight-privacy/Cargo.toml
+crates/module-system/module-implementations/midnight-privacy/README.md
+crates/module-system/module-implementations/midnight-privacy/src/audit.rs
+crates/module-system/module-implementations/midnight-privacy/src/call.rs
+crates/module-system/module-implementations/midnight-privacy/src/event.rs
+crates/module-system/module-implementations/midnight-privacy/src/lib.rs
+crates/module-system/module-implementations/midnight-privacy/src/merkle.rs
+crates/module-system/module-implementations/midnight-privacy/src/state.rs
+crates/module-system/module-implementations/midnight-privacy/src/verifier/mod.rs
+crates/module-system/module-implementations/midnight-privacy/tests/shielded_pool.rs
+
+--- Content of crates/module-system/module-implementations/midnight-privacy/Cargo.toml ---
+[package]
+name = "midnight-privacy"
+authors = { workspace = true }
+edition = { workspace = true }
+homepage = { workspace = true }
+license = { workspace = true }
+repository = { workspace = true }
+
+version = { workspace = true }
+readme = "README.md"
+publish = false
+
+[lints]
+workspace = true
+
+[dependencies]
+anyhow = { workspace = true }
+arbitrary = { workspace = true, optional = true }
+borsh = { workspace = true, features = ["rc"] }
+schemars = { workspace = true }
+serde = { workspace = true }
+sov-modules-api = { workspace = true }
+sov-state = { workspace = true }
+sov-bank = { workspace = true }
+bincode = { workspace = true }
+sha2 = { workspace = true }
+
+[dev-dependencies]
+tempfile = { workspace = true }
+strum = { workspace = true }
+midnight-privacy = { path = ".", version = "*", features = ["native"] }
+sov-test-utils = { workspace = true }
+
+[features]
+default = []
+arbitrary = [
+	"dep:arbitrary",
+	"sov-modules-api/arbitrary",
+	"sov-state/arbitrary",
+	"sov-test-utils/arbitrary",
+]
+native = [
+	"sov-modules-api/native",
+	"sov-state/native",
+    "sov-bank/native",
+]
+
+# Optional verifiers
+verify-groth16 = []
+verify-risc0 = []
+
+--- End of crates/module-system/module-implementations/midnight-privacy/Cargo.toml ---
+
+--- Content of crates/module-system/module-implementations/midnight-privacy/README.md ---
+# `midnight-privacy` — Shielded Pool with Selective Privacy
+
+This module implements a minimal shielded pool with nullifier-based double-spend protection and optional selective disclosure via viewing keys.
+
+- Calls:
+  - `Deposit { token_id, amount, commitment }`
+  - `Spend { proof, anchor_root, audit_payloads, withdraw_to?, withdraw? }`
+  - `Withdraw { proof, anchor_root, to, token_id, amount, audit_payloads }`
+  - `RegisterViewer { id, pubkey }`
+  - `GrantViewAccess { tx_ref, payload }`
+
+- Events:
+  - `CommitmentInserted { commitment, new_root }`
+  - `NullifierUsed { nf }`
+  - `AuditPayloadPublished { viewer_id, tx_ref, epk, size }`
+
+Notes
+
+- Verification is pluggable. By default, the crate includes a mock verifier that expects the `proof` field to be a bincode-serialized `SpendPublic`. Feature-gated host/guest verifiers can be added behind `verify-groth16` / `verify-risc0`.
+- Audit payloads are emitted as events for off-chain indexing and selective disclosure.
+
+Build & test
+
+```
+cargo build --bins
+cargo test -p midnight-privacy
+```
+
+--- End of crates/module-system/module-implementations/midnight-privacy/README.md ---
+
+--- Content of crates/module-system/module-implementations/midnight-privacy/src/audit.rs ---
+use serde::{Deserialize, Serialize};
+use sov_modules_api::macros::UniversalWallet;
+
+use crate::state::{Hash32, ViewerId};
+
+/// Envelope sealed to a viewer VPK using X25519 + HKDF + XChaCha20-Poly1305
+#[derive(Clone, Debug, Serialize, Deserialize, PartialEq, Eq, schemars::JsonSchema, borsh::BorshSerialize, borsh::BorshDeserialize, UniversalWallet)]
+pub struct AuditCiphertext {
+    pub viewer_id: ViewerId,
+    pub epk: [u8; 32],
+    pub nonce: [u8; 24],
+    pub ct: Vec<u8>,
+}
+
+/// Tiny on-chain reference for an audit bundle
+#[derive(Clone, Debug, Serialize, Deserialize, PartialEq, Eq, schemars::JsonSchema, borsh::BorshSerialize, borsh::BorshDeserialize, UniversalWallet)]
+pub struct AuditIndexEntry {
+    pub count: u16,
+    pub audit_commitment: Hash32,
+}
+
+--- End of crates/module-system/module-implementations/midnight-privacy/src/audit.rs ---
+
+--- Content of crates/module-system/module-implementations/midnight-privacy/src/call.rs ---
+use anyhow::{anyhow, ensure, Result};
+use schemars::JsonSchema;
+use sov_bank::{config_gas_token_id, Coins, IntoPayable};
+use sov_modules_api::macros::{serialize, UniversalWallet};
+use sov_modules_api::{Context, EventEmitter, Spec, TxState};
+
+use crate::audit::{AuditCiphertext, AuditIndexEntry};
+use crate::event::Event;
+use crate::merkle;
+use crate::state::{Commitment, Hash32, ViewerId};
+use crate::verifier::{mock::AcceptAll, SpendVerifier};
+use crate::ShieldedPool;
+
+/// Call messages for interacting with the shielded pool.
+#[derive(Debug, PartialEq, Eq, Clone, JsonSchema, UniversalWallet)]
+#[serialize(Borsh, Serde)]
+#[serde(bound = "S: Spec", rename_all = "snake_case")]
+#[schemars(bound = "S: Spec", rename = "CallMessage")]
+pub enum CallMessage<S: Spec> {
+    Deposit {
+        token_id: sov_bank::TokenId,
+        amount: sov_bank::Amount,
+        commitment: Commitment,
+    },
+    Spend {
+        proof: sov_modules_api::SafeVec<u8, 1_000_000>,
+        anchor_root: Hash32,
+        audit_payloads: sov_modules_api::SafeVec<AuditCiphertext, 32>,
+        withdraw_to: Option<S::Address>,
+        withdraw: Option<(sov_bank::TokenId, sov_bank::Amount)>,
+    },
+    Withdraw {
+        proof: sov_modules_api::SafeVec<u8, 1_000_000>,
+        anchor_root: Hash32,
+        to: S::Address,
+        token_id: sov_bank::TokenId,
+        amount: sov_bank::Amount,
+        audit_payloads: sov_modules_api::SafeVec<AuditCiphertext, 32>,
+    },
+    RegisterViewer { id: ViewerId, pubkey: [u8; 32] },
+    GrantViewAccess { tx_ref: Hash32, payload: AuditCiphertext },
+}
+
+impl<S: Spec> ShieldedPool<S> {
+    pub(crate) fn deposit(
+        &mut self,
+        token_id: sov_bank::TokenId,
+        amount: sov_bank::Amount,
+        c: Commitment,
+        ctx: &Context<S>,
+        state: &mut impl TxState<S>,
+    ) -> Result<()> {
+        // Move funds from sender to module escrow
+        self.bank
+            .transfer(self.id.to_payable(), Coins { token_id, amount }, ctx, state)?;
+
+        // Append commitment and rotate roots window
+        let mut tree = self.commitment_tree.get(state)?.unwrap_or_default();
+        tree.insert(c)?;
+        let new_root = tree.root()?;
+        self.commitment_tree.set(&tree, state)?;
+        let mut window = self.recent_roots.get(state)?.unwrap_or_default();
+        if window.len() >= crate::state::MAX_ROOTS {
+            window.remove(0);
+        }
+        window.push(new_root);
+        self.recent_roots.set::<Vec<Hash32>, _>(&window, state)?;
+        self.emit_event(state, Event::CommitmentInserted { commitment: c, new_root });
+        Ok(())
+    }
+
+    pub(crate) fn spend(
+        &mut self,
+        proof: Vec<u8>,
+        anchor_root: Hash32,
+        audit_payloads: Vec<AuditCiphertext>,
+        withdraw_to: Option<S::Address>,
+        withdraw: Option<(sov_bank::TokenId, sov_bank::Amount)>,
+        ctx: &Context<S>,
+        state: &mut impl TxState<S>,
+    ) -> Result<()> {
+        // 1) Anchor validation
+        let roots = self.recent_roots.get(state)?.unwrap_or_default();
+        ensure!(roots.contains(&anchor_root), "unknown anchor");
+
+        // 2) Verify proof (mock by default, deserialize SpendPublic)
+        let vk_hash = self
+            .vk_hash
+            .get(state)?
+            .ok_or_else(|| anyhow!("vk not set"))?;
+        let verifier = AcceptAll::default();
+        let public = verifier.verify(&proof, vk_hash)?;
+
+        // 3) Public inputs checks
+        let domain = self
+            .domain
+            .get(state)?
+            .ok_or_else(|| anyhow!("domain not set"))?;
+        ensure!(public.anchor_root == anchor_root, "anchor mismatch");
+        ensure!(public.vk_hash == vk_hash, "vk mismatch");
+        ensure!(
+            merkle::hash_bytes(&bincode::serialize(&audit_payloads).unwrap())
+                == public.audit_commitment,
+            "audit commitment mismatch"
+        );
+
+        // 4) Nullifiers: no duplicates
+        for nf in &public.nullifiers {
+            let key = sov_modules_api::HexHash::new(merkle::hash_bytes(&[domain.as_slice(), nf.as_slice()].concat()));
+            ensure!(self.nullifiers.get(&key, state)?.is_none(), "nullifier re-use");
+        }
+        for nf in &public.nullifiers {
+            let key = sov_modules_api::HexHash::new(merkle::hash_bytes(&[domain.as_slice(), nf.as_slice()].concat()));
+            self.nullifiers.set(&key, &(), state)?;
+            self.emit_event(state, Event::NullifierUsed { nf: *nf });
+        }
+
+        // 5) Insert new commitments, update root
+        let mut tree = self.commitment_tree.get(state)?.unwrap_or_default();
+        for c in &public.commitments {
+            tree.insert(*c)?;
+            let new_root = tree.root()?;
+            self.emit_event(state, Event::CommitmentInserted { commitment: *c, new_root });
+        }
+        let new_root = tree.root()?;
+        self.commitment_tree.set(&tree, state)?;
+        let mut window = self.recent_roots.get(state)?.unwrap_or_default();
+        if window.len() >= crate::state::MAX_ROOTS {
+            window.remove(0);
+        }
+        window.push(new_root);
+        self.recent_roots.set::<Vec<Hash32>, _>(&window, state)?;
+
+        // 6) Fee routing (gas token)
+        if public.fee > 0 {
+            self.bank.transfer_from(
+                self.id.to_payable(),
+                ctx.sequencer(),
+                Coins { token_id: config_gas_token_id(), amount: public.fee.into() },
+                state,
+            )?;
+        }
+
+        // 7) Optional withdraw
+        if let (Some(to), Some((token_id, amount))) = (withdraw_to, withdraw) {
+            self.bank
+                .transfer_from(self.id.to_payable(), &to, Coins { token_id, amount }, state)?;
+        }
+
+        // 8) Emit audit payloads and store index entry
+        let tx_ref_bytes = merkle::hash_bytes(&proof);
+        let tx_ref = tx_ref_bytes;
+        let mut count: u16 = 0;
+        for a in &audit_payloads {
+            let viewer_key = sov_modules_api::HexHash::new(a.viewer_id);
+            ensure!(self.viewers.get(&viewer_key, state)?.is_some(), "unknown viewer_id");
+            count = count.saturating_add(1);
+            self.emit_event(
+                state,
+                Event::AuditPayloadPublished {
+                    viewer_id: a.viewer_id,
+                    tx_ref: tx_ref_bytes,
+                    epk: a.epk,
+                    size: a.ct.len() as u32,
+                },
+            );
+        }
+        self.audit_index.set(
+            &sov_modules_api::HexHash::new(tx_ref_bytes),
+            &AuditIndexEntry {
+                count,
+                audit_commitment: public.audit_commitment,
+            },
+            state,
+        )?;
+        Ok(())
+    }
+
+    pub(crate) fn grant_access(
+        &mut self,
+        tx_ref: Hash32,
+        payload: AuditCiphertext,
+        state: &mut impl TxState<S>,
+    ) -> Result<()> {
+        let viewer_key = sov_modules_api::HexHash::new(payload.viewer_id);
+        ensure!(self.viewers.get(&viewer_key, state)?.is_some(), "unknown viewer_id");
+        let mut idx = self
+            .audit_index
+            .get(&sov_modules_api::HexHash::new(tx_ref), state)?
+            .ok_or_else(|| anyhow!("unknown tx_ref"))?;
+        idx.count = idx.count.saturating_add(1);
+        self.audit_index
+            .set(&sov_modules_api::HexHash::new(tx_ref), &idx, state)?;
+        self.emit_event(
+            state,
+            Event::AuditPayloadPublished { viewer_id: payload.viewer_id, tx_ref, epk: payload.epk, size: payload.ct.len() as u32 },
+        );
+        Ok(())
+    }
+}
+
+--- End of crates/module-system/module-implementations/midnight-privacy/src/call.rs ---
+
+--- Content of crates/module-system/module-implementations/midnight-privacy/src/event.rs ---
+use sov_modules_api::macros::serialize;
+
+use crate::state::{Commitment, Hash32, Nullifier, ViewerId};
+
+/// Events streamed by the module
+#[derive(Debug, PartialEq, Clone, schemars::JsonSchema)]
+#[serialize(Borsh, Serde)]
+#[serde(rename_all = "snake_case")]
+pub enum Event {
+    CommitmentInserted { commitment: Commitment, new_root: Hash32 },
+    NullifierUsed { nf: Nullifier },
+    AuditPayloadPublished { viewer_id: ViewerId, tx_ref: Hash32, epk: [u8; 32], size: u32 },
+}
+
+--- End of crates/module-system/module-implementations/midnight-privacy/src/event.rs ---
+
+--- Content of crates/module-system/module-implementations/midnight-privacy/src/lib.rs ---
+mod call;
+mod event;
+pub mod merkle;
+pub mod audit;
+pub mod verifier;
+pub mod state;
+
+pub use call::CallMessage;
+pub use event::Event;
+pub use state::*;
+pub use verifier::*;
+
+use serde::{Deserialize, Serialize};
+use sov_bank::Bank;
+use sov_modules_api::{
+    Context, DaSpec, GenesisState, Module, ModuleId, ModuleInfo, ModuleRestApi, Spec, StateMap,
+    StateValue, TxState,
+};
+use sov_state::BorshCodec;
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+#[serde(rename_all = "snake_case")]
+pub struct PoolConfig {
+    pub domain: state::DomainTag,
+    pub vk_hash: state::Hash32,
+    #[serde(default)]
+    pub fee_bips: u16,
+    #[serde(default)]
+    pub initial_viewers: Vec<(state::ViewerId, state::ViewerPubKey)>,
+}
+
+/// A shielded pool with selective privacy via viewing keys.
+#[derive(Clone, ModuleInfo, ModuleRestApi)]
+pub struct ShieldedPool<S: Spec> {
+    #[id]
+    pub id: ModuleId,
+
+    #[state]
+    pub commitment_tree: StateValue<merkle::OpaqueTree>,
+    #[state]
+    pub recent_roots: StateValue<Vec<Hash32>>,
+    #[state]
+    pub nullifiers: StateMap<sov_modules_api::HexHash, (), BorshCodec>,
+    #[state]
+    pub vk_hash: StateValue<Hash32>,
+    #[state]
+    pub domain: StateValue<DomainTag>,
+    #[state]
+    pub viewers: StateMap<sov_modules_api::HexHash, ViewerPubKey, BorshCodec>,
+    #[state]
+    pub audit_index: StateMap<sov_modules_api::HexHash, audit::AuditIndexEntry, BorshCodec>,
+
+    #[module]
+    pub bank: Bank<S>,
+}
+
+// Default is derived by macros for tests/queries.
+
+impl<S: Spec> Module for ShieldedPool<S> {
+    type Spec = S;
+    type Config = PoolConfig;
+    type CallMessage = CallMessage<S>;
+    type Event = Event;
+
+    fn genesis(
+        &mut self,
+        _h: &<<S as Spec>::Da as DaSpec>::BlockHeader,
+        cfg: &Self::Config,
+        st: &mut impl GenesisState<S>,
+    ) -> anyhow::Result<()> {
+        self.domain.set(&cfg.domain, st)?;
+        self.vk_hash.set(&cfg.vk_hash, st)?;
+        let empty: Vec<Hash32> = Vec::new();
+        self.recent_roots.set::<Vec<Hash32>, _>(&empty, st)?;
+        for (id, pk) in &cfg.initial_viewers {
+            self.viewers.set(&sov_modules_api::HexHash::new(*id), pk, st)?;
+        }
+        Ok(())
+    }
+
+    fn call(
+        &mut self,
+        msg: Self::CallMessage,
+        ctx: &Context<Self::Spec>,
+        st: &mut impl TxState<S>,
+    ) -> anyhow::Result<()> {
+        match msg {
+            CallMessage::Deposit { token_id, amount, commitment } => {
+                self.deposit(token_id, amount, commitment, ctx, st)
+            }
+            CallMessage::Spend { proof, anchor_root, audit_payloads, withdraw_to, withdraw } => self
+                .spend(
+                    proof.into(),
+                    anchor_root,
+                    audit_payloads.into(),
+                    withdraw_to,
+                    withdraw,
+                    ctx,
+                    st,
+                ),
+            CallMessage::Withdraw { proof, anchor_root, to, token_id, amount, audit_payloads } => self
+                .spend(
+                    proof.into(),
+                    anchor_root,
+                    audit_payloads.into(),
+                    Some(to),
+                    Some((token_id, amount)),
+                    ctx,
+                    st,
+                ),
+            CallMessage::RegisterViewer { id, pubkey } => {
+                self.viewers.set(&sov_modules_api::HexHash::new(id), &pubkey, st)?;
+                Ok(())
+            }
+            CallMessage::GrantViewAccess { tx_ref, payload } => self.grant_access(tx_ref, payload, st),
+        }
+    }
+}
+
+--- End of crates/module-system/module-implementations/midnight-privacy/src/lib.rs ---
+
+--- Content of crates/module-system/module-implementations/midnight-privacy/src/merkle.rs ---
+use crate::state::Hash32;
+
+#[derive(Clone, Default, borsh::BorshDeserialize, borsh::BorshSerialize)]
+pub struct OpaqueTree {
+    leaves: Vec<Hash32>,
+}
+
+impl OpaqueTree {
+    pub fn insert(&mut self, c: Hash32) -> anyhow::Result<()> {
+        self.leaves.push(c);
+        Ok(())
+    }
+    pub fn root(&self) -> anyhow::Result<Hash32> {
+        Ok(hash_bytes(&bincode::serialize(&self.leaves).unwrap()))
+    }
+}
+
+pub fn hash_bytes(data: &[u8]) -> Hash32 {
+    use sha2::{Digest, Sha256};
+    let h = Sha256::digest(data);
+    let mut out = [0u8; 32];
+    out.copy_from_slice(&h[..32]);
+    out
+}
+
+
+--- End of crates/module-system/module-implementations/midnight-privacy/src/merkle.rs ---
+
+--- Content of crates/module-system/module-implementations/midnight-privacy/src/state.rs ---
+use sov_modules_api::{Spec, StateMap, StateValue};
+use sov_state::BorshCodec;
+
+/// Configurable constants
+pub const MAX_ROOTS: usize = 256;
+
+pub type Hash32 = [u8; 32];
+pub type Nullifier = [u8; 32];
+pub type Commitment = [u8; 32];
+pub type DomainTag = [u8; 32];
+
+/// Viewer key id (hash of the public key), and raw X25519 pubkey bytes
+pub type ViewerId = [u8; 32];
+pub type ViewerPubKey = [u8; 32];
+
+// State struct intentionally omitted; fields are in module struct.
+
+--- End of crates/module-system/module-implementations/midnight-privacy/src/state.rs ---
+
+--- Content of crates/module-system/module-implementations/midnight-privacy/src/verifier/mod.rs ---
+use serde::{Deserialize, Serialize};
+
+use crate::state::{Commitment, Hash32, Nullifier};
+
+/// Public inputs the circuit commits to
+#[derive(Clone, Debug, Serialize, Deserialize, PartialEq, Eq)]
+pub struct SpendPublic {
+    pub anchor_root: Hash32,
+    pub nullifiers: Vec<Nullifier>,
+    pub commitments: Vec<Commitment>,
+    pub fee: u128,
+    pub chain_id: Hash32,
+    pub module_id: Hash32,
+    pub vk_hash: Hash32,
+    pub audit_commitment: Hash32,
+}
+
+pub trait SpendVerifier {
+    fn verify(&self, proof_bytes: &[u8], expect_vk_hash: Hash32) -> anyhow::Result<SpendPublic>;
+}
+
+pub mod mock {
+    use super::*;
+
+    #[derive(Default, Clone)]
+    pub struct AcceptAll;
+
+    impl SpendVerifier for AcceptAll {
+        fn verify(&self, proof_bytes: &[u8], _expect_vk_hash: Hash32) -> anyhow::Result<SpendPublic> {
+            // Expect the caller to pass bincode-serialized SpendPublic in tests
+            let public: SpendPublic = bincode::deserialize(proof_bytes)?;
+            Ok(public)
+        }
+    }
+}
+
+
+--- End of crates/module-system/module-implementations/midnight-privacy/src/verifier/mod.rs ---
+
+--- Content of crates/module-system/module-implementations/midnight-privacy/tests/shielded_pool.rs ---
+use midnight_privacy::{Event, Hash32, SpendPublic};
+use midnight_privacy::audit::AuditCiphertext;
+use midnight_privacy::{CallMessage, ShieldedPool};
+use sov_bank::config_gas_token_id;
+use sov_test_utils::runtime::genesis::optimistic::HighLevelOptimisticGenesisConfig;
+use sov_test_utils::runtime::TestRunner;
+use sov_test_utils::{generate_optimistic_runtime, AsUser, TransactionTestCase};
+
+type S = sov_test_utils::TestSpec;
+generate_optimistic_runtime!(ShieldedRuntime <= shielded_pool: ShieldedPool<S>);
+type RT = ShieldedRuntime<S>;
+
+#[test]
+fn deposit_and_spend_with_mock_proof() {
+    let genesis_core = HighLevelOptimisticGenesisConfig::generate().add_accounts_with_default_balance(1);
+    let user = genesis_core.additional_accounts().first().unwrap().clone();
+
+    let cfg = midnight_privacy::PoolConfig {
+        domain: [7u8; 32],
+        vk_hash: [9u8; 32],
+        fee_bips: 0,
+        initial_viewers: vec![],
+    };
+
+    let genesis = GenesisConfig::from_minimal_config(genesis_core.into(), cfg);
+    let mut runner = TestRunner::<RT, S>::new_with_genesis(genesis.into_genesis_params(), RT::default());
+
+    // 1) Deposit
+    let commitment = [1u8; 32];
+    runner.execute_transaction(TransactionTestCase {
+        input: user.create_plain_message::<RT, ShieldedPool<S>>(CallMessage::Deposit {
+            token_id: config_gas_token_id(),
+            amount: (1000u64).into(),
+            commitment,
+        }),
+        assert: Box::new(move |result, _state| {
+            assert!(result.tx_receipt.is_successful());
+            assert!(result.events.iter().any(|e| matches!(e, ShieldedRuntimeEvent::ShieldedPool(Event::CommitmentInserted { commitment: c, .. }) if *c == commitment)));
+        }),
+    });
+
+    // Query last root
+    let last_root: Hash32 = runner.query_visible_state(|state| {
+        midnight_privacy::ShieldedPool::<S>::default()
+            .recent_roots
+            .get(state)
+            .unwrap()
+            .unwrap()
+            .last()
+            .cloned()
+            .unwrap()
+    });
+
+    // 2) Spend with a mock proof (bincode-serialized SpendPublic)
+    let public = SpendPublic {
+        anchor_root: last_root,
+        nullifiers: vec![[42u8; 32]],
+        commitments: vec![[2u8; 32]],
+        fee: 0,
+        chain_id: [0u8; 32],
+        module_id: [0u8; 32],
+        vk_hash: [9u8; 32],
+        audit_commitment: midnight_privacy::merkle::hash_bytes(&bincode::serialize(&Vec::<AuditCiphertext>::new()).unwrap()),
+    };
+    let proof = bincode::serialize(&public).unwrap();
+
+    runner.execute_transaction(TransactionTestCase {
+        input: user.create_plain_message::<RT, ShieldedPool<S>>(CallMessage::Spend {
+            proof: proof.try_into().unwrap(),
+            anchor_root: last_root,
+            audit_payloads: Vec::new().try_into().unwrap(),
+            withdraw_to: None,
+            withdraw: None,
+        }),
+        assert: Box::new(|result, _state| {
+            assert!(result.tx_receipt.is_successful());
+            assert!(result.events.iter().any(|e| matches!(e, ShieldedRuntimeEvent::ShieldedPool(Event::NullifierUsed { nf }) if *nf == [42u8; 32])));
+        }),
+    });
+}
+
+#[test]
+fn withdraw_path_emits_bank_transfer() {
+    let genesis_core = HighLevelOptimisticGenesisConfig::generate().add_accounts_with_default_balance(1);
+    let user = genesis_core.additional_accounts().first().unwrap().clone();
+
+    let cfg = midnight_privacy::PoolConfig {
+        domain: [7u8; 32],
+        vk_hash: [9u8; 32],
+        fee_bips: 0,
+        initial_viewers: vec![],
+    };
+
+    let genesis = GenesisConfig::from_minimal_config(genesis_core.into(), cfg);
+    let mut runner = TestRunner::<RT, S>::new_with_genesis(genesis.into_genesis_params(), RT::default());
+
+    // Deposit 1000
+    let commitment = [11u8; 32];
+    runner.execute_transaction(TransactionTestCase {
+        input: user.create_plain_message::<RT, ShieldedPool<S>>(CallMessage::Deposit {
+            token_id: config_gas_token_id(),
+            amount: (1000u64).into(),
+            commitment,
+        }),
+        assert: Box::new(|res, _| assert!(res.tx_receipt.is_successful())),
+    });
+
+    let last_root: Hash32 = runner.query_visible_state(|state| {
+        midnight_privacy::ShieldedPool::<S>::default()
+            .recent_roots
+            .get(state)
+            .unwrap()
+            .unwrap()
+            .last()
+            .cloned()
+            .unwrap()
+    });
+
+    // Spend with withdraw_to: user, withdraw: 50
+    let public = SpendPublic {
+        anchor_root: last_root,
+        nullifiers: vec![[55u8; 32]],
+        commitments: vec![[66u8; 32]],
+        fee: 0,
+        chain_id: [0u8; 32],
+        module_id: [0u8; 32],
+        vk_hash: [9u8; 32],
+        audit_commitment: midnight_privacy::merkle::hash_bytes(&bincode::serialize(&Vec::<AuditCiphertext>::new()).unwrap()),
+    };
+    let proof = bincode::serialize(&public).unwrap();
+    let withdraw_amt = 50u64.into();
+
+    runner.execute_transaction(TransactionTestCase {
+        input: user.create_plain_message::<RT, ShieldedPool<S>>(CallMessage::Withdraw {
+            proof: proof.try_into().unwrap(),
+            anchor_root: last_root,
+            to: user.address(),
+            token_id: config_gas_token_id(),
+            amount: withdraw_amt,
+            audit_payloads: Vec::new().try_into().unwrap(),
+        }),
+        assert: Box::new(move |result, _state| {
+            assert!(result.tx_receipt.is_successful());
+            // Check we consumed the nullifier and appended the commitment
+            assert!(result.events.iter().any(|e| matches!(e, ShieldedRuntimeEvent::ShieldedPool(Event::NullifierUsed { nf }) if *nf == [55u8; 32])));
+            assert!(result.events.iter().any(|e| matches!(e, ShieldedRuntimeEvent::ShieldedPool(Event::CommitmentInserted { commitment: c, .. }) if *c == [66u8; 32])));
+        }),
+    });
+}
+
+#[test]
+fn reject_unknown_anchor() {
+    let genesis_core = HighLevelOptimisticGenesisConfig::generate().add_accounts_with_default_balance(1);
+    let user = genesis_core.additional_accounts().first().unwrap().clone();
+
+    let cfg = midnight_privacy::PoolConfig {
+        domain: [1u8; 32],
+        vk_hash: [2u8; 32],
+        fee_bips: 0,
+        initial_viewers: vec![],
+    };
+    let genesis = GenesisConfig::from_minimal_config(genesis_core.into(), cfg);
+    let mut runner = TestRunner::<RT, S>::new_with_genesis(genesis.into_genesis_params(), RT::default());
+
+    // Build a spend with a bogus anchor root
+    let bogus_anchor: Hash32 = [0u8; 32];
+    let public = SpendPublic {
+        anchor_root: bogus_anchor,
+        nullifiers: vec![[3u8; 32]],
+        commitments: vec![],
+        fee: 0,
+        chain_id: [0u8; 32],
+        module_id: [0u8; 32],
+        vk_hash: [2u8; 32],
+        audit_commitment: midnight_privacy::merkle::hash_bytes(&bincode::serialize(&Vec::<AuditCiphertext>::new()).unwrap()),
+    };
+    let proof = bincode::serialize(&public).unwrap();
+
+    runner.execute_transaction(TransactionTestCase {
+        input: user.create_plain_message::<RT, ShieldedPool<S>>(CallMessage::Spend {
+            proof: proof.try_into().unwrap(),
+            anchor_root: bogus_anchor,
+            audit_payloads: Vec::new().try_into().unwrap(),
+            withdraw_to: None,
+            withdraw: None,
+        }),
+        assert: Box::new(|res, _| assert!(res.tx_receipt.is_reverted())),
+    });
+}
+
+#[test]
+fn reject_double_nullifier() {
+    let genesis_core = HighLevelOptimisticGenesisConfig::generate().add_accounts_with_default_balance(1);
+    let user = genesis_core.additional_accounts().first().unwrap().clone();
+
+    let cfg = midnight_privacy::PoolConfig { domain: [8u8; 32], vk_hash: [5u8; 32], fee_bips: 0, initial_viewers: vec![] };
+    let genesis = GenesisConfig::from_minimal_config(genesis_core.into(), cfg);
+    let mut runner = TestRunner::<RT, S>::new_with_genesis(genesis.into_genesis_params(), RT::default());
+
+    // Make a deposit to produce a valid root
+    runner.execute_transaction(TransactionTestCase {
+        input: user.create_plain_message::<RT, ShieldedPool<S>>(CallMessage::Deposit {
+            token_id: config_gas_token_id(),
+            amount: (1u64).into(),
+            commitment: [7u8; 32],
+        }),
+        assert: Box::new(|res, _| assert!(res.tx_receipt.is_successful())),
+    });
+
+    let anchor: Hash32 = runner.query_visible_state(|state| {
+        midnight_privacy::ShieldedPool::<S>::default()
+            .recent_roots
+            .get(state)
+            .unwrap()
+            .unwrap()
+            .last()
+            .cloned()
+            .unwrap()
+    });
+
+    let nf = [9u8; 32];
+    let mk_public = |anchor: Hash32| SpendPublic {
+        anchor_root: anchor,
+        nullifiers: vec![nf],
+        commitments: vec![],
+        fee: 0,
+        chain_id: [0u8; 32],
+        module_id: [0u8; 32],
+        vk_hash: [5u8; 32],
+        audit_commitment: midnight_privacy::merkle::hash_bytes(&bincode::serialize(&Vec::<AuditCiphertext>::new()).unwrap()),
+    };
+
+    // First spend succeeds
+    let proof1 = bincode::serialize(&mk_public(anchor)).unwrap();
+    runner.execute_transaction(TransactionTestCase {
+        input: user.create_plain_message::<RT, ShieldedPool<S>>(CallMessage::Spend {
+            proof: proof1.try_into().unwrap(),
+            anchor_root: anchor,
+            audit_payloads: Vec::new().try_into().unwrap(),
+            withdraw_to: None,
+            withdraw: None,
+        }),
+        assert: Box::new(|res, _| assert!(res.tx_receipt.is_successful())),
+    });
+
+    // Second spend with same nullifier should revert (use latest anchor)
+    let anchor2: Hash32 = runner.query_visible_state(|state| {
+        midnight_privacy::ShieldedPool::<S>::default()
+            .recent_roots
+            .get(state)
+            .unwrap()
+            .unwrap()
+            .last()
+            .cloned()
+            .unwrap()
+    });
+    let proof2 = bincode::serialize(&mk_public(anchor2)).unwrap();
+    runner.execute_transaction(TransactionTestCase {
+        input: user.create_plain_message::<RT, ShieldedPool<S>>(CallMessage::Spend {
+            proof: proof2.try_into().unwrap(),
+            anchor_root: anchor2,
+            audit_payloads: Vec::new().try_into().unwrap(),
+            withdraw_to: None,
+            withdraw: None,
+        }),
+        assert: Box::new(|res, _| assert!(res.tx_receipt.is_reverted())),
+    });
+}
+
+#[test]
+fn register_viewer_and_audit_payloads_and_grant() {
+    use sov_modules_api::HexHash;
+
+    let genesis_core = HighLevelOptimisticGenesisConfig::generate().add_accounts_with_default_balance(1);
+    let user = genesis_core.additional_accounts().first().unwrap().clone();
+
+    let cfg = midnight_privacy::PoolConfig { domain: [7u8; 32], vk_hash: [1u8; 32], fee_bips: 0, initial_viewers: vec![] };
+    let genesis = GenesisConfig::from_minimal_config(genesis_core.into(), cfg);
+    let mut runner = TestRunner::<RT, S>::new_with_genesis(genesis.into_genesis_params(), RT::default());
+
+    // Deposit to get a root
+    runner.execute_transaction(TransactionTestCase {
+        input: user.create_plain_message::<RT, ShieldedPool<S>>(CallMessage::Deposit {
+            token_id: config_gas_token_id(),
+            amount: (1u64).into(),
+            commitment: [5u8; 32],
+        }),
+        assert: Box::new(|res, _| assert!(res.tx_receipt.is_successful())),
+    });
+    let anchor: Hash32 = runner.query_visible_state(|state| {
+        midnight_privacy::ShieldedPool::<S>::default()
+            .recent_roots
+            .get(state)
+            .unwrap()
+            .unwrap()
+            .last()
+            .cloned()
+            .unwrap()
+    });
+
+    // Register a viewer
+    let viewer_id = [1u8; 32];
+    let viewer_pk = [2u8; 32];
+    runner.execute_transaction(TransactionTestCase {
+        input: user.create_plain_message::<RT, ShieldedPool<S>>(CallMessage::RegisterViewer { id: viewer_id, pubkey: viewer_pk }),
+        assert: Box::new(|res, _| assert!(res.tx_receipt.is_successful())),
+    });
+
+    // Build two audit payloads sealed to that viewer
+    let a1 = AuditCiphertext { viewer_id, epk: [3u8; 32], nonce: [4u8; 24], ct: vec![1, 2, 3] };
+    let a2 = AuditCiphertext { viewer_id, epk: [5u8; 32], nonce: [6u8; 24], ct: vec![9, 9] };
+    let audit_vec = vec![a1.clone(), a2.clone()];
+    let public = SpendPublic {
+        anchor_root: anchor,
+        nullifiers: vec![[99u8; 32]],
+        commitments: vec![],
+        fee: 0,
+        chain_id: [0u8; 32],
+        module_id: [0u8; 32],
+        vk_hash: [1u8; 32],
+        audit_commitment: midnight_privacy::merkle::hash_bytes(&bincode::serialize(&audit_vec).unwrap()),
+    };
+    let proof = bincode::serialize(&public).unwrap();
+
+    // Spend and expect two AuditPayloadPublished events
+    let proof_for_tx_ref = proof.clone();
+    let proof_for_tx_ref_outside = proof_for_tx_ref.clone();
+    runner.execute_transaction(TransactionTestCase {
+        input: user.create_plain_message::<RT, ShieldedPool<S>>(CallMessage::Spend {
+            proof: proof.try_into().unwrap(),
+            anchor_root: anchor,
+            audit_payloads: audit_vec.clone().try_into().unwrap(),
+            withdraw_to: None,
+            withdraw: None,
+        }),
+        assert: Box::new(move |result, state| {
+            assert!(result.tx_receipt.is_successful());
+            let count = result.events.iter().filter(|e| matches!(e, ShieldedRuntimeEvent::ShieldedPool(Event::AuditPayloadPublished { .. }))).count();
+            assert_eq!(count, 2);
+
+            // Check audit index entry
+            let tx_ref = midnight_privacy::merkle::hash_bytes(&proof_for_tx_ref);
+            let entry = midnight_privacy::ShieldedPool::<S>::default()
+                .audit_index
+                .get(&HexHash::new(tx_ref), state)
+                .unwrap()
+                .unwrap();
+            assert_eq!(entry.count, 2);
+            assert_eq!(entry.audit_commitment, midnight_privacy::merkle::hash_bytes(&bincode::serialize(&audit_vec).unwrap()));
+        }),
+    });
+
+    // Grant view access with one more payload
+    let extra = AuditCiphertext { viewer_id, epk: [7u8; 32], nonce: [8u8; 24], ct: vec![7] };
+    // Recompute tx_ref deterministically from the proof bytes we sent
+    let tx_ref = midnight_privacy::merkle::hash_bytes(&proof_for_tx_ref_outside);
+
+    runner.execute_transaction(TransactionTestCase {
+        input: user.create_plain_message::<RT, ShieldedPool<S>>(CallMessage::GrantViewAccess { tx_ref, payload: extra.clone() }),
+        assert: Box::new(move |res, state| {
+            assert!(res.tx_receipt.is_successful());
+            assert!(res.events.iter().any(|e| matches!(e, ShieldedRuntimeEvent::ShieldedPool(Event::AuditPayloadPublished { .. }))));
+            let entry = midnight_privacy::ShieldedPool::<S>::default()
+                .audit_index
+                .get(&HexHash::new(tx_ref), state)
+                .unwrap()
+                .unwrap();
+            assert_eq!(entry.count, 3);
+        }),
+    });
+}
+
+--- End of crates/module-system/module-implementations/midnight-privacy/tests/shielded_pool.rs ---
+
+
+==============================================
+Summary
+==============================================
+Modified files:        0
+Untracked files:       10
+Filtered paths: crates/module-system/module-implementations/midnight-privacy
+
+File Statistics:
+Total size:    34997 bytes
+Total lines:      951
+Total words:     2786
+Total AI tokens (est): 8749
