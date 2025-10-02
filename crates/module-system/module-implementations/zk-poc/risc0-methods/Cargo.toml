@@ -1,0 +1,32 @@
+[package]
+name = "zk-poc-risc0-methods"
+version = "0.1.0"
+edition = "2021"
+license = "MIT OR Apache-2.0"
+publish = false
+
+[lints.rust]
+dead_code = "deny"
+non_ascii_idents = "deny"
+
+[lints.clippy]
+debug_assert_with_mut_call = "deny"
+inefficient_to_string = "deny"
+map_flatten = "deny"
+manual_ok_or = "deny"
+doc_link_with_quotes = "deny"
+match_same_arms = "deny"
+semicolon_if_nothing_returned = "deny"
+float_arithmetic = "deny"
+
+[build-dependencies]
+anyhow = { workspace = true }
+risc0-build = "2.3.2"
+sov-zkvm-utils = { workspace = true }
+
+[package.metadata.risc0]
+methods = ["guest-even"]
+
+[features]
+bench = []
+bincode = []

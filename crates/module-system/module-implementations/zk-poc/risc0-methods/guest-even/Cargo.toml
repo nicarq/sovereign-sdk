@@ -1,0 +1,27 @@
+[package]
+name = "zk-poc-risc0-guest-even"
+version = "0.1.0"
+license = "MIT OR Apache-2.0"
+edition = "2021"
+resolver = "2"
+
+[workspace]
+
+[dependencies]
+risc0-zkvm = { version = "3.0.3", default-features = false, features = ["std"] }
+risc0-zkvm-platform = { version = "2.2.1", features = ["sys-getenv"] }
+
+## Match workspace adapter versions (2.1 / 2.0)
+
+[profile.dev]
+opt-level = 3
+
+[profile.dev.build-override]
+opt-level = 3
+
+[profile.release]
+debug = 1
+lto = true
+
+[profile.release.build-override]
+opt-level = 3

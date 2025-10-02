@@ -1,6 +1,8 @@
 //! This module implements the [`ZkvmHost`] trait for the RISC0 VM.
 
 use risc0_zkvm::{ExecutorEnvBuilder, ExecutorImpl, Journal, Receipt, Session};
+#[cfg(feature = "native")]
+use risc0_zkvm::default_prover;
 use sov_rollup_interface::zk::{Proof, ZkvmHost};
 
 use crate::guest::Risc0Guest;
@@ -54,8 +56,23 @@ impl<'a> Risc0Host<'a> {
 
     /// Run a computation in the zkvm and generate a receipt.
     pub fn run(&mut self) -> anyhow::Result<Receipt> {
-        let session = self.run_without_proving()?;
-        Ok(session.prove()?.receipt)
+        // Prefer the higher-level prover API so we can leverage alternative backends
+        // (e.g., IPC via r0vm) selected by `RISC0_PROVER`.
+        #[cfg(feature = "native")]
+        {
+            let mut env = add_benchmarking_callbacks(ExecutorEnvBuilder::default());
+            #[cfg(feature = "bincode")]
+            env.write_slice(&[self.env.len() as u32]);
+            let env = env.write_slice(&self.env).build().unwrap();
+            let prove_info = default_prover().prove(env, self.elf)?;
+            return Ok(prove_info.receipt);
+        }
+
+        #[allow(unreachable_code)]
+        {
+            let session = self.run_without_proving()?;
+            Ok(session.prove()?.receipt)
+        }
     }
 
     /// Generate a Risc0Guest with provided hints

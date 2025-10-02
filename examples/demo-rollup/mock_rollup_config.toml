@@ -10,7 +10,7 @@ connection_string = "sqlite://mock_da.sqlite?mode=rwc"
 sender_address = "0000000000000000000000000000000000000000000000000000000000000000"
 finalization = 40
 [da.block_producing.periodic]
-block_time_ms = 1_000
+block_time_ms = 5_000
 # Disable reorg for now, for better stability
 #[da.randomization]
 #seed = "0x0000000000000000000000000000000000000000000000000000000000000012"
