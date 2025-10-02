@@ -16,6 +16,10 @@ pub enum ZkPocWorkflow {
         /// The value to set (must be even; the guest enforces it).
         #[clap(long)]
         value: u64,
+        /// Optional path to write the JSON output to (pretty-printed).
+        /// If omitted, prints to stdout.
+        #[clap(long)]
+        out: Option<std::path::PathBuf>,
     },
 }
 
@@ -23,7 +27,7 @@ impl ZkPocWorkflow {
     /// Executes the selected ZK-POC workflow and prints the result to stdout.
     pub fn run(self) -> anyhow::Result<()> {
         match self {
-            ZkPocWorkflow::BuildSetValueJson { module_key, value } => {
+            ZkPocWorkflow::BuildSetValueJson { module_key, value, out } => {
                 // Use the embedded RISC0 guest ELF to prove evenness of `value` and emit a JSON call.
                 let elf = zk_poc_risc0_methods::EVEN_ELF;
                 anyhow::ensure!(
@@ -45,10 +49,15 @@ impl ZkPocWorkflow {
                         }
                     }
                 });
-                println!("{}", serde_json::to_string_pretty(&body)?);
+                let text = serde_json::to_string_pretty(&body)?;
+                if let Some(path) = out {
+                    std::fs::write(&path, text)?;
+                    eprintln!("Wrote zk-poc set_value JSON to {}", path.display());
+                } else {
+                    println!("{}", text);
+                }
                 Ok(())
             }
         }
     }
 }
-
