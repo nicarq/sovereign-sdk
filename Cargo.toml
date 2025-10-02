@@ -54,6 +54,9 @@ members = [
     "crates/module-system/module-implementations/sov-synthetic-load",
     "crates/module-system/module-implementations/sov-test-modules",
     "crates/module-system/module-implementations/module-template",
+    "crates/module-system/module-implementations/zk-poc",
+    "crates/module-system/module-implementations/zk-poc/risc0-methods",
+    "crates/module-system/module-implementations/midnight-privacy",
     "crates/module-system/module-implementations/integration-tests",
     "crates/module-system/sov-capabilities",
     "crates/module-system/module-implementations/sov-uniqueness",
@@ -80,10 +83,11 @@ members = [
     # TODO: https://github.com/Sovereign-Labs/sovereign-sdk-wip/issues/498
     # "crates/adapters/avail",
     "crates/adapters/celestia",
+    "crates/adapters/ligetron",
     "crates/adapters/risc0",
     "crates/adapters/sp1",
 ]
-default-members = ["crates/rollup-interface", "crates/adapters/mock-da", "crates/adapters/mock-zkvm", "crates/full-node/sov-blob-sender", "crates/full-node/sov-db", "crates/full-node/sov-sequencer", "crates/full-node/sov-ledger-apis", "crates/full-node/sov-rollup-apis", "crates/full-node/sov-stf-runner", "crates/full-node/sov-metrics", "crates/full-node/sov-api-spec", "crates/full-node/full-node-configs", "crates/utils/sov-rest-utils", "crates/utils/nearly-linear", "crates/utils/sov-zkvm-utils", "crates/utils/sov-build", "crates/module-system/hyperlane", "crates/module-system/sov-cli", "crates/module-system/sov-modules-stf-blueprint", "crates/module-system/sov-modules-rollup-blueprint", "crates/module-system/sov-modules-macros", "crates/module-system/sov-kernels", "crates/module-system/sov-state", "crates/module-system/sov-modules-api", "crates/module-system/sov-address", "crates/module-system/sov-test-utils", "crates/module-system/module-implementations/sov-accounts", "crates/module-system/module-implementations/sov-bank", "crates/module-system/module-implementations/sov-chain-state", "crates/module-system/module-implementations/sov-blob-storage", "crates/module-system/module-implementations/sov-evm", "crates/module-system/module-implementations/sov-paymaster", "crates/module-system/module-implementations/sov-prover-incentives", "crates/module-system/module-implementations/sov-attester-incentives", "crates/module-system/module-implementations/sov-sequencer-registry", "crates/module-system/module-implementations/sov-value-setter", "crates/module-system/module-implementations/sov-revenue-share", "crates/module-system/module-implementations/sov-synthetic-load", "crates/module-system/module-implementations/module-template", "crates/module-system/module-implementations/integration-tests", "crates/module-system/sov-capabilities", "crates/module-system/module-implementations/sov-uniqueness", "crates/utils/sov-node-client", "crates/universal-wallet/schema", "crates/universal-wallet/macros", "crates/universal-wallet/macro-helpers", "crates/utils/workspace-hack"]
+default-members = ["crates/rollup-interface", "crates/adapters/mock-da", "crates/adapters/mock-zkvm", "crates/full-node/sov-blob-sender", "crates/full-node/sov-db", "crates/full-node/sov-sequencer", "crates/full-node/sov-ledger-apis", "crates/full-node/sov-rollup-apis", "crates/full-node/sov-stf-runner", "crates/full-node/sov-metrics", "crates/full-node/sov-api-spec", "crates/full-node/full-node-configs", "crates/utils/sov-rest-utils", "crates/utils/nearly-linear", "crates/utils/sov-zkvm-utils", "crates/utils/sov-build", "crates/module-system/hyperlane", "crates/module-system/sov-cli", "crates/module-system/sov-modules-stf-blueprint", "crates/module-system/sov-modules-rollup-blueprint", "crates/module-system/sov-modules-macros", "crates/module-system/sov-kernels", "crates/module-system/sov-state", "crates/module-system/sov-modules-api", "crates/module-system/sov-address", "crates/module-system/sov-test-utils", "crates/module-system/module-implementations/sov-accounts", "crates/module-system/module-implementations/sov-bank", "crates/module-system/module-implementations/sov-chain-state", "crates/module-system/module-implementations/sov-blob-storage", "crates/module-system/module-implementations/sov-evm", "crates/module-system/module-implementations/sov-paymaster", "crates/module-system/module-implementations/sov-prover-incentives", "crates/module-system/module-implementations/sov-attester-incentives", "crates/module-system/module-implementations/sov-sequencer-registry", "crates/module-system/module-implementations/sov-value-setter", "crates/module-system/module-implementations/sov-revenue-share", "crates/module-system/module-implementations/sov-synthetic-load", "crates/module-system/module-implementations/module-template", "crates/module-system/module-implementations/midnight-privacy", "crates/module-system/module-implementations/integration-tests", "crates/module-system/sov-capabilities", "crates/module-system/module-implementations/sov-uniqueness", "crates/utils/sov-node-client", "crates/universal-wallet/schema", "crates/universal-wallet/macros", "crates/universal-wallet/macro-helpers", "crates/utils/workspace-hack"]
 [workspace.package]
 version = "0.3.0"
 edition = "2021"
@@ -118,6 +122,7 @@ demo-stf = { path = "examples/demo-rollup/stf", default-features = false, versio
 sov-eth-client = { path = "crates/utils/sov-eth-client", default-features = false, version = "0.3" }
 sov-blob-sender = { path = "crates/full-node/sov-blob-sender", default-features = false, version = "0.3" }
 sov-celestia-adapter = { path = "crates/adapters/celestia", default-features = false, version = "0.3" }
+sov-ligetron-adapter = { path = "crates/adapters/ligetron", default-features = false, version = "0.3" }
 sov-risc0-adapter = { path = "crates/adapters/risc0", default-features = false, version = "0.3" }
 sov-sp1-adapter = { path = "crates/adapters/sp1", default-features = false, version = "0.3" }
 sov-ethereum = { path = "crates/full-node/sov-ethereum", default-features = false, version = "0.3" }
@@ -266,9 +271,9 @@ uuid = { version = "1.10", default-features = false } # v1.9 is important becaus
 lazy_static = "1.5.0"
 num_cpus = "1.16"
 ruint = { version = "1", default-features = false }
-risc0-zkvm = { version = "2.1", default-features = false }
-risc0-zkvm-platform = "2.0"
-risc0-build = "2.1"
+risc0-zkvm = { version = "3.0.3", default-features = false }
+risc0-zkvm-platform = "2.2.1"
+risc0-build = "3.0.3"
 
 # EVM dependencies
 ethereum-types = "0.14.1"

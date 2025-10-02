@@ -26,6 +26,12 @@ enum Workflows<File: clap::Subcommand, Json: clap::Subcommand, S: Spec> {
     Keys(KeyWorkflow<S>),
     #[clap(subcommand)]
     Node(NodeWorkflows<S>),
+    /// Privacy helpers for midnight-privacy
+    #[clap(subcommand)]
+    Privacy(sov_cli::workflows::privacy::PrivacyWorkflow),
+    /// ZK-POC helpers to generate proofs and build JSON calls
+    #[clap(subcommand)]
+    ZkPoc(sov_cli::workflows::zk_poc::ZkPocWorkflow),
 }
 
 #[derive(clap::Parser)]
@@ -97,6 +103,12 @@ where
             Workflows::Keys(inner) => inner.run(&mut wallet_state, app_dir)?,
             Workflows::Node(inner) => {
                 inner.run(&mut wallet_state, app_dir).await?;
+            }
+            Workflows::Privacy(inner) => {
+                inner.run()?;
+            }
+            Workflows::ZkPoc(inner) => {
+                inner.run()?;
             }
         }
 

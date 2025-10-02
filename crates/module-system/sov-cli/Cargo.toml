@@ -34,6 +34,13 @@ reqwest = { workspace = true, features = ["json"] }
 sov-node-client = { workspace = true }
 tracing = { workspace = true }
 futures = { workspace = true }
+rand = { workspace = true }
+sov-risc0-adapter = { workspace = true, features = ["native"] }
+zk-poc-risc0-methods = { path = "../module-implementations/zk-poc/risc0-methods" }
+
+[[bin]]
+name = "sov-tools"
+path = "src/bin/sov-tools.rs"
 
 [dev-dependencies]
 sov-address = { workspace = true }

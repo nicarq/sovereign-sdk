@@ -38,6 +38,7 @@
     "crates/module-system/module-implementations/sov-revenue-share",
     "crates/module-system/module-implementations/sov-synthetic-load",
     "crates/module-system/module-implementations/module-template",
+    "crates/module-system/module-implementations/midnight-privacy",
     "crates/module-system/module-implementations/integration-tests",
     "crates/module-system/sov-capabilities",
     "crates/module-system/module-implementations/sov-uniqueness",
