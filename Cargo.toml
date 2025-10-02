@@ -57,6 +57,7 @@ members = [
     "crates/module-system/module-implementations/sov-test-modules",
     "crates/module-system/module-implementations/module-template",
     "crates/module-system/module-implementations/integration-tests",
+    "crates/module-system/module-implementations/zk-poc",
     "crates/module-system/sov-capabilities",
     "crates/module-system/module-implementations/sov-uniqueness",
     "crates/utils/transaction-generator",
@@ -138,6 +139,7 @@ sov-test-modules = { path = "crates/module-system/module-implementations/sov-tes
 sov-chain-state = { path = "crates/module-system/module-implementations/sov-chain-state", default-features = false, version = "0.3" }
 sov-blob-storage = { path = "crates/module-system/module-implementations/sov-blob-storage", default-features = false, version = "0.3" }
 sov-evm = { path = "crates/module-system/module-implementations/sov-evm", default-features = false, version = "0.3" }
+zk-poc = { path = "crates/module-system/module-implementations/zk-poc", default-features = false, version = "0.3" }
 sov-sequencer = { path = "crates/full-node/sov-sequencer", default-features = false, version = "0.3" }
 sov-accounts = { path = "crates/module-system/module-implementations/sov-accounts", default-features = false, version = "0.3" }
 sov-ledger-apis = { path = "crates/full-node/sov-ledger-apis", default-features = false, version = "0.3" }

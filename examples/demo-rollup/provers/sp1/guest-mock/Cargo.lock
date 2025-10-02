@@ -1725,6 +1725,7 @@ dependencies = [
  "sov-test-modules",
  "sov-uniqueness",
  "strum 0.26.3",
+ "zk-poc",
 ]
 
 [[package]]
@@ -7668,6 +7669,19 @@ dependencies = [
  "proc-macro2",
  "quote",
  "syn 2.0.106",
+]
+
+[[package]]
+name = "zk-poc"
+version = "0.3.0"
+dependencies = [
+ "anyhow",
+ "bincode",
+ "borsh",
+ "schemars 0.8.21",
+ "serde",
+ "sov-bank",
+ "sov-modules-api",
 ]
 
 [[package]]

@@ -3632,6 +3632,7 @@ dependencies = [
  "sov-test-utils",
  "sov-uniqueness",
  "strum 0.26.3",
+ "zk-poc",
 ]
 
 [[package]]
@@ -16596,6 +16597,39 @@ dependencies = [
  "memchr",
  "thiserror 2.0.16",
  "zopfli",
+]
+
+[[package]]
+name = "zk-poc"
+version = "0.3.0"
+dependencies = [
+ "anyhow",
+ "arbitrary",
+ "bincode",
+ "borsh",
+ "proptest",
+ "proptest-derive",
+ "schemars 0.8.22",
+ "serde",
+ "sov-bank",
+ "sov-modules-api",
+ "sov-risc0-adapter",
+ "sov-rollup-interface",
+ "sov-state",
+ "sov-test-utils",
+ "strum 0.26.3",
+ "tempfile",
+ "zk-poc",
+ "zk-poc-risc0-methods",
+]
+
+[[package]]
+name = "zk-poc-risc0-methods"
+version = "0.1.0"
+dependencies = [
+ "anyhow",
+ "risc0-build",
+ "sov-zkvm-utils",
 ]
 
 [[package]]

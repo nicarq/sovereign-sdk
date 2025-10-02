@@ -47,6 +47,8 @@ pub struct GenesisPaths {
     pub paymaster_genesis_path: PathBuf,
     /// Bench pattern genesis path
     pub access_pattern: PathBuf,
+    /// Zk-PoC genesis path
+    pub zk_poc_genesis_path: PathBuf,
 }
 
 impl GenesisPaths {
@@ -67,6 +69,7 @@ impl GenesisPaths {
             chain_state_genesis_path: dir.as_ref().join("chain_state.json"),
             paymaster_genesis_path: dir.as_ref().join("paymaster.json"),
             access_pattern: dir.as_ref().join("access_pattern.json"),
+            zk_poc_genesis_path: dir.as_ref().join("zk_poc.json"),
         }
     }
 }
@@ -111,6 +114,10 @@ where
 
     let synthetic_load_config = ();
 
+    // Zk-PoC config: method_id ([u8; 32])
+    let zk_poc_config: zk_poc::ZkPocConfig =
+        read_genesis_json(&genesis_paths.zk_poc_genesis_path)?;
+
     Ok(GenesisConfig::new(
         bank_config,
         sequencer_registry_config,
@@ -125,6 +132,7 @@ where
         evm_config,
         access_pattern,
         synthetic_load_config,
+        zk_poc_config,
     ))
 }
 

@@ -40,6 +40,7 @@ sov-kernels = { workspace = true }
 sov-rollup-apis = { workspace = true, optional = true }
 sov-test-modules = { workspace = true }
 sov-test-utils = { workspace = true, optional = true }
+zk-poc = { workspace = true }
 
 [features]
 default = []
@@ -64,7 +65,8 @@ native = [
     "sov-rollup-apis",
     "sov-paymaster/native",
     "sov-address/native",
-    "sov-test-modules/native"
+    "sov-test-modules/native",
+    "zk-poc/native"
 ]
 
 # We only activate test-utils if we also have native since all our test-code use native by default.

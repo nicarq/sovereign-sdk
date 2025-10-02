@@ -53,6 +53,8 @@ where
             paymaster: paymaster_config,
             synthetic_load: (),
             access_pattern: access_pattern_config,
+            // Default zk-poc config for test utilities
+            zk_poc: zk_poc::ZkPocConfig { method_id: [0u8; 32] },
         }
     }
 }

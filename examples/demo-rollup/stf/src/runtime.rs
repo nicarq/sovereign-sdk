@@ -83,6 +83,8 @@ where
     pub access_pattern: sov_test_modules::access_pattern::AccessPattern<S>,
     /// A module for synthetic load testing and state operations.
     pub synthetic_load: sov_synthetic_load::SyntheticLoad<S>,
+    /// The zk-poc module.
+    pub zk_poc: zk_poc::ZkPoc<S>,
 }
 
 impl<S> sov_modules_stf_blueprint::Runtime<S> for Runtime<S>
