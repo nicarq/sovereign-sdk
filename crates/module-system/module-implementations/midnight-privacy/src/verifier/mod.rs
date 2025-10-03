@@ -34,3 +34,22 @@ pub mod mock {
     }
 }
 
+#[cfg(feature = "verify-risc0")]
+pub mod risc0 {
+    use super::*;
+    use sov_risc0_adapter::{Risc0MethodId, Risc0Verifier};
+    use sov_rollup_interface::zk::{CodeCommitment, ZkVerifier};
+
+    #[derive(Default, Clone)]
+    pub struct Risc0Spend;
+
+    impl SpendVerifier for Risc0Spend {
+        fn verify(&self, proof_bytes: &[u8], expect_vk_hash: Hash32) -> anyhow::Result<SpendPublic> {
+            // Treat the configured vk_hash as the RISC0 method ID/code commitment
+            let method_id = Risc0MethodId::decode(&expect_vk_hash)
+                .map_err(|e| anyhow::anyhow!("invalid method_id bytes: {e}"))?;
+            let public: SpendPublic = Risc0Verifier::verify(proof_bytes, &method_id)?;
+            Ok(public)
+        }
+    }
+}

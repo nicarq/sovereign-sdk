@@ -24,11 +24,17 @@ sov-state = { workspace = true }
 sov-bank = { workspace = true }
 bincode = { workspace = true }
 sha2 = { workspace = true }
+midnight-privacy-risc0-methods = { path = "./risc0-methods" }
+
+# Optional verifiers
+sov-risc0-adapter = { workspace = true, optional = true }
+sov-rollup-interface = { workspace = true, optional = true }
 
 [dev-dependencies]
 tempfile = { workspace = true }
 strum = { workspace = true }
-midnight-privacy = { path = ".", version = "*", features = ["native"] }
+serial_test = { workspace = true }
+midnight-privacy = { path = ".", version = "*", features = ["native", "verify-risc0"] }
 sov-test-utils = { workspace = true }
 
 [features]
@@ -47,4 +53,8 @@ native = [
 
 # Optional verifiers
 verify-groth16 = []
-verify-risc0 = []
+verify-risc0 = [
+    "dep:sov-risc0-adapter",
+    "dep:sov-rollup-interface",
+    "sov-risc0-adapter/native",
+]

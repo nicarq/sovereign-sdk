@@ -31,7 +31,7 @@ state_cache_size = 4294967296 # 4GB. Default is 1GB.
 [runner]
 genesis_height = 0
 
-# da.block_time is 1s, so status updater will try to poll it 20 times during it.
+# da.block_time is 1s, so status updater will poll it 20 times during it
 da_polling_interval_ms = 50
 
 [runner.http_config]
@@ -55,7 +55,7 @@ telegraf_address = "udp://127.0.0.1:8094"
 # max_pending_metrics = 100
 
 [proof_manager]
-aggregated_proof_block_jump = 1
+aggregated_proof_block_jump = 16
 prover_address = "sov1lzkjgdaz08su3yevqu6ceywufl35se9f33kztu5cu2spja5hyyf"
 max_number_of_transitions_in_db = 100
 max_number_of_transitions_in_memory = 30
@@ -63,7 +63,7 @@ max_number_of_transitions_in_memory = 30
 [sequencer]
 blob_processing_timeout_secs = 3000
 max_batch_size_bytes = 1048576
-max_concurrent_blobs = 128
+max_concurrent_blobs = 512
 max_allowed_node_distance_behind = 10
 rollup_address = "sov1lzkjgdaz08su3yevqu6ceywufl35se9f33kztu5cu2spja5hyyf"
 [sequencer.preferred]
@@ -73,7 +73,7 @@ disable_state_root_consistency_checks = true
 # "None" - Shutdown the sequencer instead of attempting recovery (default)
 # "TryToSave" - Attempt to recover by flushing batches and catching up with the chain
 recovery_strategy = "TryToSave"
-batch_execution_time_limit_millis = 2000 # Do no more than 2000ms of work per batch, even if the DA layer isn't producing blocks regularly
+batch_execution_time_limit_millis = 350 # Strict batch limit to prevent variance and keep total block time under 1s
 # The sequencer optimistically pre-executes transactions across multiple worker threads.
 # This warms up caches so the main transaction executor can run with ready-to-use data.
 # This variable determines the number of worker threads.

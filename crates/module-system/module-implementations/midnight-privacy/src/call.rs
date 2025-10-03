@@ -8,7 +8,11 @@ use crate::audit::{AuditCiphertext, AuditIndexEntry};
 use crate::event::Event;
 use crate::merkle;
 use crate::state::{Commitment, Hash32, ViewerId};
-use crate::verifier::{mock::AcceptAll, SpendVerifier};
+use crate::verifier::SpendVerifier;
+#[cfg(not(feature = "verify-risc0"))]
+use crate::verifier::mock::AcceptAll;
+#[cfg(feature = "verify-risc0")]
+use crate::verifier::risc0::Risc0Spend;
 use crate::ShieldedPool;
 
 /// Call messages for interacting with the shielded pool.
@@ -83,13 +87,21 @@ impl<S: Spec> ShieldedPool<S> {
         let roots = self.recent_roots.get(state)?.unwrap_or_default();
         ensure!(roots.contains(&anchor_root), "unknown anchor");
 
-        // 2) Verify proof (mock by default, deserialize SpendPublic)
+        // 2) Verify proof (mock by default; RISC0 when feature is enabled)
         let vk_hash = self
             .vk_hash
             .get(state)?
             .ok_or_else(|| anyhow!("vk not set"))?;
-        let verifier = AcceptAll::default();
-        let public = verifier.verify(&proof, vk_hash)?;
+        #[cfg(feature = "verify-risc0")]
+        let public = {
+            let verifier = Risc0Spend::default();
+            verifier.verify(&proof, vk_hash)?
+        };
+        #[cfg(not(feature = "verify-risc0"))]
+        let public = {
+            let verifier = AcceptAll::default();
+            verifier.verify(&proof, vk_hash)?
+        };
 
         // 3) Public inputs checks
         let domain = self

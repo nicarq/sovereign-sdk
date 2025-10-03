@@ -22,11 +22,14 @@ proptest-derive = { workspace = true, optional = true }
 schemars = { workspace = true }
 serde = { workspace = true }
 bincode = { workspace = true }
+clap = { workspace = true }
+hex = { workspace = true }
 
 sov-bank = { workspace = true }
 sov-modules-api = { workspace = true }
 sov-risc0-adapter = { workspace = true, optional = true }
 sov-rollup-interface = { workspace = true, optional = true }
+zk-poc-risc0-methods = { path = "./risc0-methods" }
 
 [dev-dependencies]
 tempfile = { workspace = true }
@@ -35,7 +38,6 @@ serial_test = { workspace = true }
 zk-poc = { path = ".", version = "*", features = ["native"] }
 sov-test-utils = { workspace = true }
 sov-state = { workspace = true, features = ["native"] }
-zk-poc-risc0-methods = { path = "./risc0-methods" }
 
 [features]
 default = ["verify-risc0"]

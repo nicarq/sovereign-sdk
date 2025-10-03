@@ -1,3 +1,43 @@
+//! # Midnight Privacy - Shielded Pool Module
+//!
+//! A privacy-preserving transaction pool using zero-knowledge proofs to hide
+//! transaction details (sender, receiver, amounts) while maintaining verifiability.
+//!
+//! ## Overview
+//!
+//! This module implements a shielded UTXO-like model where:
+//! - **Commitments** represent hidden notes (outputs) in the pool
+//! - **Nullifiers** mark notes as spent without revealing which note
+//! - **Zero-knowledge proofs** ensure transaction validity without exposing private data
+//!
+//! Users can deposit tokens into the pool, perform shielded transfers, and optionally
+//! withdraw back to transparent accounts. Multi-recipient transactions are supported.
+//!
+//! ## Documentation
+//!
+//! For a comprehensive guide including privacy properties, the note lifecycle,
+//! and detailed examples, see [`docs/shielded_pool_guide.md`](../docs/shielded_pool_guide.md).
+//!
+//! ## Quick Start
+//!
+//! ```ignore
+//! // 1. Deposit tokens into the shielded pool
+//! CallMessage::Deposit {
+//!     token_id,
+//!     amount,
+//!     commitment,  // Hash representing your hidden note
+//! }
+//!
+//! // 2. Perform a shielded spend (creates new notes for recipients)
+//! CallMessage::Spend {
+//!     proof,           // Zero-knowledge proof
+//!     anchor_root,     // Recent merkle root
+//!     audit_payloads,  // Optional audit data
+//!     withdraw_to,     // Optional: withdraw to transparent address
+//!     withdraw,        // Optional: withdrawal amount
+//! }
+//! ```
+
 mod call;
 mod event;
 pub mod merkle;
