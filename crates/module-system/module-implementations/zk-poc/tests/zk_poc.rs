@@ -5,6 +5,7 @@ use sov_test_utils::{generate_optimistic_runtime, AsUser, TransactionTestCase};
 use sov_risc0_adapter::host::Risc0Host;
 use sov_rollup_interface::zk::{CodeCommitment, ZkvmHost};
 use std::time::Instant;
+use serial_test::serial;
 
 generate_optimistic_runtime!(ZkPocRuntime <= zk_poc: ZkPoc<S>);
 
@@ -12,6 +13,7 @@ type S = sov_test_utils::TestSpec;
 type RT = ZkPocRuntime<S>;
 
 #[test]
+#[serial]
 fn test_set_even_value_with_valid_proof() {
     println!("test_set_even_value_with_valid_proof");
     if zk_poc_risc0_methods::EVEN_ELF.is_empty() {
@@ -77,6 +79,7 @@ fn test_set_even_value_with_valid_proof() {
 }
 
 #[test]
+#[serial]
 fn test_reject_odd_value() {
     if zk_poc_risc0_methods::EVEN_ELF.is_empty() {
         eprintln!("Skipping real-proof test: RISC0 guest not built (EVEN_ELF empty). Install toolchain or unset SKIP_GUEST_BUILD.");
@@ -97,7 +100,6 @@ fn test_reject_odd_value() {
     let start = Instant::now();
     let method_id_vec = host.code_commitment().encode();
     let elapsed = start.elapsed();
-    println!("code_commitment().encode() took: {:?}", elapsed);
     let mut method_id = [0u8; 32];
     method_id.copy_from_slice(&method_id_vec);
     let genesis = GenesisConfig::from_minimal_config(genesis_config.into(), ZkPocConfig { method_id });
